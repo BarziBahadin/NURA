@@ -170,16 +170,7 @@ curl -X POST http://localhost:8000/v1/knowledge/ingest \
 Edit `manafest/articals.json` to add or update support articles. Restart the API after changes.
 
 Current articles (19 topics):
-- Self-Care app: download, login issues, PIN activation
-- Hakki app: download links
-- Connectivity & APN troubleshooting
-- Sending points between customers
-- Slow internet — step-by-step fix guide
-- HD Call (VoLTE) — what it is, activation (Android & iOS), troubleshooting
-- Package pricing — الشمس، بلوتو، الأرض، القمر، المريخ، الكواكب (with point values)
-- Showroom working hours
-- SIM card availability and pricing (75,000 SYP)
-- Password reset and recovery
+
 
 ### Handbook (RAG retrieval)
 Place PDF/DOCX/TXT files in `ingestion/handbook/` then run:
