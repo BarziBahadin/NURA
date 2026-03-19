@@ -1,0 +1,90 @@
+version: '3.9'
+
+services:
+  nura-api:
+    build: ./api
+    container_name: nura-api
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    volumes:
+      - ./ingestion/handbook:/app/handbook
+      - ./ingestion:/app/ingestion
+      - ./manafest:/app/manafest
+    networks:
+      - nura_network
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: nura-chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - nura_chroma_data:/chroma/chroma
+    networks:
+      - nura_network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: nura-postgres
+    environment:
+      POSTGRES_DB: nura_db
+      POSTGRES_USER: nura_user
+      POSTGRES_PASSWORD: NuraSecure2024!
+    ports:
+      - "5432:5432"
+    volumes:
+      - nura_postgres_data:/var/lib/postgresql/data
+      - ./api/db/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nura_user -d nura_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nura_network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: nura-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - nura_network
+    restart: unless-stopped
+
+  nura-admin:
+    build: ./admin
+    container_name: nura-admin
+    ports:
+      - "3001:80"
+    networks:
+      - nura_network
+    restart: unless-stopped
+
+networks:
+  nura_network:
+    driver: bridge
+
+volumes:
+  nura_postgres_data:
+  nura_chroma_data:

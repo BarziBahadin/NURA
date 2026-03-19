@@ -1,0 +1,50 @@
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+
+# Project intelligence & AI config
+.claude/
+.manafest/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Node / Admin panel
+node_modules/
+admin/dist/
+admin/build/
+*.log
+npm-debug.log*
+
+# Docker volumes & data (if accidentally created locally)
+postgres_data/
+chroma_data/
+
+# Handbook files (may contain sensitive company docs)
+ingestion/handbook/*
+!ingestion/handbook/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# System prompt (contains full knowledge base)
+system_prompt.txt
