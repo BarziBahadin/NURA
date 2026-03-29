@@ -12,9 +12,9 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_key: str = "nura-dev-key-change-in-production"
 
-    ollama_host: str = "http://host.docker.internal:11434"
-    llm_model: str = "llama3.1:8b"
-    embedding_model: str = "nomic-embed-text"
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+    openai_embedding_model: str = "text-embedding-3-small"
 
     postgres_host: str = "postgres"
     postgres_port: int = 5432

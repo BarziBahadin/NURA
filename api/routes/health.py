@@ -1,5 +1,6 @@
 import httpx
 import redis.asyncio as aioredis
+from openai import AsyncOpenAI
 from fastapi import APIRouter
 
 from config import settings
@@ -11,19 +12,19 @@ router = APIRouter()
 async def health_check():
     services = {
         "api": "ok",
-        "ollama": "unknown",
+        "openai": "unknown",
         "redis": "unknown",
         "chromadb": "unknown",
         "postgres": "unknown",
     }
 
-    # Ollama
+    # OpenAI
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.get(f"{settings.ollama_host}/api/tags")
-            services["ollama"] = "ok" if r.status_code == 200 else "error"
+        client = AsyncOpenAI(api_key=settings.openai_api_key)
+        await client.models.list()
+        services["openai"] = "ok"
     except Exception:
-        services["ollama"] = "error"
+        services["openai"] = "error"
 
     # Redis
     try:

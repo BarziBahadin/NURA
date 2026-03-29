@@ -1,9 +1,9 @@
 # NURA — Neural Unified Response Agent
-### [Your Company] · Internal AI Customer Support System
+### Rcell Telecom · Internal AI Customer Support System
 
-NURA is a fully local, Arabic-first AI customer service backend for [Your Company].
-It replaces human call center agents for common support queries, escalates to humans when needed,
-and logs everything for analytics — with zero cloud AI dependency.
+NURA is an Arabic-first AI customer service backend for Rcell Telecom.
+It handles common support queries automatically, escalates to humans when needed,
+and logs everything for analytics — powered by OpenAI GPT.
 
 ---
 
@@ -13,20 +13,21 @@ and logs everything for analytics — with zero cloud AI dependency.
 Customer (Web Widget)
         │
         ▼
-  FastAPI Backend (NURA API · port 8000)
+  FastAPI Backend (NURA API · port 8080)
         │
         ├── Redis · session memory (last 6 turns per conversation)
         │
         ├── RAG Engine
-        │     ├── ChromaDB (vector store · port 8001 internal)
-        │     └── nomic-embed-text via Ollama (embeddings)
+        │     ├── ChromaDB (vector store · port 8001 external)
+        │     └── text-embedding-3-small via OpenAI API
         │
-        ├── LLM: llama3.1:8b via Ollama
-        │     └── SSH tunnel → remote server at 172.24.0.17:11434
+        ├── LLM: gpt-5.4-nano-2026-03-17 via OpenAI API
+        │
+        ├── Text Preprocessor · token reduction on KB & RAG context
         │
         ├── PostgreSQL (conversation logs · port 5432)
         │
-        └── Handoff Controller → Admin Panel (React · port 3001)
+        └── Handoff Controller → Admin Panel (React · port 3004)
 ```
 
 ---
@@ -39,14 +40,21 @@ Customer (Web Widget)
 - CORS configured for local dev (ports 3000, 3001, 5173, 8080)
 
 ### Knowledge System (two layers)
-- **Articles KB** — `manafest/articals.json` loaded at startup and injected directly into every system prompt (always available, no retrieval needed). Covers 19 topics including packages, apps, VoLTE, connectivity, passwords, showroom hours, SIM pricing.
-- **RAG Engine** — LlamaIndex + ChromaDB retrieves the top-3 most relevant handbook chunks per message using semantic search (nomic-embed-text embeddings)
+- **Articles KB** — `.manafest/articals.json` — 20 articles loaded at startup and injected into every system prompt (no retrieval needed). Covers packages, apps, VoLTE, connectivity, passwords, showroom hours, SIM pricing.
+- **RAG Engine** — LlamaIndex + ChromaDB retrieves the top-3 most relevant handbook chunks per message using OpenAI `text-embedding-3-small` embeddings.
+
+### Token Preprocessor
+- `api/core/text_preprocessor.py` — reduces prompt size before sending to OpenAI
+- Articles KB is deduplicated + whitespace-compressed once at startup
+- RAG context is whitespace-compressed per request
+- Estimated 5–15% token savings on the system prompt
 
 ### System Prompt
-- Arabic formal tone, [Your Company] identity
+- Arabic formal tone, Rcell Telecom identity
 - Strict guardrails: refuses off-topic questions, never invents information
+- If info is missing from KB: says so without promising a human transfer
 - Greeting shown once by the frontend — LLM never repeats it
-- Full rendered prompt available in `system_prompt.txt`
+- Full rendered prompt in `.manafest/system_prompt.txt`
 
 ### Session Management
 - Redis-backed sessions with full conversation history
@@ -56,8 +64,8 @@ Customer (Web Widget)
 Escalation triggers (configurable in `.env`):
 - Customer explicitly asks for a human / manager
 - Angry sentiment detected (Arabic + English keyword scoring)
-- AI fails to answer 2 consecutive times
-- Confidence score too low
+- AI fails to answer 2 consecutive times (confidence < 0.05)
+- Configurable via `HANDOFF_TRIGGERS` in `.env`
 
 ### Conversation Logging (PostgreSQL)
 - `conversation_logs` — every message: session, customer, channel, role, text, confidence, escalated flag, timestamp
@@ -65,15 +73,14 @@ Escalation triggers (configurable in `.env`):
 - `ingestion_logs` — handbook ingestion history
 
 ### Admin Panel (`/admin`)
-React + Vite + Tailwind, RTL Arabic UI on port 3001:
-- **Dashboard** — conversation stats and analytics
+React + Vite + Tailwind, RTL Arabic UI on port 3004:
+- **Dashboard** — system health, service statuses, active services count
 - **Live Queue** — escalated sessions waiting for human agents
 - **Session Viewer** — full history, searchable by customer/date/channel
 - **Knowledge Base** — upload handbook files, trigger re-ingestion
 
 ### Test Frontend (`/frontend/index.html`)
 Open directly in browser — no build step needed.
-Orange theme, Noto Sans Arabic font, RTL layout.
 Shows live health status, session ID, confidence score per message.
 
 ---
@@ -81,28 +88,24 @@ Shows live health status, session ID, confidence score per message.
 ## Prerequisites
 
 - **OrbStack** (or Docker Desktop) running on Mac
-- **SSH tunnel** to Ollama server open in a terminal:
-  ```bash
-  ssh -L 11434:localhost:11434 barzi@172.24.0.17 -N
-  ```
-- Models pulled on the remote server:
-  - `llama3.1:8b` (LLM)
-  - `nomic-embed-text` (embeddings)
+- **OpenAI API key** set in `.env`
+
+No SSH tunnel or local GPU required — all AI runs through OpenAI API.
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Open SSH tunnel (keep this terminal open)
-ssh -L 11434:localhost:11434 barzi@172.24.0.17 -N
-
-# 2. Start all services
+# 1. Start all services
 docker compose up -d
 
-# 3. Check everything is healthy
+# 2. Check everything is healthy
 curl -H "Authorization: Bearer nura-dev-key-change-in-production" \
-  http://localhost:8000/v1/health
+  http://localhost:8080/v1/health
+
+# 3. Ingest the handbook into ChromaDB (first time only, or after handbook changes)
+docker exec nura-api python /app/ingestion/ingest.py
 
 # 4. Open the test chat
 open frontend/index.html
@@ -112,15 +115,16 @@ open frontend/index.html
 
 ## Services
 
-| Service      | URL                               | Notes                       |
-|--------------|-----------------------------------|-----------------------------|
-| API          | http://localhost:8000             | FastAPI backend             |
-| API Docs     | http://localhost:8000/docs        | Swagger UI                  |
-| Health Check | http://localhost:8000/v1/health   | All service statuses        |
-| Admin Panel  | http://localhost:3001             | React dashboard             |
-| Test Chat    | `frontend/index.html`             | Open directly in browser    |
-| PostgreSQL   | localhost:5432                    | nura_user / NuraSecure2024! |
-| Redis        | localhost:6379                    | Session cache               |
+| Service      | URL                                | Notes                       |
+|--------------|------------------------------------|-----------------------------|
+| API          | http://localhost:8080              | FastAPI backend             |
+| API Docs     | http://localhost:8080/docs         | Swagger UI                  |
+| Health Check | http://localhost:8080/v1/health    | All service statuses        |
+| Admin Panel  | http://localhost:3004              | React dashboard             |
+| ChromaDB     | http://localhost:8001              | Vector store (internal)     |
+| Test Chat    | `frontend/index.html`              | Open directly in browser    |
+| PostgreSQL   | localhost:5432                     | nura_user / NuraSecure2024! |
+| Redis        | localhost:6379                     | Session cache               |
 
 ---
 
@@ -128,7 +132,7 @@ open frontend/index.html
 
 ### POST /v1/message
 ```bash
-curl -X POST http://localhost:8000/v1/message \
+curl -X POST http://localhost:8080/v1/message \
   -H "Authorization: Bearer nura-dev-key-change-in-production" \
   -H "Content-Type: application/json" \
   -d '{
@@ -143,22 +147,22 @@ Response:
 ```json
 {
   "session_id": "uuid",
-  "response": "تفاصيل الباقات: ...",
+  "response": "أسعار باقات Rcell Telecom هي كالتالي...",
   "channel": "web",
   "escalated": false,
-  "confidence": 0.87
+  "confidence": 0.196
 }
 ```
 
 ### GET /v1/health
 ```bash
 curl -H "Authorization: Bearer nura-dev-key-change-in-production" \
-  http://localhost:8000/v1/health
+  http://localhost:8080/v1/health
 ```
 
 ### POST /v1/knowledge/ingest
 ```bash
-curl -X POST http://localhost:8000/v1/knowledge/ingest \
+curl -X POST http://localhost:8080/v1/knowledge/ingest \
   -H "Authorization: Bearer nura-dev-key-change-in-production"
 ```
 
@@ -167,16 +171,45 @@ curl -X POST http://localhost:8000/v1/knowledge/ingest \
 ## Knowledge Base
 
 ### Articles (always in prompt)
-Edit `manafest/articals.json` to add or update support articles. Restart the API after changes.
+Edit `.manafest/articals.json` to add or update support articles. Restart the API after changes (`docker compose restart nura-api`).
 
-Current articles (19 topics):
-
+Current articles (20 topics):
+- Self-Care app: download, login issues, PIN activation
+- Hakki app: download links
+- Connectivity & APN troubleshooting
+- Sending points between customers
+- Slow internet — step-by-step fix guide
+- HD Call (VoLTE) — what it is, activation (Android & iOS), troubleshooting
+- Package pricing — الشمس، بلوتو، الأرض، القمر، المريخ، الكواكب (with SYP prices and point values)
+- Showroom working hours
+- SIM card availability and pricing (75,000 SYP)
+- Password reset and recovery
 
 ### Handbook (RAG retrieval)
 Place PDF/DOCX/TXT files in `ingestion/handbook/` then run:
 ```bash
 docker exec nura-api python /app/ingestion/ingest.py
 ```
+Currently ingested: call center handbook (8 chunks in ChromaDB).
+
+---
+
+## Token Cost Estimate
+
+Context is sent to OpenAI on **every message**. Approximate breakdown per turn:
+
+| Part | Tokens |
+|------|--------|
+| System prompt + rules | ~200 |
+| Articles KB (compressed) | ~1,600 |
+| RAG context (3 chunks) | ~300 |
+| Conversation history (6 turns) | ~400 |
+| User message | ~30 |
+| **Total input per turn** | **~2,530** |
+| Response output | ~200 |
+| **Total per turn** | **~2,730** |
+
+A 5-turn conversation ≈ 13,650 tokens. Check OpenAI dashboard for `gpt-5.4-nano` pricing.
 
 ---
 
@@ -205,33 +238,40 @@ docker exec -it nura-postgres psql -U nura_user -d nura_db \
 
 ```
 NURA/
-├── .env                          ← all config & secrets (not in git)
-├── docker-compose.yml            ← all services
-├── system_prompt.txt             ← full rendered system prompt for review
-├── manafest/
-│   └── articals.json             ← 19 support articles (injected into every prompt)
+├── .env                              ← all config & secrets (not in git)
+├── docker-compose.yml                ← all services
+├── .manafest/                        ← hidden folder, mounted into Docker
+│   ├── articals.json                 ← 20 support articles (injected into every prompt)
+│   ├── call center hand book ENG draft.pdf  ← source for RAG ingestion
+│   └── system_prompt.txt             ← rendered system prompt for review
 ├── api/
-│   ├── config.py                 ← loads all settings from .env
-│   ├── main.py                   ← FastAPI app, CORS, rate limiting, lifespan
+│   ├── config.py                     ← loads all settings from .env
+│   ├── main.py                       ← FastAPI app, CORS, rate limiting, lifespan
 │   ├── core/
-│   │   ├── orchestrator.py       ← system prompt builder + Ollama LLM call
-│   │   ├── rag_engine.py         ← ChromaDB semantic retrieval
-│   │   ├── session_manager.py    ← Redis session read/write
-│   │   ├── handoff_controller.py ← escalation logic
-│   │   └── sentiment.py          ← Arabic + English negative keyword scoring
+│   │   ├── orchestrator.py           ← system prompt builder + OpenAI LLM call
+│   │   ├── rag_engine.py             ← ChromaDB semantic retrieval (OpenAI embeddings)
+│   │   ├── text_preprocessor.py      ← token reduction pipeline for KB & RAG context
+│   │   ├── session_manager.py        ← Redis session read/write
+│   │   ├── handoff_controller.py     ← escalation logic (threshold: confidence < 0.05)
+│   │   └── sentiment.py              ← Arabic + English negative keyword scoring
 │   ├── routes/
-│   │   ├── message.py            ← POST /v1/message
-│   │   └── health.py             ← GET /v1/health
+│   │   ├── message.py                ← POST /v1/message
+│   │   └── health.py                 ← GET /v1/health (checks OpenAI, Redis, ChromaDB, Postgres)
 │   └── db/
-│       ├── postgres.py           ← DB pool + queries
+│       ├── postgres.py               ← DB pool + queries
 │       └── migrations/001_init.sql
 ├── ingestion/
-│   ├── ingest.py                 ← handbook PDF/DOCX → ChromaDB
-│   └── handbook/                 ← place handbook files here (not in git)
+│   ├── ingest.py                     ← handbook PDF → ChromaDB (uses OpenAI embeddings)
+│   └── handbook/                     ← place handbook files here (not in git)
 ├── frontend/
-│   └── index.html                ← test chat UI (open directly in browser)
+│   └── index.html                    ← test chat UI (open directly in browser)
 └── admin/
-    └── src/App.jsx               ← React admin panel
+    └── src/
+        ├── App.jsx                   ← React admin panel + API config
+        └── pages/
+            ├── Dashboard.jsx         ← health + queue stats
+            ├── Queue.jsx             ← live handoff queue
+            └── Sessions.jsx          ← conversation viewer
 ```
 
 ---
@@ -240,16 +280,19 @@ NURA/
 
 | Variable | Current Value | Description |
 |---|---|---|
-| `LLM_MODEL` | `llama3.1:8b` | Ollama model for responses |
-| `EMBEDDING_MODEL` | `nomic-embed-text` | Ollama model for embeddings |
-| `OLLAMA_HOST` | `http://host.docker.internal:11434` | Ollama via SSH tunnel |
+| `OPENAI_API_KEY` | `sk-proj-...` | OpenAI API key |
+| `OPENAI_MODEL` | `gpt-5.4-nano-2026-03-17` | LLM for responses |
+| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embeddings for RAG |
+| `COMPANY_NAME` | `Rcell Telecom` | Injected into every system prompt |
+| `AGENT_NAME` | `NURA` | Agent identity |
 | `API_KEY` | `nura-dev-key-change-in-production` | **Change before production** |
 | `POSTGRES_PASSWORD` | `NuraSecure2024!` | **Change before production** |
 | `ADMIN_SECRET_KEY` | `admin-secret-change-in-production` | **Change before production** |
 | `RAG_TOP_K` | `3` | Chunks retrieved per query |
 | `RAG_CHUNK_SIZE` | `512` | Token chunk size for ingestion |
-| `UNKNOWN_ANSWER_BEHAVIOR` | `handoff` | What to do when AI has no answer |
+| `HANDOFF_ENABLED` | `true` | Enable/disable human handoff |
 | `HANDOFF_TRIGGERS` | `angry_sentiment,explicit_request,two_failures,keywords` | Escalation triggers |
+| `CORS_ORIGINS` | `http://localhost:3000,...` | Allowed origins |
 
 ---
 
@@ -264,7 +307,6 @@ NURA/
 - [ ] **Admin UI to edit articles** — edit `articals.json` from the admin panel without touching files
 - [ ] **Auto-ingest on handbook upload** — trigger ChromaDB ingestion automatically on file upload
 - [ ] **Confidence threshold tuning** — adjustable in admin panel
-- [ ] **Conversation summarization** — compress long sessions before they exceed LLM context window
 - [ ] **Better Arabic sentiment** — replace keyword scoring with a small Arabic sentiment model
 
 ### Analytics & Admin
@@ -274,7 +316,7 @@ NURA/
 - [ ] **Admin panel login** — JWT auth so the panel is not open to everyone on the network
 
 ### Infrastructure
-- [ ] **Production deployment guide** — nginx, SSL, systemd SSH tunnel keepalive
+- [ ] **Production deployment guide** — nginx, SSL, domain setup
 - [ ] **`.env.example`** — safe template with no real secrets for new deployments
 - [ ] **Automated backups** — PostgreSQL + ChromaDB to local file on schedule
 - [ ] **Docker healthcheck for nura-api** — proper startup dependency ordering
@@ -288,5 +330,4 @@ Before going live, update these in `.env`:
 - [ ] `POSTGRES_PASSWORD` — use a strong password
 - [ ] `ADMIN_SECRET_KEY` — generate a strong random key
 - [ ] `CORS_ORIGINS` — restrict to your actual production domain
-- [ ] Set up a persistent SSH tunnel (autossh or systemd service)
 - [ ] Move secrets to environment secrets manager (not plain `.env` file)

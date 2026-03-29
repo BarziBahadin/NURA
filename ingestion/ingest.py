@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 NURA Handbook Ingestion Script
-Reads PDF/DOCX/TXT files from handbook/, embeds with Ollama nomic-embed-text,
+Reads PDF/DOCX/TXT files from handbook/, embeds with OpenAI text-embedding-3-small,
 stores in ChromaDB collection 'nura_handbook'.
 """
 import logging
@@ -13,10 +13,10 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 HANDBOOK_DIR = os.environ.get("HANDBOOK_DIR", "/app/handbook")
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://host.docker.internal:11434")
 CHROMA_HOST = os.environ.get("CHROMA_HOST", "chromadb")
-CHROMA_PORT = int(os.environ.get("CHROMA_PORT", "8001"))
-EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "nomic-embed-text")
+CHROMA_PORT = int(os.environ.get("CHROMA_PORT", "8000"))
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_EMBEDDING_MODEL = os.environ.get("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 CHUNK_SIZE = int(os.environ.get("RAG_CHUNK_SIZE", "512"))
 CHUNK_OVERLAP = int(os.environ.get("RAG_CHUNK_OVERLAP", "64"))
 
@@ -30,10 +30,14 @@ def main():
             StorageContext,
             VectorStoreIndex,
         )
-        from llama_index.embeddings.ollama import OllamaEmbedding
+        from llama_index.embeddings.openai import OpenAIEmbedding
         from llama_index.vector_stores.chroma import ChromaVectorStore
     except ImportError as e:
         logger.error(f"Missing dependency: {e}. Run: pip install -r requirements.txt")
+        sys.exit(1)
+
+    if not OPENAI_API_KEY:
+        logger.error("OPENAI_API_KEY is not set")
         sys.exit(1)
 
     handbook_path = Path(HANDBOOK_DIR)
@@ -66,8 +70,9 @@ def main():
     vector_store = ChromaVectorStore(chroma_collection=collection)
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
-    embed_model = OllamaEmbedding(
-        model_name=EMBEDDING_MODEL, base_url=OLLAMA_HOST
+    embed_model = OpenAIEmbedding(
+        model=OPENAI_EMBEDDING_MODEL,
+        api_key=OPENAI_API_KEY,
     )
     Settings.embed_model = embed_model
     Settings.chunk_size = CHUNK_SIZE

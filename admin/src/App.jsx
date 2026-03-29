@@ -5,7 +5,7 @@ import LiveQueue from './pages/LiveQueue.jsx'
 import SessionViewer from './pages/SessionViewer.jsx'
 import KnowledgeBase from './pages/KnowledgeBase.jsx'
 
-const API_BASE = 'http://localhost:8000/v1'
+const API_BASE = 'http://localhost:8080/v1'
 const API_KEY = 'nura-dev-key-change-in-production'
 
 export const api = { base: API_BASE, key: API_KEY }

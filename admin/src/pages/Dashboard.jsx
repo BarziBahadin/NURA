@@ -67,8 +67,8 @@ export default function Dashboard() {
       <div className="bg-white rounded-2xl shadow p-5">
         <h2 className="text-base font-semibold text-gray-700 mb-2">معلومات النظام</h2>
         <ul className="text-sm text-gray-600 space-y-1">
-          <li>• نموذج الذكاء الاصطناعي: <span className="font-mono text-blue-600">llama3.1:8b</span></li>
-          <li>• نموذج التضمين: <span className="font-mono text-blue-600">nomic-embed-text</span></li>
+          <li>• نموذج الذكاء الاصطناعي: <span className="font-mono text-blue-600">gpt-5.4-nano-2026-03-17</span></li>
+          <li>• نموذج التضمين: <span className="font-mono text-blue-600">text-embedding-3-small</span></li>
           <li>• الشركة: <span className="font-mono text-blue-600">{window.COMPANY_NAME || 'configured in .env'}</span></li>
           <li>• القناة النشطة: ويب</li>
         </ul>

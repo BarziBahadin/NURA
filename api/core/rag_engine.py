@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 
 import chromadb
 from llama_index.core import Settings as LISettings, StorageContext, VectorStoreIndex
-from llama_index.embeddings.ollama import OllamaEmbedding
+from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
 
 from config import settings
@@ -32,9 +32,9 @@ def get_index() -> VectorStoreIndex:
         vector_store = ChromaVectorStore(chroma_collection=collection)
         storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
-        embed_model = OllamaEmbedding(
-            model_name=settings.embedding_model,
-            base_url=settings.ollama_host,
+        embed_model = OpenAIEmbedding(
+            model=settings.openai_embedding_model,
+            api_key=settings.openai_api_key,
         )
         LISettings.embed_model = embed_model
         LISettings.chunk_size = settings.rag_chunk_size

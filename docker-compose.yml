@@ -5,10 +5,8 @@ services:
     build: ./api
     container_name: nura-api
     ports:
-      - "8000:8000"
+      - "8080:8000"
     env_file: .env
-    environment:
-      - OLLAMA_HOST=http://host.docker.internal:11434
     depends_on:
       postgres:
         condition: service_healthy
@@ -19,12 +17,10 @@ services:
     volumes:
       - ./ingestion/handbook:/app/handbook
       - ./ingestion:/app/ingestion
-      - ./manafest:/app/manafest
+      - ./.manafest:/app/manafest
     networks:
       - nura_network
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   chromadb:
     image: chromadb/chroma:latest
@@ -76,7 +72,7 @@ services:
     build: ./admin
     container_name: nura-admin
     ports:
-      - "3001:80"
+      - "3004:80"
     networks:
       - nura_network
     restart: unless-stopped
