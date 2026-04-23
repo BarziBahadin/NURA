@@ -2,15 +2,16 @@
 ### Rcell Telecom · Internal AI Customer Support System
 
 NURA is an Arabic-first AI customer service backend for Rcell Telecom.
-It handles common support queries automatically, escalates to humans when needed,
-and logs everything for analytics — powered by OpenAI GPT.
+It handles common support queries automatically via a guided decision tree and free-text AI, escalates to humans when needed, and logs everything for analytics — powered by OpenAI GPT.
 
 ---
 
 ## Architecture
 
 ```
-Customer (Web Widget)
+Customer (Web Widget · frontend/widget.html)
+        │
+        ├── Guided Topic Tree (instant, zero-API answers from embedded articles)
         │
         ▼
   FastAPI Backend (NURA API · port 8080)
@@ -25,7 +26,7 @@ Customer (Web Widget)
         │
         ├── Text Preprocessor · token reduction on KB & RAG context
         │
-        ├── PostgreSQL (conversation logs · port 5432)
+        ├── PostgreSQL (conversation logs, analytics · port 5432)
         │
         └── Handoff Controller → Admin Panel (React · port 3004)
 ```
@@ -39,8 +40,15 @@ Customer (Web Widget)
 - Rate limiting via slowapi (30 req/min per customer)
 - CORS configured for local dev (ports 3000, 3001, 5173, 8080)
 
+### Guided Decision Tree (Widget)
+- 5 top-level categories → up to 3 levels deep → 25+ leaf nodes
+- Leaf nodes answer instantly from embedded article content — **no API call, no latency**
+- Answers tagged `source='rules'`, `confidence=0.97` and logged as normal conversations
+- Back / Home navigation with breadcrumb trail
+- Full Arabic + Kurdish (Kurmanji) bilingual support
+
 ### Knowledge System (two layers)
-- **Articles KB** — `.manafest/articals.json` — 20 articles loaded at startup and injected into every system prompt (no retrieval needed). Covers packages, apps, VoLTE, connectivity, passwords, showroom hours, SIM pricing.
+- **Articles KB** — `.manafest/articals.json` — **30 articles** loaded at startup and injected into every system prompt. Covers packages, apps, VoLTE, connectivity, passwords, showroom hours, SIM/eSIM, APN settings, Ana platform, 5G, business internet, Hakki emergency mode, recharge cards, data drain, PUK unlock.
 - **RAG Engine** — LlamaIndex + ChromaDB retrieves the top-3 most relevant handbook chunks per message using OpenAI `text-embedding-3-small` embeddings.
 
 ### Token Preprocessor
@@ -65,12 +73,53 @@ Escalation triggers (configurable in `.env`):
 - Customer explicitly asks for a human / manager
 - Angry sentiment detected (Arabic + English keyword scoring)
 - AI fails to answer 2 consecutive times (confidence < 0.05)
+- Thumbs-down feedback button in the widget
 - Configurable via `HANDOFF_TRIGGERS` in `.env`
 
+### Analytics System (`/api/routes/analytics.py`)
+
+**Full button tracking** — every widget interaction is logged fire-and-forget:
+
+| Event Type | Description |
+|---|---|
+| `chat_open` | Widget opened via toggle button |
+| `chat_close` | Widget closed (toggle or close button) |
+| `lang_switch` | Language changed (ar/ku) |
+| `send_message` | Free-text message sent |
+| `tree_click` | Guided tree topic or leaf selected |
+| `tree_back` | Back button pressed in tree |
+| `tree_home` | Home button pressed in tree |
+| `followup_yes` | "Yes, I have another question" pressed |
+| `followup_no` | "No, thanks" pressed |
+| `feedback_good` | Thumbs-up feedback given |
+| `feedback_bad` | Thumbs-down feedback given |
+
+**Analytics Dashboard** (`frontend/dashboard.html`):
+- KPI cards: sessions, messages, avg confidence, escalation rate, total tree clicks
+- Donut chart: answer source breakdown (Rules / ML / AI / Escalated)
+- Line chart: daily messages + sessions over time
+- Bar chart: busiest hours (UTC, 24h distribution)
+- Horizontal bar list: **all widget button interactions ranked by count**
+- Horizontal bar list: top clicked guided tree topics
+- Table: last 50 conversations with source badge and confidence score
+- Period selector: 7 / 30 / 90 days; manual refresh button
+
 ### Conversation Logging (PostgreSQL)
-- `conversation_logs` — every message: session, customer, channel, role, text, confidence, escalated flag, timestamp
+- `conversation_logs` — every message: session, customer, channel, role, text, confidence, escalated flag, source, timestamp
+- `tree_clicks` — every guided tree navigation event with topic/article info
+- `widget_events` — every button press in the widget (event_type, label, meta)
 - `security_logs` — auth failures and rate limit hits
 - `ingestion_logs` — handbook ingestion history
+
+### Chat Widget (`frontend/widget.html`)
+- Bilingual: Arabic (RTL) and Kurdish Kurmanji (LTR), switchable mid-session
+- Guided topic tree with instant inline answers
+- Free-text input routed to the 3-tier API (Rules → ML → OpenAI)
+- Per-message source badge (Rules / ML / AI) and confidence percentage
+- Thumbs up/down feedback → bad feedback triggers human handoff
+- Follow-up prompt after each answer
+- Escalation banner when transferred to human agent
+- Floating toggle button with notification badge
 
 ### Admin Panel (`/admin`)
 React + Vite + Tailwind, RTL Arabic UI on port 3004:
@@ -78,10 +127,6 @@ React + Vite + Tailwind, RTL Arabic UI on port 3004:
 - **Live Queue** — escalated sessions waiting for human agents
 - **Session Viewer** — full history, searchable by customer/date/channel
 - **Knowledge Base** — upload handbook files, trigger re-ingestion
-
-### Test Frontend (`/frontend/index.html`)
-Open directly in browser — no build step needed.
-Shows live health status, session ID, confidence score per message.
 
 ---
 
@@ -107,24 +152,28 @@ curl -H "Authorization: Bearer nura-dev-key-change-in-production" \
 # 3. Ingest the handbook into ChromaDB (first time only, or after handbook changes)
 docker exec nura-api python /app/ingestion/ingest.py
 
-# 4. Open the test chat
-open frontend/index.html
+# 4. Open the chat widget
+open frontend/widget.html
+
+# 5. Open the analytics dashboard
+open frontend/dashboard.html
 ```
 
 ---
 
 ## Services
 
-| Service      | URL                                | Notes                       |
-|--------------|------------------------------------|-----------------------------|
-| API          | http://localhost:8080              | FastAPI backend             |
-| API Docs     | http://localhost:8080/docs         | Swagger UI                  |
-| Health Check | http://localhost:8080/v1/health    | All service statuses        |
-| Admin Panel  | http://localhost:3004              | React dashboard             |
-| ChromaDB     | http://localhost:8001              | Vector store (internal)     |
-| Test Chat    | `frontend/index.html`              | Open directly in browser    |
-| PostgreSQL   | localhost:5432                     | nura_user / NuraSecure2024! |
-| Redis        | localhost:6379                     | Session cache               |
+| Service            | URL                                        | Notes                        |
+|--------------------|--------------------------------------------|------------------------------|
+| API                | http://localhost:8080                      | FastAPI backend               |
+| API Docs           | http://localhost:8080/docs                 | Swagger UI                   |
+| Health Check       | http://localhost:8080/v1/health            | All service statuses         |
+| Analytics Dashboard| `frontend/dashboard.html`                  | Open directly in browser     |
+| Chat Widget        | `frontend/widget.html`                     | Open directly in browser     |
+| Admin Panel        | http://localhost:3004                      | React dashboard              |
+| ChromaDB           | http://localhost:8001                      | Vector store (internal)      |
+| PostgreSQL         | localhost:5432                             | nura_user / NuraSecure2024!  |
+| Redis              | localhost:6379                             | Session cache                |
 
 ---
 
@@ -150,9 +199,33 @@ Response:
   "response": "أسعار باقات Rcell Telecom هي كالتالي...",
   "channel": "web",
   "escalated": false,
-  "confidence": 0.196
+  "confidence": 0.196,
+  "source": "openai"
 }
 ```
+
+### POST /v1/analytics/click
+Tracks any widget interaction (fire-and-forget from the widget):
+```bash
+curl -X POST http://localhost:8080/v1/analytics/click \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "abc123",
+    "customer_id": "widget-xyz",
+    "event_type": "tree_click",
+    "label": "الإنترنت بطيء",
+    "meta": "slow",
+    "topic_id": "slow",
+    "article_id": 6
+  }'
+```
+
+### GET /v1/analytics/dashboard
+```bash
+curl "http://localhost:8080/v1/analytics/dashboard?days=30"
+```
+
+Returns sessions, messages, confidence, escalation rate, source breakdown, top tree topics, daily volume, hourly distribution, event breakdown, and last 50 conversations.
 
 ### GET /v1/health
 ```bash
@@ -173,17 +246,24 @@ curl -X POST http://localhost:8080/v1/knowledge/ingest \
 ### Articles (always in prompt)
 Edit `.manafest/articals.json` to add or update support articles. Restart the API after changes (`docker compose restart nura-api`).
 
-Current articles (20 topics):
-- Self-Care app: download, login issues, PIN activation
-- Hakki app: download links
-- Connectivity & APN troubleshooting
+Current articles (30 topics):
+- Self-Care app: download, login issues, site access, PIN activation, password change/recovery
+- Hakki app: download links, free emergency use
+- Ana platform: unified login for all Rcell apps
+- Connectivity: APN settings, no-connection troubleshooting
+- Slow internet: 10-step fix guide
+- Fast data drain: background app & update fixes
+- HD Call (VoLTE): what it is, features, device support, activation (Android & iOS), usage, troubleshooting
+- Packages: الشمس، بلوتو، الأرض، القمر، المريخ، الكواكب (SYP prices and point values)
+- SIM card: availability and pricing (75,000 SYP)
+- eSIM: digital SIM info and activation
+- 5G: coming-soon announcement and readiness status
 - Sending points between customers
-- Slow internet — step-by-step fix guide
-- HD Call (VoLTE) — what it is, activation (Android & iOS), troubleshooting
-- Package pricing — الشمس، بلوتو، الأرض، القمر، المريخ، الكواكب (with SYP prices and point values)
+- Scratched/damaged recharge cards
+- PUK unlock procedure
 - Showroom working hours
-- SIM card availability and pricing (75,000 SYP)
-- Password reset and recovery
+- Company coverage: 1,000+ towers, 40+ areas, 1.1M subscribers
+- Business internet: FTTx fiber and 4G corporate plans
 
 ### Handbook (RAG retrieval)
 Place PDF/DOCX/TXT files in `ingestion/handbook/` then run:
@@ -191,25 +271,6 @@ Place PDF/DOCX/TXT files in `ingestion/handbook/` then run:
 docker exec nura-api python /app/ingestion/ingest.py
 ```
 Currently ingested: call center handbook (8 chunks in ChromaDB).
-
----
-
-## Token Cost Estimate
-
-Context is sent to OpenAI on **every message**. Approximate breakdown per turn:
-
-| Part | Tokens |
-|------|--------|
-| System prompt + rules | ~200 |
-| Articles KB (compressed) | ~1,600 |
-| RAG context (3 chunks) | ~300 |
-| Conversation history (6 turns) | ~400 |
-| User message | ~30 |
-| **Total input per turn** | **~2,530** |
-| Response output | ~200 |
-| **Total per turn** | **~2,730** |
-
-A 5-turn conversation ≈ 13,650 tokens. Check OpenAI dashboard for `gpt-5.4-nano` pricing.
 
 ---
 
@@ -221,16 +282,48 @@ docker exec -it nura-postgres psql -U nura_user -d nura_db
 
 # Recent conversations
 docker exec -it nura-postgres psql -U nura_user -d nura_db \
-  -c "SELECT session_id, customer_id, role, message, confidence, escalated, created_at FROM conversation_logs ORDER BY created_at DESC LIMIT 20;"
+  -c "SELECT session_id, customer_message, source, confidence, escalated, created_at FROM conversation_logs ORDER BY created_at DESC LIMIT 20;"
 
 # Escalated sessions only
 docker exec -it nura-postgres psql -U nura_user -d nura_db \
   -c "SELECT * FROM conversation_logs WHERE escalated = true;"
 
-# Count total messages
+# Top widget events
 docker exec -it nura-postgres psql -U nura_user -d nura_db \
-  -c "SELECT COUNT(*) FROM conversation_logs;"
+  -c "SELECT event_type, COUNT(*) FROM widget_events GROUP BY event_type ORDER BY count DESC;"
+
+# Top tree topics
+docker exec -it nura-postgres psql -U nura_user -d nura_db \
+  -c "SELECT topic_label, COUNT(*) AS clicks FROM tree_clicks GROUP BY topic_label ORDER BY clicks DESC LIMIT 10;"
 ```
+
+### Tables
+
+| Table | Purpose |
+|---|---|
+| `conversation_logs` | Every message: session, customer, channel, text, confidence, escalated, source |
+| `widget_events` | Every button press: event_type, label, meta, session, customer |
+| `tree_clicks` | Guided tree navigations with topic_id and article_id |
+| `security_logs` | Auth failures and rate limit hits |
+
+---
+
+## Token Cost Estimate
+
+Context is sent to OpenAI on **every free-text message** (tree answers use zero tokens):
+
+| Part | Tokens |
+|------|--------|
+| System prompt + rules | ~200 |
+| Articles KB (compressed) | ~2,200 |
+| RAG context (3 chunks) | ~300 |
+| Conversation history (6 turns) | ~400 |
+| User message | ~30 |
+| **Total input per turn** | **~3,130** |
+| Response output | ~200 |
+| **Total per turn** | **~3,330** |
+
+A 5-turn conversation ≈ 16,650 tokens. Tree answers cost $0. Check OpenAI dashboard for `gpt-5.4-nano` pricing.
 
 ---
 
@@ -241,7 +334,7 @@ NURA/
 ├── .env                              ← all config & secrets (not in git)
 ├── docker-compose.yml                ← all services
 ├── .manafest/                        ← hidden folder, mounted into Docker
-│   ├── articals.json                 ← 20 support articles (injected into every prompt)
+│   ├── articals.json                 ← 30 support articles (injected into every prompt)
 │   ├── call center hand book ENG draft.pdf  ← source for RAG ingestion
 │   └── system_prompt.txt             ← rendered system prompt for review
 ├── api/
@@ -253,18 +346,21 @@ NURA/
 │   │   ├── text_preprocessor.py      ← token reduction pipeline for KB & RAG context
 │   │   ├── session_manager.py        ← Redis session read/write
 │   │   ├── handoff_controller.py     ← escalation logic (threshold: confidence < 0.05)
-│   │   └── sentiment.py              ← Arabic + English negative keyword scoring
+│   │   ├── sentiment.py              ← Arabic + English negative keyword scoring
+│   │   └── logger.py                 ← log_conversation, log_tree_click, log_widget_event, log_security_event
 │   ├── routes/
 │   │   ├── message.py                ← POST /v1/message
+│   │   ├── analytics.py              ← POST /v1/analytics/click · GET /v1/analytics/dashboard
 │   │   └── health.py                 ← GET /v1/health (checks OpenAI, Redis, ChromaDB, Postgres)
 │   └── db/
-│       ├── postgres.py               ← DB pool + queries
+│       ├── postgres.py               ← DB pool + init_db (creates all tables on startup)
 │       └── migrations/001_init.sql
 ├── ingestion/
 │   ├── ingest.py                     ← handbook PDF → ChromaDB (uses OpenAI embeddings)
 │   └── handbook/                     ← place handbook files here (not in git)
 ├── frontend/
-│   └── index.html                    ← test chat UI (open directly in browser)
+│   ├── widget.html                   ← bilingual chat widget with guided tree + full button tracking
+│   └── dashboard.html                ← analytics dashboard (open directly in browser)
 └── admin/
     └── src/
         ├── App.jsx                   ← React admin panel + API config
@@ -308,12 +404,15 @@ NURA/
 - [ ] **Auto-ingest on handbook upload** — trigger ChromaDB ingestion automatically on file upload
 - [ ] **Confidence threshold tuning** — adjustable in admin panel
 - [ ] **Better Arabic sentiment** — replace keyword scoring with a small Arabic sentiment model
+- [ ] **Expand guided tree** — add more leaf nodes as new articles are added
 
 ### Analytics & Admin
-- [ ] **Dashboard charts** — visual graphs for volume, escalation rate, top questions
+- [x] **Analytics dashboard** — KPIs, charts for volume, escalation rate, top topics (done: `dashboard.html`)
+- [x] **Full button tracking** — every widget interaction logged to `widget_events` (done)
+- [x] **Customer satisfaction rating** — thumbs up/down per bot response (done)
 - [ ] **Export conversations to CSV** — from the admin panel
-- [ ] **Customer satisfaction rating** — post-session thumbs up/down
 - [ ] **Admin panel login** — JWT auth so the panel is not open to everyone on the network
+- [ ] **Real-time dashboard** — WebSocket push instead of manual refresh
 
 ### Infrastructure
 - [ ] **Production deployment guide** — nginx, SSL, domain setup
@@ -331,3 +430,4 @@ Before going live, update these in `.env`:
 - [ ] `ADMIN_SECRET_KEY` — generate a strong random key
 - [ ] `CORS_ORIGINS` — restrict to your actual production domain
 - [ ] Move secrets to environment secrets manager (not plain `.env` file)
+- [ ] Rebuild Docker image after any Python file changes: `docker compose build nura-api`
