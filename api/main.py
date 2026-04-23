@@ -9,7 +9,7 @@ from slowapi.util import get_remote_address
 
 from config import settings
 from db.postgres import init_db
-from routes import handoff, health, knowledge, message, session
+from routes import analytics, handoff, health, knowledge, message, session
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -44,11 +44,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(health.router, prefix="/v1")
-app.include_router(message.router, prefix="/v1")
-app.include_router(session.router, prefix="/v1")
-app.include_router(handoff.router, prefix="/v1")
-app.include_router(knowledge.router, prefix="/v1")
+app.include_router(health.router,     prefix="/v1")
+app.include_router(message.router,    prefix="/v1")
+app.include_router(session.router,    prefix="/v1")
+app.include_router(handoff.router,    prefix="/v1")
+app.include_router(knowledge.router,  prefix="/v1")
+app.include_router(analytics.router,  prefix="/v1")
 
 
 @app.get("/")

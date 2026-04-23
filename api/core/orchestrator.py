@@ -1,5 +1,6 @@
 import json
 import logging
+from pathlib import Path
 from typing import Tuple
 
 from openai import AsyncOpenAI
@@ -13,8 +14,28 @@ logger = logging.getLogger(__name__)
 
 _preprocessor = TextPreprocessor(verbose=False)
 
+# Load ML local model at startup (optional — works without it)
+_conversation_service = None
+try:
+    from core.ml.local_model import LocalModelService
+    from core.ml.conversation import ConversationService
+    _ml = LocalModelService(
+        model_path=Path(settings.ml_model_path),
+        vectorizer_path=Path(settings.ml_vectorizer_path),
+        use_semantic=settings.use_semantic_embeddings,
+        semantic_model_name=settings.semantic_model_name,
+    )
+    _conversation_service = ConversationService(_ml, confidence_threshold=settings.ml_confidence_threshold)
+    logger.info(f"ML local model loaded (threshold={settings.ml_confidence_threshold})")
+except FileNotFoundError:
+    logger.info("ML model not found — run training/cli.py train-model to enable local ML layer")
+except Exception as e:
+    logger.warning(f"ML model could not be loaded: {e}")
+
 # Load articles knowledge base at startup
 _ARTICLES_KB = ""
+_articles = []
+_rules_engine = None
 _articles_path = "/app/manafest/articals.json"
 try:
     with open(_articles_path, "r", encoding="utf-8") as f:
@@ -32,6 +53,12 @@ try:
     )
 except Exception as e:
     logger.warning(f"Could not load articles knowledge base: {e}")
+
+try:
+    from core.rules_engine import RulesEngine
+    _rules_engine = RulesEngine(_articles)
+except Exception as e:
+    logger.warning(f"Rules engine could not be initialized: {e}")
 
 SYSTEM_PROMPT_TEMPLATE = """أنت وكيل خدمة عملاء محترف في شركة {company_name} للاتصالات.
 تحدث دائمًا باللغة العربية الفصحى بأسلوب رسمي ومهذب.
@@ -61,7 +88,22 @@ SYSTEM_PROMPT_TEMPLATE = """أنت وكيل خدمة عملاء محترف في 
 8. لا تبدأ أي رد بعبارة ترحيب مثل "أهلاً وسهلاً" أو "شكراً لتواصلك" — تم إرسال رسالة الترحيب مسبقاً تلقائياً ولا يجب تكرارها أبداً. ابدأ مباشرةً بالإجابة."""
 
 
-async def generate_response(session: Session, message: str) -> Tuple[str, float]:
+async def generate_response(session: Session, message: str) -> Tuple[str, float, str]:
+    # 0. Rules engine — exact article match, zero cost
+    if _rules_engine is not None:
+        rules_result = _rules_engine.match(message)
+        if rules_result:
+            response, confidence = rules_result
+            return response, confidence, "rules"
+
+    # 1. Try local ML model first — free, instant, no API call
+    if _conversation_service is not None:
+        ml_result = _conversation_service.process(message)
+        if ml_result["response"] and ml_result["confidence"] >= settings.ml_confidence_threshold:
+            logger.info(f"ML answered (conf={ml_result['confidence']:.2f}, cat={ml_result['category']})")
+            return ml_result["response"], ml_result["confidence"], "local_model"
+
+    # 2. Fall through to RAG + OpenAI
     rag_context, confidence = await retrieve_context(message)
 
     if not rag_context:
@@ -99,10 +141,11 @@ async def generate_response(session: Session, message: str) -> Tuple[str, float]
         reply = resp.choices[0].message.content.strip()
         if not reply:
             reply = "عذرًا، لم أتمكن من معالجة طلبك. سأقوم بتحويلك إلى أحد أعضاء فريقنا."
-        return reply, confidence
+        return reply, confidence, "openai"
     except Exception as e:
         logger.error(f"OpenAI error: {e}")
         return (
             "عذرًا، يواجه النظام مشكلة مؤقتة. سيتم تحويلك إلى أحد أعضاء فريقنا.",
             0.0,
+            "openai",
         )

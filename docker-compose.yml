@@ -18,6 +18,7 @@ services:
       - ./ingestion/handbook:/app/handbook
       - ./ingestion:/app/ingestion
       - ./.manafest:/app/manafest
+      - ./models:/app/ml_models
     networks:
       - nura_network
     restart: unless-stopped

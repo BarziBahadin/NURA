@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     rag_top_k: int = 3
     unknown_answer_behavior: str = "handoff"
 
+    ml_model_path: str = "/app/ml_models/local_model.pkl"
+    ml_vectorizer_path: str = "/app/ml_models/vectorizer.pkl"
+    ml_confidence_threshold: float = 0.70
+    use_semantic_embeddings: bool = False
+    semantic_model_name: str = "paraphrase-multilingual-MiniLM-L12-v2"
+
     handoff_enabled: bool = True
     handoff_triggers: str = "angry_sentiment,explicit_request,two_failures,keywords"
 

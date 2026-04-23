@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NURA Chat Widget</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', 'Noto Sans Arabic', Tahoma, Arial, sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+    }
+
+    /* ── Floating button ── */
+    #chat-toggle {
+      position: fixed;
+      bottom: 28px;
+      left: 28px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ea580c, #f97316);
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 18px rgba(234,88,12,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+      z-index: 1000;
+    }
+    #chat-toggle:hover { transform: scale(1.08); box-shadow: 0 6px 24px rgba(234,88,12,0.55); }
+
+    #badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      background: #ef476f;
+      color: #fff;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      display: none;
+    }
+
+    /* ── Chat window (centered) ── */
+    #chat-window {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      width: 420px;
+      max-height: 680px;
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 999;
+      transform: translate(-50%, -50%) scale(0.85);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.25s cubic-bezier(.34,1.56,.64,1), opacity 0.2s;
+    }
+    #chat-window.open {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* Header */
+    .chat-header {
+      background: linear-gradient(135deg, #ea580c, #f97316);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 13px;
+      flex-shrink: 0;
+      letter-spacing: -0.5px;
+    }
+    .header-info { flex: 1; }
+    .header-info h3 { color: #fff; font-size: 15px; font-weight: 700; }
+    .header-info span { color: rgba(255,255,255,0.8); font-size: 12px; }
+    .online-dot {
+      width: 8px; height: 8px;
+      background: #06d6a0;
+      border-radius: 50%;
+      display: inline-block;
+      margin: 0 3px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* Language toggle */
+    #lang-toggle {
+      display: flex;
+      align-items: center;
+      background: rgba(255,255,255,0.15);
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1.5px solid rgba(255,255,255,0.35);
+      flex-shrink: 0;
+    }
+    .lang-btn {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.7);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 9px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      font-family: inherit;
+      letter-spacing: 0.3px;
+    }
+    .lang-btn.active { background: rgba(255,255,255,0.9); color: #ea580c; border-radius: 18px; }
+    .lang-btn:hover:not(.active) { color: #fff; }
+
+    #close-btn {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.8);
+      cursor: pointer;
+      font-size: 20px;
+      line-height: 1;
+      padding: 4px;
+    }
+    #close-btn:hover { color: #fff; }
+
+    /* Messages */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      scroll-behavior: smooth;
+    }
+    #messages::-webkit-scrollbar { width: 4px; }
+    #messages::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+
+    .msg {
+      display: flex;
+      flex-direction: column;
+      max-width: 82%;
+      animation: fadeUp 0.2s ease;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .msg.user  { align-self: flex-start; }
+    .msg.bot   { align-self: flex-end; }
+    .msg.agent { align-self: flex-end; }
+
+    .bubble {
+      padding: 9px 13px;
+      border-radius: 16px;
+      font-size: 13.5px;
+      line-height: 1.6;
+      word-break: break-word;
+      white-space: pre-wrap;
+      unicode-bidi: plaintext;
+    }
+    .msg.user .bubble  { background: #f0f2f5; color: #1a1a2e; border-bottom-right-radius: 4px; }
+    .msg.bot  .bubble  { background: linear-gradient(135deg, #ea580c, #f97316); color: #fff; border-bottom-left-radius: 4px; }
+    .msg.agent .bubble { background: linear-gradient(135deg, #1a7a4a, #06d6a0); color: #fff; border-bottom-left-radius: 4px; }
+
+    /* Follow-up bubble */
+    .msg.bot .followup-bubble {
+      margin-top: 5px;
+      padding: 8px 13px;
+      border-radius: 16px;
+      border-bottom-left-radius: 4px;
+      font-size: 13px;
+      background: rgba(234, 88, 12, 0.08);
+      color: #ea580c;
+      border: 1.5px solid rgba(249, 115, 22, 0.35);
+      animation: fadeUp 0.2s ease;
+    }
+    .followup-btns { margin-top: 7px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-start; }
+    .followup-btn {
+      background: #fff;
+      border: 1.5px solid #f97316;
+      color: #ea580c;
+      border-radius: 20px;
+      padding: 4px 11px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, color 0.15s;
+    }
+    .followup-btn:hover { background: #f97316; color: #fff; }
+    .followup-btn.no { border-color: #ccc; color: #888; }
+    .followup-btn.no:hover { background: #f0f2f5; color: #555; }
+
+    /* Meta */
+    .meta {
+      font-size: 10px;
+      color: #aaa;
+      margin-top: 3px;
+      padding: 0 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .msg.user  .meta { align-self: flex-start; }
+    .msg.bot   .meta { align-self: flex-end; flex-direction: row-reverse; }
+    .msg.agent .meta { align-self: flex-end; flex-direction: row-reverse; }
+
+    .source-tag {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .source-tag.local  { background: #d4f7e8; color: #1a7a4a; }
+    .source-tag.openai { background: #e8d4f7; color: #6b1a99; }
+    .source-tag.low    { background: #ffecd4; color: #b45309; }
+
+    /* Typing */
+    #typing {
+      display: none;
+      align-self: flex-end;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, #ea580c, #f97316);
+      border-radius: 18px;
+      border-bottom-left-radius: 4px;
+      animation: fadeUp 0.2s ease;
+      margin: 0 16px 0;
+    }
+    #typing span {
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.8);
+      margin: 0 2px;
+      animation: bounce 1.2s infinite;
+    }
+    #typing span:nth-child(2) { animation-delay: 0.2s; }
+    #typing span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+
+    /* ── Tree navigation panel ── */
+    #tree-panel {
+      border-top: 1px solid #f0f2f5;
+      padding: 10px 14px;
+      flex-shrink: 0;
+      background: #fafafa;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    #tree-panel::-webkit-scrollbar { width: 3px; }
+    #tree-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+
+    .tree-nav-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .tree-crumb {
+      font-size: 10px;
+      color: #aaa;
+      font-weight: 600;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tree-nav-btn {
+      background: #fff7ed;
+      border: 1.5px solid #f97316;
+      color: #ea580c;
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, color 0.15s;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .tree-nav-btn:hover { background: #f97316; color: #fff; }
+    .tree-nav-btn.home {
+      background: none;
+      border-color: #ddd;
+      color: #999;
+    }
+    .tree-nav-btn.home:hover { background: #f0f2f5; color: #555; border-color: #bbb; }
+
+    .tree-level-q {
+      font-size: 11.5px;
+      color: #555;
+      font-weight: 600;
+      margin-bottom: 7px;
+    }
+
+    .tree-options {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .tree-opt {
+      background: #fff;
+      border: 1.5px solid #e0e0e0;
+      color: #333;
+      border-radius: 20px;
+      padding: 5px 13px;
+      font-size: 12.5px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    .tree-opt:hover {
+      background: #fff7ed;
+      border-color: #f97316;
+      color: #ea580c;
+    }
+    .tree-opt.has-children::after {
+      content: ' ›';
+      font-size: 13px;
+      opacity: 0.6;
+    }
+
+    /* Input */
+    .chat-footer {
+      border-top: 1px solid #f0f2f5;
+      padding: 10px 14px;
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      flex-shrink: 0;
+      background: #fff;
+    }
+    #msg-input {
+      flex: 1;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 22px;
+      padding: 9px 16px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      resize: none;
+      max-height: 100px;
+      line-height: 1.4;
+      transition: border-color 0.2s;
+    }
+    #msg-input:focus { border-color: #f97316; }
+    #msg-input::placeholder { color: #bbb; }
+
+    #send-btn {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ea580c, #f97316);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: transform 0.15s, opacity 0.15s;
+    }
+    #send-btn:hover { transform: scale(1.08); }
+    #send-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
+    #send-btn svg { width: 18px; height: 18px; fill: #fff; }
+
+    /* Feedback */
+    .feedback-btns { display: flex; gap: 4px; margin-top: 4px; justify-content: flex-end; }
+    .fb-btn {
+      background: none;
+      border: 1.5px solid #ddd;
+      border-radius: 50%;
+      width: 22px; height: 22px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      color: #bbb;
+      line-height: 1;
+      padding: 0;
+    }
+    .fb-btn.good:hover  { border-color: #06d6a0; color: #06d6a0; }
+    .fb-btn.bad:hover   { border-color: #ef476f; color: #ef476f; }
+    .fb-btn.sel-good    { border-color: #06d6a0; color: #06d6a0; background: rgba(6,214,160,0.1); }
+    .fb-btn.sel-bad     { border-color: #ef476f; color: #ef476f; background: rgba(239,71,111,0.1); }
+    .fb-btn:disabled    { opacity: 0.45; cursor: default; }
+
+    /* Escalation banner */
+    .escalation-banner {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 10px;
+      padding: 9px 13px;
+      font-size: 12.5px;
+      color: #856404;
+      text-align: center;
+      animation: fadeUp 0.2s ease;
+    }
+
+    /* Error bubble */
+    .error-bubble {
+      background: #fff0f0;
+      color: #c0392b;
+      border: 1px solid #f5c6cb;
+      padding: 8px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      align-self: flex-end;
+    }
+
+    @media (max-width: 460px) {
+      #chat-window { width: calc(100vw - 24px); max-height: 90vh; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Floating toggle button -->
+<button id="chat-toggle" aria-label="فتح المحادثة">
+  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="white" viewBox="0 0 24 24">
+    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+  </svg>
+  <div id="badge">1</div>
+</button>
+
+<!-- Chat window -->
+<div id="chat-window" role="dialog" aria-label="نافذة دعم العملاء">
+  <div class="chat-header">
+    <div class="avatar">RC</div>
+    <div class="header-info">
+      <h3 id="header-title">NURA</h3>
+      <span id="header-status">متصل الآن <span class="online-dot"></span></span>
+    </div>
+
+    <div id="lang-toggle" role="group" aria-label="Language">
+      <button class="lang-btn active" data-lang="ar">عربي</button>
+      <button class="lang-btn" data-lang="ku">Kurdî</button>
+    </div>
+
+    <button id="close-btn" aria-label="إغلاق">✕</button>
+  </div>
+
+  <div id="messages"></div>
+
+  <div id="typing">
+    <span></span><span></span><span></span>
+  </div>
+
+  <!-- Guided topic tree navigation panel -->
+  <div id="tree-panel"></div>
+
+  <div class="chat-footer">
+    <button id="send-btn" aria-label="إرسال" disabled>
+      <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </button>
+    <textarea id="msg-input" rows="1" placeholder="اكتب رسالتك هنا…" maxlength="500"></textarea>
+  </div>
+</div>
+
+<script>
+  const API_BASE = 'http://localhost:8080/v1';
+  const API_KEY  = 'nura-dev-key-change-in-production';
+
+  // ── UI strings per language ───────────────────────────────────────────────
+  const UI = {
+    ar: {
+      dir: 'rtl',
+      htmlLang: 'ar',
+      headerTitle: 'NURA',
+      headerStatus: 'متصل الآن',
+      placeholder: 'اكتب رسالتك هنا…',
+      sendAriaLabel: 'إرسال',
+      closeAriaLabel: 'إغلاق',
+      welcome: 'أهلاً وسهلاً، شكراً لتواصلك مع Rcell Telecom!\nاختر موضوعاً من القائمة أدناه أو اكتب سؤالك مباشرةً.',
+      followUpMarker: 'هل يمكنني مساعدتك بشيء آخر؟',
+      yesBtn: 'نعم، لدي سؤال آخر',
+      noBtn: 'لا، شكراً',
+      yesReply: 'بالتأكيد! اختر موضوعاً أو اكتب سؤالك.',
+      noReply: 'العفو! يسعدنا دائماً خدمتك.\nإذا احتجت أي مساعدة مستقبلاً، نحن هنا لك!',
+      noUserText: 'لا، شكراً',
+      errorPrefix: 'تعذر الاتصال بالخادم',
+      escalatingBanner: '⏳ جاري التواصل مع موظف بشري…',
+      agentConnectedBanner: '✅ موظف بشري متصل الآن',
+      agentLabel: 'موظف',
+      treeRoot: 'كيف يمكنني مساعدتك؟',
+      treeBack: '← رجوع',
+      treeHome: '🏠 الرئيسية',
+    },
+    ku: {
+      dir: 'ltr',
+      htmlLang: 'ku',
+      headerTitle: 'NURA',
+      headerStatus: 'Niha ve ye',
+      placeholder: 'Peyama xwe binivîse…',
+      sendAriaLabel: 'Bişîne',
+      closeAriaLabel: 'Bigire',
+      welcome: 'Xêr hatî bo xizmetguzariya xerîdarên Rcell Telecom!\nMijareke ji lîsteyê hilbijêre an pirseke xwe binivîse.',
+      followUpMarker: 'Dikarim di tiştekî din de jî alîkariya te bikim?',
+      yesBtn: 'Erê, pirseke min heye',
+      noBtn: 'Na, spas',
+      yesReply: 'Bêguman! Mijarekê hilbijêre an pirsê binivîse.',
+      noReply: 'Xêr be! Her tim kêfa me tê ku alîkariya te bikin.\nEger pêdiviya te bi alîkariyê hebe, em li vir in!',
+      noUserText: 'Na, spas',
+      errorPrefix: 'Nexşeya serverê nehat',
+      escalatingBanner: '⏳ Wekîlek mirovî têkilî te dide…',
+      agentConnectedBanner: '✅ Wekîlek mirovî niha ve ye',
+      agentLabel: 'Wekîl',
+      treeRoot: 'Çawa dikarim alîkariya te bikim?',
+      treeBack: '← Vegerîn',
+      treeHome: '🏠 Serxane',
+    },
+  };
+
+  // ── Knowledge base (articles embedded for instant, zero-cost answers) ────
+  const ARTICLES = {
+    0: `لتحميل تطبيق الرعاية الذاتية Self-Care:
+
+اندرويد:
+• Google Play: https://play.google.com/store/apps/details?id=com.rcell.selfcareApp
+• Apkpure: https://apkpure.com/ar/rcell-selfcare/com.rcell.selfcareApp
+
+iOS:
+• https://apps.apple.com/us/app/rselfcare/id6473144133
+
+أو زيارة: https://rcell.me/vas/selfcare`,
+
+    1: `في حال واجهتم مشكلة في الوصول لموقع الرعاية الذاتية:
+• تأكد من تحديث المتصفح لآخر إصدار.
+• أو تفريغ سجل المتصفح: الإعدادات > مسح سجل التصفح.`,
+
+    2: `لتفعيل الرمز السري PIN من تطبيق الرعاية الذاتية:
+الإعدادات > تفعيل الرمز السري PIN > اختر رمزاً خاصاً بك > أدخل كلمة المرور > اضغط "تفعيل الرمز السري PIN"`,
+
+    3: `خطوات التحقق من الاتصال:
+١. تحقق من تمكين بيانات الجوال.
+٢. تأكد من صحة إعدادات APN.
+٣. تأكد من ضبط وضع الشبكة (4G أو 3G) بشكل صحيح.
+٤. تأكد من وجود باقة إنترنت نشطة.
+٥. تحقق من عدم الوصول إلى حد البيانات.
+
+إعدادات APN:
+• اندرويد: الإعدادات > الاتصالات > شبكات الهاتف المحمول > أسماء نقاط الوصول
+• iOS: الإعدادات > الخلوي > شبكة الجوال > APN`,
+
+    4: `لإرسال النقاط من تطبيق الرعاية الذاتية:
+اضغط "إرسال" ← أدخل رقم المستقبل ← أدخل كمية النقاط ← اضغط "إرسال"`,
+
+    5: `لتحميل تطبيق حكي:
+
+اندرويد:
+• Google Play: https://play.google.com/store/apps/details?id=com.rcell.app
+• Apkpure: https://apkpure.com/ar/hakki/com.rcell.app
+
+iOS:
+• https://apps.apple.com/us/app/hakki/id6449400694
+
+أو زيارة: https://rcell.me/vas/hakki`,
+
+    6: `لحل مشكلة بطء الإنترنت، اتبع الخطوات بالترتيب:
+
+١. أغلق جميع التطبيقات في الخلفية.
+٢. أوقف تشغيل VPN.
+٣. أوقف تشغيل نقطة الاتصال.
+٤. تأكد من استخدام شريحة Rcell وتعطيل الشرائح الأخرى.
+٥. شغّل وضع الطائرة ثم أوقفه.
+٦. أعد تشغيل الجهاز.
+٧. حدّث نظام التشغيل.
+٨. أجرِ اختبار السرعة على fast.com وتحقق من التحسن.
+٩. إن استمرت المشكلة، غيّر موقعك وحاول مجدداً.
+١٠. إن لم يتحسن الأمر، يرجى رفع تذكرة شكوى.`,
+
+    7: `HD Call (VoLTE) هي تقنية المكالمات الصوتية بتقنية LTE.
+تتيح إجراء مكالمات عبر شبكة 4G-LTE بدلاً من شبكات 2G أو 3G القديمة.`,
+
+    8: `مميزات HD Call (VoLTE):
+• جودة صوت أعلى: أوضح وأنقى.
+• اتصال أسرع: توصيل المكالمات بشكل أسرع.
+• البيانات + الصوت معاً: تصفح الإنترنت أثناء المكالمة دون التبديل إلى 3G.`,
+
+    9: `للتحقق من دعم هاتفك لـ HD Call:
+• في إعدادات الهاتف: ابحث عن "VoLTE" أو "4G Calling" في إعدادات الشبكة.
+• مواصفات الجهاز: تحقق في دليل هاتفك أو عبر الإنترنت.
+• أو تواصل مع شركة الاتصالات مباشرةً.`,
+
+    10: `لتفعيل HD Call (VoLTE):
+
+اندرويد:
+١. الإعدادات > الاتصالات > شبكات الهاتف المحمول
+٢. فعّل "مكالمات VoLTE" أو "مكالمات 4G"
+
+آيفون:
+١. الإعدادات > خلوي > خيارات البيانات الخلوية
+٢. اختر "تمكين LTE" > "الصوت والبيانات"`,
+
+    11: `بعد تشغيل HD Call، ما عليك سوى الاتصال كالمعتاد.
+سيستخدم هاتفك تقنية LTE تلقائياً إذا كانت الشبكة ومنطقتك تدعمها.`,
+
+    12: `استكشاف أخطاء HD Call (VoLTE):
+
+١. أعد تشغيل هاتفك.
+٢. تحقق من توفر 4G/LTE في منطقتك.
+٣. ابحث عن أي انقطاع معلن من شركة الاتصالات.
+٤. شغّل وضع الطائرة ثم أوقفه.
+٥. أعد ضبط إعدادات الشبكة:
+   • اندرويد: الإعدادات > النظام > إعادة ضبط > إعادة ضبط إعدادات الشبكة
+   • آيفون: الإعدادات > عام > إعادة تعيين > إعادة ضبط إعدادات الشبكة
+٦. تحقق من إعدادات APN.
+٧. جرّب شريحة SIM في جهاز آخر.`,
+
+    13: `إذا كنت تواجه مشكلة في تسجيل الدخول إلى تطبيق الرعاية الذاتية:
+
+• حدّث التطبيق والمتصفح لآخر إصدار.
+• عطّل VPN إن كنت تستخدمه.
+• جرّب إصدار الويب: https://my.rcell.me/
+
+إذا استمرت المشكلة، تواصل مع فريق الدعم.`,
+
+    14: `لتغيير كلمة المرور عبر التطبيق:
+
+١. افتح الواجهة الرئيسية للتطبيق.
+٢. اضغط على زر الخيارات من أعلى الشاشة.
+٣. اختر "تغيير كلمة المرور".
+٤. أدخل كلمة مرور جديدة (أرقام وحروف).
+٥. اضغط "تأكيد".
+
+لا تحتاج للتواصل مع الدعم الفني لتغيير كلمة المرور.`,
+
+    16: `تفاصيل الباقات والأسعار:
+
+• الشمس:    1 GB  يومياً     = 4,500 ل.س   (3 نقاط)
+• بلوتو:    3 GB  أسبوعياً   = 10,500 ل.س  (7 نقاط)
+• الأرض:    9 GB  شهرياً     = 25,000 ل.س  (16 نقطة)
+• القمر:    5 GB  شهرياً     = 20,000 ل.س  (11 نقطة)
+• المريخ:   20 GB شهرياً     = 55,000 ل.س  (36 نقطة)
+• الكواكب:  40 GB شهرياً     = 100,000 ل.س (66 نقطة)
+
+النقطة الواحدة = 1,500 ليرة سورية`,
+
+    17: `ساعات العمل:
+• السبت: 8:00 ص – 4:00 م
+• الأحد – الخميس: 8:00 ص – 10:00 م
+• الجمعة: عطلة رسمية`,
+
+    18: `شرائح SIM متوفرة الآن.
+يمكنك شراؤها من مراكزنا ونقاط البيع المعتمدة في مدينتك بسعر 75,000 ليرة سورية.`,
+
+    19: `لاستعادة كلمة المرور:
+الإعدادات > تعديل الملف الشخصي > اضغط "الاستعادة هنا"`,
+
+    20: `منصة آنا (Ana) — حساب واحد لجميع تطبيقات Rcell
+
+منصة آنا هي نظام تسجيل دخول موحد يتيح الدخول إلى جميع تطبيقات Rcell بحساب واحد.
+
+التطبيقات المدعومة:
+• تطبيق Self-Care (رائد)
+• تطبيق حكي
+• تطبيقات Rcell القادمة
+
+رابط المنصة: ana.rcell.me
+متاح على: الويب وAndroid
+
+المميزات:
+• لا تحتاج أكثر من حساب واحد لجميع التطبيقات.
+• إدارة وتحديث معلوماتك الشخصية من مكان واحد.
+• تجربة دخول موحدة واحترافية.`,
+
+    21: `إعدادات APN الصحيحة لشبكة Rcell:
+
+احذف جميع إعدادات APN الحالية ثم أضف إعداداً جديداً:
+• الاسم: internet
+• APN: internet
+• نوع الشبكة: LTE
+• النوع: default
+
+خطوات على اندرويد:
+الإعدادات ← الاتصالات ← شبكات الهاتف المحمول ← أسماء نقاط الوصول ← أضف جديد
+
+خطوات على iOS:
+الإعدادات ← الخلوي ← شبكة الجوال ← APN
+
+بعد الإضافة، أعد تشغيل الجهاز أو شغّل وضع الطائرة 30 ثانية ثم أوقفه.`,
+
+    22: `إذا كان رصيد الإنترنت ينتهي بسرعة:
+
+١. عطّل التحديثات التلقائية للتطبيقات:
+   • اندرويد: متجر Play ← الإعدادات ← تحديث التطبيقات التلقائي ← إيقاف
+   • iOS: الإعدادات ← App Store ← تحديثات التطبيقات ← إيقاف
+
+٢. تحقق من استهلاك كل تطبيق:
+   الإعدادات ← الاتصالات ← استخدام البيانات
+   (شاهد أي تطبيق يستهلك الأكثر)
+
+٣. أوقف تحديثات الخلفية:
+   • اندرويد: الإعدادات ← تطبيقات ← استهلاك البطارية في الخلفية
+   • iOS: الإعدادات ← عام ← تحديث التطبيقات في الخلفية ← إيقاف
+
+٤. إذا استمرت المشكلة، تواصل مع فريق الدعم لفحص الحساب.`,
+
+    23: `إذا كانت بطاقة SIM مقفلة وتطلب رمز PUK:
+
+⚠️ تحذير: إدخال PUK خاطئ 10 مرات يعطّل الشريحة نهائياً — لا تخمّن.
+
+للحصول على رمز PUK:
+• تواصل مع فريق دعم Rcell مباشرةً.
+• أو زر أقرب مركز خدمة Rcell مع هوية شخصية.
+
+ما تحتاجه عند التواصل:
+• رقم الهاتف المسجل.
+• صورة واضحة من كلا الجانبين لبطاقة SIM.
+• هوية وطنية أو جواز سفر.`,
+
+    24: `شريحة eSIM الرقمية من Rcell
+
+eSIM هي شريحة SIM رقمية مدمجة في الجهاز تغنيك عن الشريحة الفيزيائية.
+
+مميزات eSIM:
+• لا حاجة لشريحة فيزيائية.
+• تبديل سريع بين مشغلي الشبكات وخطط البيانات.
+• مثالية للأجهزة اللوحية والساعات الذكية.
+• تدعم خطين على جهاز واحد (eSIM + SIM فيزيائية).
+
+للاستفسار عن توفر eSIM أو تفعيلها:
+زر أقرب مركز خدمة Rcell أو تواصل مع فريق الدعم.`,
+
+    25: `شبكة الجيل الخامس 5G — قريباً من Rcell
+
+Rcell في المراحل النهائية لإطلاق شبكة 5G في سوريا.
+
+ما تم إنجازه:
+• تحديث الأبراج والمحطات بأحدث تقنيات 5G.
+• التوافق مع أحدث الهواتف الداعمة لـ 5G.
+• اجتياز اختبارات الاستقرار والأداء الفعلية.
+
+ما يعنيه لك:
+• سرعات إنترنت غير مسبوقة.
+• زمن استجابة منخفض جداً.
+• تجربة اتصال ثورية.
+
+سيتم الإعلان عن موعد الإطلاق الرسمي قريباً.`,
+
+    26: `أرقام وحقائق شركة Rcell:
+
+• أبراج التغطية: أكثر من 1,000 برج
+• المناطق المغطاة: أكثر من 40 منطقة في سوريا
+• عدد المشتركين: أكثر من 1.1 مليون مشترك
+• مراكز خدمة العملاء: أكثر من 11 مركز
+• نقاط البيع المعتمدة: أكثر من 2,000 نقطة
+
+للعثور على أقرب مركز خدمة أو نقطة بيع:
+• أخبر فريق الدعم باسم مدينتك وسيرشدونك.
+• أو زر الموقع الرسمي: www.rcell.me`,
+
+    27: `خدمة إنترنت الأعمال من Rcell
+
+FTTx — الألياف الضوئية للأعمال:
+• إنترنت فائق السرعة بالألياف الضوئية.
+• اتصال مستقر وغير منقطع مناسب للشركات.
+
+الإنترنت الشبكي 4G للشركات:
+• حزم شرائح متعددة حسب احتياج الشركة (صغيرة أو كبيرة).
+• بوابة إدارة مخصصة للتحكم بالشرائح وشحن الرصيد.
+• مرونة كاملة في التخصيص والإدارة.
+
+للاستفسار عن خدمات الأعمال:
+تواصل مع فريق المبيعات عبر: www.rcell.me`,
+
+    28: `استخدام تطبيق حكي مجاناً في حالات الطوارئ
+
+تطبيق حكي يتيح التواصل مجاناً حتى بعد انتهاء رصيدك!
+
+كيف يعمل:
+• حتى لو انتهى رصيدك، يمكنك استخدام حكي للتواصل في الطوارئ.
+• مثالي للاتصال بالعائلة والأصدقاء في الأوقات الحرجة.
+
+للاستفادة:
+١. حمّل تطبيق حكي إن لم يكن مثبتاً.
+٢. سجّل الدخول باستخدام حساب آنا (Ana).
+٣. استخدم التطبيق للتواصل بشكل مجاني.
+
+تحميل حكي:
+• اندرويد: https://rcell.me/vas/hakki
+• iOS: https://apps.apple.com/us/app/hakki/id6449400694`,
+
+    29: `إذا كانت بطاقة الشحن محكوكة أو تالفة:
+
+لا يمكن استرداد الرمز مباشرةً — يجب التواصل مع فريق الدعم.
+
+ما تحتاج لتقديمه:
+• صورة واضحة ومضيئة للبطاقة من الوجهين.
+• الرقم المطبوع على البطاقة إن كان مقروءاً.
+
+الخطوات:
+١. تواصل مع فريق دعم Rcell.
+٢. أرسل صورة واضحة للبطاقة.
+٣. سيراجع الفريق التقني البطاقة ويرسل الرمز إن أمكن.
+
+ملاحظة: كلما كانت الصورة أوضح، كانت المعالجة أسرع.`,
+  };
+
+  // ── Topic tree (general → specific) ──────────────────────────────────────
+  // Each node: { id, label:{ar,ku}, children? } | leaf: { id, label:{ar,ku}, article }
+  const TOPIC_TREE = {
+    id: 'root',
+    label: { ar: 'كيف يمكنني مساعدتك؟', ku: 'Çawa dikarim alîkariya te bikim?' },
+    children: [
+      {
+        id: 'apps',
+        label: { ar: '📱 التطبيقات', ku: '📱 Aplikasyon' },
+        children: [
+          {
+            id: 'selfcare',
+            label: { ar: 'تطبيق Self-Care', ku: 'Apî Self-Care' },
+            children: [
+              { id: 'sc_dl',     label: { ar: 'تحميل التطبيق',           ku: 'Daxistina aplikasyonê'  }, article: 0  },
+              { id: 'sc_login',  label: { ar: 'مشكلة في تسجيل الدخول',   ku: 'Pirsgirêka têketinê'   }, article: 13 },
+              { id: 'sc_access', label: { ar: 'لا أستطيع الوصول للموقع', ku: 'Nikarin gihîjin malperê'}, article: 1  },
+            ],
+          },
+          {
+            id: 'hakki',
+            label: { ar: 'تطبيق حكي', ku: 'Apî Hakki' },
+            children: [
+              { id: 'hk_dl',  label: { ar: 'تحميل التطبيق',                ku: 'Daxistina aplikasyonê'     }, article: 5  },
+              { id: 'hk_sos', label: { ar: 'الاستخدام المجاني في الطوارئ', ku: 'Bikaranîna belaş a acil'   }, article: 28 },
+            ],
+          },
+          { id: 'ana', label: { ar: 'منصة آنا (Ana)', ku: 'Platforma Ana' }, article: 20 },
+        ],
+      },
+      {
+        id: 'internet',
+        label: { ar: '🌐 الإنترنت والاتصال', ku: '🌐 Înternetê û Pêwendî' },
+        children: [
+          { id: 'slow',   label: { ar: 'الإنترنت بطيء',  ku: 'Înternetê hêdî ye'  }, article: 6  },
+          { id: 'noconn', label: { ar: 'لا يوجد اتصال',  ku: 'Pêwendî tune'        }, article: 3  },
+          { id: 'apn',    label: { ar: 'إعدادات APN',    ku: 'Mîhengên APN'        }, article: 21 },
+          { id: 'fiveg',  label: { ar: '5G — قريباً',    ku: '5G — nêzîk e'        }, article: 25 },
+          {
+            id: 'hdcall',
+            label: { ar: 'HD Call (VoLTE)', ku: 'HD Call (VoLTE)' },
+            children: [
+              { id: 'hd_what', label: { ar: 'ما هو HD Call؟',     ku: 'HD Call çi ye?'              }, article: 7  },
+              { id: 'hd_why',  label: { ar: 'مميزاته',             ku: 'Taybetmendiyên wê'           }, article: 8  },
+              { id: 'hd_sup',  label: { ar: 'هل هاتفي يدعمه؟',    ku: 'Têlefona min piştgirî dide?' }, article: 9  },
+              { id: 'hd_act',  label: { ar: 'كيف أفعّله؟',         ku: 'Çawa çalak bikim?'           }, article: 10 },
+              { id: 'hd_use',  label: { ar: 'كيف أستخدمه؟',       ku: 'Çawa bikar bînim?'           }, article: 11 },
+              { id: 'hd_fix',  label: { ar: 'مشكلة في HD Call',    ku: 'Pirsgirêka HD Call'          }, article: 12 },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'account',
+        label: { ar: '🔐 الحساب والأمان', ku: '🔐 Hesab û Ewlekarî' },
+        children: [
+          {
+            id: 'password',
+            label: { ar: 'كلمة المرور', ku: 'Şîfre' },
+            children: [
+              { id: 'pw_change',  label: { ar: 'تغيير كلمة المرور', ku: 'Guherandina şîfreyê'        }, article: 14 },
+              { id: 'pw_recover', label: { ar: 'نسيت كلمة المرور',  ku: 'Şîfreya min ji bîra min çû' }, article: 19 },
+            ],
+          },
+          { id: 'pin',        label: { ar: 'الرمز السري PIN',        ku: 'Koda PIN'           }, article: 2  },
+          { id: 'login_prob', label: { ar: 'مشكلة في تسجيل الدخول', ku: 'Pirsgirêka têketinê' }, article: 13 },
+          { id: 'puk',        label: { ar: 'SIM مقفلة / رمز PUK',   ku: 'SIM kilêrkirî / PUK' }, article: 23 },
+        ],
+      },
+      {
+        id: 'packages',
+        label: { ar: '📦 الباقات والخدمات', ku: '📦 Pakêt û Xizmetguzarî' },
+        children: [
+          { id: 'pkg_prices', label: { ar: 'أسعار الباقات',         ku: 'Bihayên pakêtan'   }, article: 16 },
+          { id: 'sim',        label: { ar: 'شريحة SIM',             ku: 'Karta SIM'         }, article: 18 },
+          { id: 'esim',       label: { ar: 'eSIM الرقمية',          ku: 'eSIM Dijîtal'      }, article: 24 },
+          { id: 'points',     label: { ar: 'إرسال النقاط',          ku: 'Şandina xalan'     }, article: 4  },
+          { id: 'fastdata',   label: { ar: 'الرصيد ينتهي بسرعة',   ku: 'Balans zû diqede'  }, article: 22 },
+          { id: 'scratchcard',label: { ar: 'بطاقة شحن محكوكة',      ku: 'Karta şarjê xerabûye'}, article: 29 },
+        ],
+      },
+      {
+        id: 'info',
+        label: { ar: 'ℹ️ معلومات عامة', ku: 'ℹ️ Agahiyên Giştî' },
+        children: [
+          { id: 'hours',    label: { ar: 'ساعات العمل',          ku: 'Demjimêrên xebatê'   }, article: 17 },
+          { id: 'coverage', label: { ar: 'تغطية الشركة ومراكزها', ku: 'Nixumandin û navendên pargîdaniyê' }, article: 26 },
+          { id: 'business', label: { ar: 'إنترنت الأعمال FTTx',  ku: 'Înterneta karsaziyê FTTx'          }, article: 27 },
+        ],
+      },
+    ],
+  };
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let currentLang        = 'ar';
+  let sessionId          = null;
+  let customerId         = 'widget-' + Math.random().toString(36).substr(2, 8);
+  let isOpen             = false;
+  let welcomed           = false;
+  let isEscalated        = false;
+  let escalationBannerEl = null;
+  let treeStack          = []; // stack of navigated parent nodes (not including root)
+
+  // ── DOM ───────────────────────────────────────────────────────────────────
+  const toggle      = document.getElementById('chat-toggle');
+  const win         = document.getElementById('chat-window');
+  const closeBtn    = document.getElementById('close-btn');
+  const msgInput    = document.getElementById('msg-input');
+  const sendBtn     = document.getElementById('send-btn');
+  const messagesEl  = document.getElementById('messages');
+  const typingEl    = document.getElementById('typing');
+  const badge       = document.getElementById('badge');
+  const treePanel   = document.getElementById('tree-panel');
+  const headerTitle = document.getElementById('header-title');
+  const headerStatus= document.getElementById('header-status');
+  const langBtns    = document.querySelectorAll('.lang-btn');
+
+  // ── Tree helpers ──────────────────────────────────────────────────────────
+  function treeLabel(node) {
+    return node.label[currentLang] || node.label.ar;
+  }
+
+  function currentTreeNode() {
+    return treeStack.length > 0 ? treeStack[treeStack.length - 1] : TOPIC_TREE;
+  }
+
+  function renderTree() {
+    const t    = UI[currentLang];
+    const node = currentTreeNode();
+    treePanel.innerHTML = '';
+
+    // Back / home buttons (only when navigated below root)
+    if (treeStack.length > 0) {
+      const navBar = document.createElement('div');
+      navBar.className = 'tree-nav-bar';
+
+      const backBtn = document.createElement('button');
+      backBtn.className = 'tree-nav-btn';
+      backBtn.textContent = t.treeBack;
+      backBtn.addEventListener('click', () => {
+        track('tree_back', treeLabel(treeStack[treeStack.length - 1]), '');
+        treeStack.pop();
+        renderTree();
+      });
+      navBar.appendChild(backBtn);
+
+      if (treeStack.length > 1) {
+        const homeBtn = document.createElement('button');
+        homeBtn.className = 'tree-nav-btn home';
+        homeBtn.textContent = t.treeHome;
+        homeBtn.addEventListener('click', () => {
+          track('tree_home', '', '');
+          treeStack = [];
+          renderTree();
+        });
+        navBar.appendChild(homeBtn);
+      }
+
+      // Breadcrumb trail
+      const crumb = document.createElement('span');
+      crumb.className = 'tree-crumb';
+      crumb.textContent = treeStack.map(n => treeLabel(n)).join(' › ');
+      navBar.appendChild(crumb);
+
+      treePanel.appendChild(navBar);
+    }
+
+    // Current level question
+    const q = document.createElement('div');
+    q.className = 'tree-level-q';
+    q.textContent = treeLabel(node);
+    treePanel.appendChild(q);
+
+    // Options for this level
+    const optsDiv = document.createElement('div');
+    optsDiv.className = 'tree-options';
+
+    (node.children || []).forEach(child => {
+      const btn = document.createElement('button');
+      btn.className = 'tree-opt' + (child.children ? ' has-children' : '');
+      btn.textContent = treeLabel(child);
+      btn.addEventListener('click', () => {
+        track('tree_click', treeLabel(child), child.id, { topic_id: child.id, article_id: child.article ?? null });
+        if (child.article !== undefined) {
+          handleLeaf(child);
+        } else if (child.children) {
+          treeStack.push(child);
+          renderTree();
+        }
+      });
+      optsDiv.appendChild(btn);
+    });
+
+    treePanel.appendChild(optsDiv);
+  }
+
+  function handleLeaf(node) {
+    const content = ARTICLES[node.article];
+    if (content === undefined) return;
+
+    // Show user's selection as a user bubble
+    appendUserMsg(treeLabel(node));
+    showTyping();
+
+    setTimeout(() => {
+      hideTyping();
+      appendBotMsg(content, 0.97, 'rules');
+      // Reset tree to root after answering
+      treeStack = [];
+      renderTree();
+    }, 450);
+  }
+
+  // ── Language ──────────────────────────────────────────────────────────────
+  function applyLang(lang) {
+    currentLang = lang;
+    const t = UI[lang];
+
+    document.documentElement.setAttribute('lang', t.htmlLang);
+    document.documentElement.setAttribute('dir', t.dir);
+    win.setAttribute('dir', t.dir);
+    msgInput.setAttribute('dir', t.dir);
+    msgInput.placeholder = t.placeholder;
+    headerTitle.textContent = t.headerTitle;
+    headerStatus.innerHTML = t.headerStatus + ' <span class="online-dot"></span>';
+
+    langBtns.forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+    sendBtn.setAttribute('aria-label', t.sendAriaLabel);
+    closeBtn.setAttribute('aria-label', t.closeAriaLabel);
+
+    // Re-render tree in new language (reset to root on language switch)
+    treeStack = [];
+    renderTree();
+
+    if (welcomed) {
+      messagesEl.innerHTML = '';
+      appendBotMsg(t.welcome, null, null);
+    }
+  }
+
+  langBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.lang === currentLang) return;
+      track('lang_switch', btn.dataset.lang, '');
+      applyLang(btn.dataset.lang);
+    });
+  });
+
+  // ── Open / close ──────────────────────────────────────────────────────────
+  function openChat() {
+    isOpen = true;
+    win.classList.add('open');
+    badge.style.display = 'none';
+    setTimeout(() => msgInput.focus(), 250);
+  }
+  function closeChat() {
+    isOpen = false;
+    win.classList.remove('open');
+  }
+
+  toggle.addEventListener('click', () => {
+    track(isOpen ? 'chat_close' : 'chat_open', 'toggle_btn', '');
+    isOpen ? closeChat() : openChat();
+    if (!welcomed && isOpen) {
+      welcomed = true;
+      badge.style.display = 'none';
+      setTimeout(() => appendBotMsg(UI[currentLang].welcome, null, null), 300);
+    }
+  });
+  closeBtn.addEventListener('click', () => { track('chat_close', 'close_btn', ''); closeChat(); });
+
+  // ── Input ──────────────────────────────────────────────────────────────────
+  msgInput.addEventListener('input', () => {
+    msgInput.style.height = 'auto';
+    msgInput.style.height = Math.min(msgInput.scrollHeight, 100) + 'px';
+    sendBtn.disabled = msgInput.value.trim() === '';
+  });
+  msgInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+  sendBtn.addEventListener('click', sendMessage);
+
+  // ── Render helpers ─────────────────────────────────────────────────────────
+  function appendUserMsg(text) {
+    const div = document.createElement('div');
+    div.className = 'msg user';
+    div.innerHTML = `<div class="bubble">${escHtml(text)}</div>`;
+    messagesEl.appendChild(div);
+    scrollBottom();
+  }
+
+  function appendBotMsg(text, confidence, source) {
+    const t   = UI[currentLang];
+    const div = document.createElement('div');
+    div.className = 'msg bot';
+
+    const pct   = confidence != null ? Math.round(confidence * 100) + '%' : '';
+    const tag   = sourceTag(source);
+    const label = sourceLabel(source);
+
+    const hasFollowUp = text.includes(t.followUpMarker);
+    const mainText = hasFollowUp
+      ? text.substring(0, text.lastIndexOf(t.followUpMarker)).trimEnd()
+      : text;
+
+    div.innerHTML = `
+      <div class="bubble">${escHtml(mainText)}</div>
+      <div class="meta">
+        ${pct   ? `<span>${pct}</span>` : ''}
+        ${label ? `<span class="source-tag ${tag}">${label}</span>` : ''}
+      </div>`;
+
+    if (source) {
+      const fbDiv = document.createElement('div');
+      fbDiv.className = 'feedback-btns';
+      const btnGood = document.createElement('button');
+      btnGood.className = 'fb-btn good'; btnGood.textContent = '✓';
+      btnGood.title = currentLang === 'ar' ? 'إجابة صحيحة' : 'Bersiv rast e';
+      const btnBad  = document.createElement('button');
+      btnBad.className  = 'fb-btn bad';  btnBad.textContent  = '✗';
+      btnBad.title = currentLang === 'ar' ? 'إجابة خاطئة' : 'Bersiv xelet e';
+      btnGood.addEventListener('click', () => { track('feedback_good', source || '', ''); onFeedback(true,  btnGood, btnBad); });
+      btnBad.addEventListener('click',  () => { track('feedback_bad',  source || '', ''); onFeedback(false, btnGood, btnBad); });
+      fbDiv.appendChild(btnGood);
+      fbDiv.appendChild(btnBad);
+      div.appendChild(fbDiv);
+    }
+
+    messagesEl.appendChild(div);
+    scrollBottom();
+
+    if (hasFollowUp) {
+      setTimeout(() => {
+        const fDiv = document.createElement('div');
+        fDiv.className = 'msg bot';
+        fDiv.innerHTML = `
+          <div class="followup-bubble">
+            ${escHtml(t.followUpMarker)}
+            <div class="followup-btns">
+              <button class="followup-btn yes-btn">${escHtml(t.yesBtn)}</button>
+              <button class="followup-btn no no-btn">${escHtml(t.noBtn)}</button>
+            </div>
+          </div>`;
+        fDiv.querySelector('.yes-btn').addEventListener('click', () => {
+          track('followup_yes', '', '');
+          fDiv.querySelector('.followup-btns').remove();
+          appendBotMsg(t.yesReply, null, null);
+          msgInput.focus();
+        });
+        fDiv.querySelector('.no-btn').addEventListener('click', () => {
+          track('followup_no', '', '');
+          fDiv.querySelector('.followup-btns').remove();
+          appendUserMsg(t.noUserText);
+          showTyping();
+          setTimeout(() => { hideTyping(); appendBotMsg(t.noReply, null, null); }, 800);
+        });
+        messagesEl.appendChild(fDiv);
+        scrollBottom();
+      }, 600);
+    }
+  }
+
+  function appendAgentMsg(text, agentName) {
+    const t   = UI[currentLang];
+    const div = document.createElement('div');
+    div.className = 'msg agent';
+    div.innerHTML = `
+      <div class="bubble">${escHtml(text)}</div>
+      <div class="meta"><span>${escHtml(agentName || t.agentLabel)}</span></div>`;
+    messagesEl.appendChild(div);
+    scrollBottom();
+    if (escalationBannerEl) escalationBannerEl.textContent = t.agentConnectedBanner;
+  }
+
+  function showEscalationBanner() {
+    escalationBannerEl = document.createElement('div');
+    escalationBannerEl.className = 'escalation-banner';
+    escalationBannerEl.textContent = UI[currentLang].escalatingBanner;
+    messagesEl.appendChild(escalationBannerEl);
+    scrollBottom();
+  }
+
+  function sourceTag(src) {
+    if (src === 'rules' || src === 'local_model') return 'local';
+    if (src === 'openai') return 'openai';
+    return 'low';
+  }
+  function sourceLabel(src) {
+    if (src === 'rules')       return 'Rules';
+    if (src === 'local_model') return 'ML';
+    if (src === 'openai')      return 'AI';
+    return null;
+  }
+
+  function showTyping()  { typingEl.style.display = 'flex'; scrollBottom(); }
+  function hideTyping()  { typingEl.style.display = 'none'; }
+  function scrollBottom(){ messagesEl.scrollTop = messagesEl.scrollHeight; }
+  function escHtml(str)  {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Send (free-text, goes to API) ─────────────────────────────────────────
+  async function sendMessage() {
+    const text = msgInput.value.trim();
+    if (!text || sendBtn.disabled) return;
+
+    track('send_message', text.substring(0, 100), '');
+    msgInput.value = '';
+    msgInput.style.height = 'auto';
+    sendBtn.disabled = true;
+
+    appendUserMsg(text);
+    showTyping();
+
+    try {
+      const res = await fetch(`${API_BASE}/message`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`,
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          channel: 'web',
+          customer_id: customerId,
+          message: text,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Error ${res.status}`);
+      }
+
+      const data = await res.json();
+      sessionId = data.session_id;
+
+      hideTyping();
+      appendBotMsg(data.response, data.confidence, data.source);
+
+      if (data.escalated && !isEscalated) {
+        isEscalated = true;
+        showEscalationBanner();
+      }
+
+    } catch (e) {
+      hideTyping();
+      const errDiv = document.createElement('div');
+      errDiv.className = 'error-bubble';
+      errDiv.textContent = `⚠️ ${e.message || UI[currentLang].errorPrefix}`;
+      messagesEl.appendChild(errDiv);
+      scrollBottom();
+    }
+  }
+
+  // ── Analytics tracking (fire-and-forget) ─────────────────────────────────
+  function track(eventType, label, meta, extra) {
+    fetch(`${API_BASE}/analytics/click`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({
+        session_id:  sessionId,
+        customer_id: customerId,
+        event_type:  eventType,
+        label:       label || '',
+        meta:        meta  || '',
+      }, extra || {})),
+    }).catch(() => {}); // silent — never block UX
+  }
+
+  // ── Feedback ───────────────────────────────────────────────────────────────
+  async function onFeedback(isGood, btnGood, btnBad) {
+    btnGood.disabled = true;
+    btnBad.disabled  = true;
+    if (isGood) { btnGood.classList.add('sel-good'); return; }
+    btnBad.classList.add('sel-bad');
+
+    if (!sessionId || isEscalated) return;
+    try {
+      await fetch(`${API_BASE}/handoff/${sessionId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`,
+        },
+        body: JSON.stringify({ reason: 'bad_feedback' }),
+      });
+      isEscalated = true;
+      showEscalationBanner();
+    } catch (e) {
+      console.warn('Handoff request failed:', e);
+    }
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  applyLang('ar');
+  setTimeout(() => { if (!isOpen) badge.style.display = 'flex'; }, 2000);
+</script>
+</body>
+</html>

@@ -54,7 +54,7 @@ async def send_message(
         )
 
     # Generate AI response
-    response_text, confidence = await generate_response(session, clean_message)
+    response_text, confidence, source = await generate_response(session, clean_message)
 
     # Check handoff
     should_escalate = check_handoff_triggers(session, clean_message, confidence)
@@ -76,6 +76,7 @@ async def send_message(
         agent_response=response_text,
         confidence=confidence,
         escalated=should_escalate,
+        source=source if not should_escalate else "escalated",
     )
 
     return NURAResponse(
@@ -84,4 +85,5 @@ async def send_message(
         channel=session.channel,
         escalated=should_escalate,
         confidence=confidence,
+        source=None if should_escalate else source,
     )
