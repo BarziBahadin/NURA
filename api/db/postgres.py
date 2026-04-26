@@ -76,8 +76,21 @@ async def init_db() -> None:
             )
         """)
 
+        # security_logs — auth failures and rate limit hits
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS security_logs (
+                id          SERIAL PRIMARY KEY,
+                event_type  TEXT NOT NULL,
+                detail      TEXT,
+                ip          TEXT,
+                created_at  TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_cl_created  ON conversation_logs(created_at)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_cl_session   ON conversation_logs(session_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_tc_topic    ON tree_clicks(topic_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_tc_created  ON tree_clicks(created_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_we_type     ON widget_events(event_type)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_we_created  ON widget_events(created_at)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_sl_created  ON security_logs(created_at)")

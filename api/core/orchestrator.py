@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 from openai import AsyncOpenAI
 
@@ -13,6 +13,16 @@ from models.session import Session
 logger = logging.getLogger(__name__)
 
 _preprocessor = TextPreprocessor(verbose=False)
+
+_openai_client: Optional[AsyncOpenAI] = None
+
+
+def get_openai_client() -> AsyncOpenAI:
+    global _openai_client
+    if _openai_client is None:
+        _openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+    return _openai_client
+
 
 # Load ML local model at startup (optional — works without it)
 _conversation_service = None
@@ -43,7 +53,6 @@ try:
     raw_kb = "\n\n".join(
         f"[{a['title']}]\n{a['content_ar']}" for a in _articles
     )
-    # Compress whitespace and remove exact duplicate sentences once at startup
     _ARTICLES_KB = _preprocessor.compress_whitespace(
         _preprocessor.remove_duplicates(raw_kb, by="sentence")
     )
@@ -108,7 +117,7 @@ async def generate_response(session: Session, message: str) -> Tuple[str, float,
 
     if not rag_context:
         rag_context = "لا يوجد سياق متاح من الدليل."
-        confidence = 0.5  # articles KB is always loaded and covers most questions
+        confidence = 0.5
     else:
         rag_context = _preprocessor.compress_whitespace(rag_context)
 
@@ -128,7 +137,7 @@ async def generate_response(session: Session, message: str) -> Tuple[str, float,
     )
 
     try:
-        client = AsyncOpenAI(api_key=settings.openai_api_key)
+        client = get_openai_client()
         resp = await client.chat.completions.create(
             model=settings.openai_model,
             messages=[

@@ -1,16 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from config import settings
+from core.auth import verify_api_key
 from core.session_manager import get_session, save_session
 from models.session import SessionStatus
 
 router = APIRouter()
-
-
-def verify_api_key(request: Request):
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or auth[7:] != settings.api_key:
-        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 @router.post("/handoff/{session_id}")

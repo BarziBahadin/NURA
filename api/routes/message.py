@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from config import settings
+from core.auth import verify_api_key
 from core.handoff_controller import (
     HANDOFF_MESSAGE_AR,
     check_handoff_triggers,
@@ -20,12 +20,6 @@ from models.session import SessionStatus
 logger = logging.getLogger(__name__)
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
-
-
-def verify_api_key(request: Request):
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or auth[7:] != settings.api_key:
-        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 @router.post("/message", response_model=NURAResponse)

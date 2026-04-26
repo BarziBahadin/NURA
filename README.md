@@ -45,7 +45,8 @@ Customer (Web Widget · frontend/widget.html)
 - Leaf nodes answer instantly from embedded article content — **no API call, no latency**
 - Answers tagged `source='rules'`, `confidence=0.97` and logged as normal conversations
 - Back / Home navigation with breadcrumb trail
-- Full Arabic + Kurdish (Kurmanji) bilingual support
+- Full Arabic + Kurdish (Kurmanji) bilingual support — tree labels, breadcrumbs, and all 29 article answers switch instantly when the language toggle changes
+- Kurdish translations sourced from `ingestion/knowledge/Kurdish.md` and embedded into `ARTICLES_KU` in `widget.html`
 
 ### Knowledge System (two layers)
 - **Articles KB** — `.manafest/articals.json` — **30 articles** loaded at startup and injected into every system prompt. Covers packages, apps, VoLTE, connectivity, passwords, showroom hours, SIM/eSIM, APN settings, Ana platform, 5G, business internet, Hakki emergency mode, recharge cards, data drain, PUK unlock.
@@ -272,6 +273,20 @@ docker exec nura-api python /app/ingestion/ingest.py
 ```
 Currently ingested: call center handbook (8 chunks in ChromaDB).
 
+### Knowledge Reference Files (`ingestion/knowledge/`)
+Static reference files used for content authoring and translation — not ingested into ChromaDB:
+
+| File | Purpose |
+|---|---|
+| `Kurdish.md` | Kurdish (Kurmanji) translations of all 29 support articles — used to populate `ARTICLES_KU` in `widget.html` |
+| `call center hand book ENG draft.pdf` | Source handbook (English) |
+| `call center hand book in arabic.md` | Arabic call center knowledge base |
+| `company_profile_ar.md` | Arabic company profile reference |
+| `Rcell Company Profile 6.pdf` | Official company profile document |
+
+### Arabic Content Reference (`nura_arabic_content.md`)
+Project-root file with all Arabic rules-based content in one place: all tree navigation labels organized by category and all 29 article answer texts. Useful for auditing or translating content without reading `widget.html` directly.
+
 ---
 
 ## Database
@@ -333,6 +348,7 @@ A 5-turn conversation ≈ 16,650 tokens. Tree answers cost $0. Check OpenAI dash
 NURA/
 ├── .env                              ← all config & secrets (not in git)
 ├── docker-compose.yml                ← all services
+├── nura_arabic_content.md            ← reference: all Arabic tree labels + article texts in one file
 ├── .manafest/                        ← hidden folder, mounted into Docker
 │   ├── articals.json                 ← 30 support articles (injected into every prompt)
 │   ├── call center hand book ENG draft.pdf  ← source for RAG ingestion
@@ -357,7 +373,12 @@ NURA/
 │       └── migrations/001_init.sql
 ├── ingestion/
 │   ├── ingest.py                     ← handbook PDF → ChromaDB (uses OpenAI embeddings)
-│   └── handbook/                     ← place handbook files here (not in git)
+│   ├── handbook/                     ← place handbook files here for RAG ingestion
+│   └── knowledge/                    ← static reference files (not ingested)
+│       ├── Kurdish.md                ← Kurdish translations of all 29 articles → ARTICLES_KU in widget.html
+│       ├── call center hand book in arabic.md
+│       ├── company_profile_ar.md
+│       └── Rcell Company Profile 6.pdf
 ├── frontend/
 │   ├── widget.html                   ← bilingual chat widget with guided tree + full button tracking
 │   └── dashboard.html                ← analytics dashboard (open directly in browser)

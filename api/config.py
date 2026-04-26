@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     rag_top_k: int = 3
     unknown_answer_behavior: str = "handoff"
 
+    # Optional local ML model layer (disabled when model files are absent)
     ml_model_path: str = "/app/ml_models/local_model.pkl"
     ml_vectorizer_path: str = "/app/ml_models/vectorizer.pkl"
     ml_confidence_threshold: float = 0.70
@@ -42,13 +43,9 @@ class Settings(BaseSettings):
     handoff_enabled: bool = True
     handoff_triggers: str = "angry_sentiment,explicit_request,two_failures,keywords"
 
-    channel_web_widget: bool = True
-
-    admin_enabled: bool = True
-    admin_port: int = 3000
     admin_secret_key: str = "admin-secret-change-in-production"
 
-    cors_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:8080"
+    cors_origins: str = "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080,http://localhost:9000"
 
     @property
     def cors_origins_list(self) -> List[str]:
@@ -57,13 +54,6 @@ class Settings(BaseSettings):
     @property
     def handoff_triggers_list(self) -> List[str]:
         return [t.strip() for t in self.handoff_triggers.split(",")]
-
-    @property
-    def postgres_async_url(self) -> str:
-        return (
-            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
-        )
 
     class Config:
         env_file = ".env"

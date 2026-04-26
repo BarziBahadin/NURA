@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Optional, Tuple
 
@@ -51,7 +52,7 @@ async def retrieve_context(query: str) -> Tuple[str, float]:
     try:
         index = get_index()
         retriever = index.as_retriever(similarity_top_k=settings.rag_top_k)
-        nodes = retriever.retrieve(query)
+        nodes = await asyncio.to_thread(retriever.retrieve, query)
 
         if not nodes:
             return "", 0.0

@@ -2,10 +2,20 @@ import httpx
 import redis.asyncio as aioredis
 from openai import AsyncOpenAI
 from fastapi import APIRouter
+from typing import Optional
 
 from config import settings
 
 router = APIRouter()
+
+_openai_client: Optional[AsyncOpenAI] = None
+
+
+def get_openai_client() -> AsyncOpenAI:
+    global _openai_client
+    if _openai_client is None:
+        _openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+    return _openai_client
 
 
 @router.get("/health")
@@ -20,7 +30,7 @@ async def health_check():
 
     # OpenAI
     try:
-        client = AsyncOpenAI(api_key=settings.openai_api_key)
+        client = get_openai_client()
         await client.models.list()
         services["openai"] = "ok"
     except Exception:

@@ -79,9 +79,8 @@ async def append_turn(
 
 async def get_pending_handoff_sessions() -> List[Session]:
     r = get_redis()
-    keys = await r.keys("session:*")
     pending = []
-    for key in keys:
+    async for key in r.scan_iter("session:*"):
         data = await r.get(key)
         if data:
             try:

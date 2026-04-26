@@ -18,7 +18,7 @@ class IncomingMessage(BaseModel):
     channel: Channel = Channel.web
     customer_id: str
     message: str = Field(..., max_length=2000)
-    metadata: Optional[Dict[str, Any]] = {}
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 class StandardMessage(BaseModel):
@@ -26,4 +26,4 @@ class StandardMessage(BaseModel):
     channel: str
     customer_id: str
     message: str
-    metadata: Dict[str, Any] = {}
+    metadata: Dict[str, Any] = Field(default_factory=dict)

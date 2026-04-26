@@ -3,10 +3,11 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
 
+from core.auth import verify_api_key
 from core.logger import log_tree_click, log_widget_event
 from db.postgres import get_db_pool
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -25,7 +26,7 @@ class EventPayload(BaseModel):
 
 @router.post("/analytics/click")
 async def track_event(payload: EventPayload):
-    # Write to generic widget_events table (every button)
+    # Open endpoint — widget fires this without an API key
     await log_widget_event(
         session_id=payload.session_id or "",
         customer_id=payload.customer_id or "",
@@ -33,7 +34,6 @@ async def track_event(payload: EventPayload):
         label=payload.label or "",
         meta=payload.meta or "",
     )
-    # Also write to tree_clicks for tree navigation events
     if payload.event_type == "tree_click" and payload.topic_id:
         await log_tree_click(
             session_id=payload.session_id or "",
@@ -46,7 +46,7 @@ async def track_event(payload: EventPayload):
 
 
 @router.get("/analytics/dashboard")
-async def get_dashboard(days: int = 30):
+async def get_dashboard(days: int = 30, _: None = Depends(verify_api_key)):
     pool = await get_db_pool()
     since = datetime.now(timezone.utc) - timedelta(days=days)
 
@@ -146,7 +146,7 @@ async def get_dashboard(days: int = 30):
             for r in hourly_rows
         ]
 
-        # ── widget event type breakdown ───────────────────────────────────────
+        # ── widget event type breakdown ───────────────────────────────────
         event_rows = await conn.fetch(
             """
             SELECT event_type, COUNT(*) AS cnt
@@ -197,5 +197,6 @@ async def get_dashboard(days: int = 30):
         "top_tree_topics":      top_tree_topics,
         "daily_volume":         daily_volume,
         "hourly_distribution":  hourly_distribution,
+        "event_breakdown":      event_breakdown,
         "recent_conversations": recent,
     }

@@ -4,18 +4,12 @@ import subprocess
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
 
-from config import settings
+from core.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
-
-
-def verify_api_key(request: Request):
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or auth[7:] != settings.api_key:
-        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 def run_ingestion():
