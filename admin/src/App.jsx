@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import Dashboard from './pages/Dashboard.jsx'
 import LiveQueue from './pages/LiveQueue.jsx'
@@ -17,7 +17,7 @@ const navItems = [
   { path: '/knowledge', label: 'قاعدة المعرفة', icon: '📚' },
 ]
 
-function Sidebar() {
+function Sidebar({ pendingCount }) {
   const { pathname } = useLocation()
   return (
     <aside className="w-56 bg-gray-900 text-white flex flex-col min-h-screen">
@@ -37,7 +37,12 @@ function Sidebar() {
             }`}
           >
             <span>{icon}</span>
-            <span>{label}</span>
+            <span className="flex-1">{label}</span>
+            {path === '/queue' && pendingCount > 0 && (
+              <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                {pendingCount}
+              </span>
+            )}
           </Link>
         ))}
       </nav>
@@ -49,9 +54,26 @@ function Sidebar() {
 }
 
 export default function App() {
+  const [pendingCount, setPendingCount] = useState(0)
+
+  useEffect(() => {
+    async function fetchPending() {
+      try {
+        const res = await fetch(`${API_BASE}/queue`, {
+          headers: { Authorization: `Bearer ${API_KEY}` },
+        })
+        const data = await res.json()
+        setPendingCount(data.pending || 0)
+      } catch {}
+    }
+    fetchPending()
+    const t = setInterval(fetchPending, 5000)
+    return () => clearInterval(t)
+  }, [])
+
   return (
     <div className="flex min-h-screen" style={{ direction: 'rtl' }}>
-      <Sidebar />
+      <Sidebar pendingCount={pendingCount} />
       <main className="flex-1 overflow-auto">
         <Routes>
           <Route path="/" element={<Dashboard />} />

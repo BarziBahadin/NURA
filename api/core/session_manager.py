@@ -90,3 +90,19 @@ async def get_pending_handoff_sessions() -> List[Session]:
             except Exception:
                 pass
     return pending
+
+
+async def get_all_sessions(status_filter: Optional[str] = None) -> List[Session]:
+    r = get_redis()
+    sessions = []
+    async for key in r.scan_iter("session:*"):
+        data = await r.get(key)
+        if data:
+            try:
+                s = Session(**json.loads(data))
+                if status_filter is None or s.status.value == status_filter:
+                    sessions.append(s)
+            except Exception:
+                pass
+    sessions.sort(key=lambda s: s.updated_at, reverse=True)
+    return sessions

@@ -1,110 +1,244 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { api } from '../App.jsx'
 
-const STATUS_LABELS = {
-  ACTIVE: { label: 'نشط', color: 'bg-green-100 text-green-700' },
-  PENDING_HANDOFF: { label: 'انتظار موظف', color: 'bg-yellow-100 text-yellow-700' },
-  HUMAN_ACTIVE: { label: 'مع موظف', color: 'bg-blue-100 text-blue-700' },
-  RESOLVED: { label: 'مغلق', color: 'bg-gray-100 text-gray-700' },
+const TABS = [
+  { label: 'الكل', value: null },
+  { label: 'نشط', value: 'ACTIVE' },
+  { label: 'انتظار موظف', value: 'PENDING_HANDOFF' },
+  { label: 'مع موظف', value: 'HUMAN_ACTIVE' },
+  { label: 'مغلق', value: 'RESOLVED' },
+]
+
+const STATUS_STYLE = {
+  ACTIVE:          { label: 'نشط',           color: 'bg-green-100 text-green-700' },
+  PENDING_HANDOFF: { label: 'انتظار موظف',   color: 'bg-yellow-100 text-yellow-700' },
+  HUMAN_ACTIVE:    { label: 'مع موظف',       color: 'bg-blue-100 text-blue-700' },
+  RESOLVED:        { label: 'مغلق',          color: 'bg-gray-100 text-gray-500' },
+}
+
+function timeAgo(iso) {
+  const diff = Math.floor((Date.now() - new Date(iso)) / 1000)
+  if (diff < 60) return 'الآن'
+  if (diff < 3600) return `منذ ${Math.floor(diff / 60)} د`
+  if (diff < 86400) return `منذ ${Math.floor(diff / 3600)} س`
+  return `منذ ${Math.floor(diff / 86400)} ي`
+}
+
+function HistoryPanel({ history }) {
+  if (!history || history.length === 0)
+    return <div className="text-center text-gray-400 text-xs py-4">لا توجد رسائل</div>
+  return (
+    <div className="space-y-2 max-h-72 overflow-y-auto p-3 bg-gray-50 rounded-xl">
+      {history.map((turn, i) => (
+        <div key={i} className={`flex gap-2 ${turn.role === 'customer' ? 'flex-row-reverse' : ''}`}>
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+            turn.role === 'agent' ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-600'
+          }`}>
+            {turn.role === 'agent' ? 'و' : 'ع'}
+          </div>
+          <div className={`flex flex-col ${turn.role === 'customer' ? 'items-end' : ''}`}>
+            <div className={`px-3 py-1.5 rounded-2xl text-sm max-w-xs ${
+              turn.role === 'agent'
+                ? 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm'
+                : 'bg-blue-600 text-white rounded-tr-sm'
+            }`}>
+              {turn.message}
+            </div>
+            <div className="text-xs text-gray-400 mt-0.5 flex gap-1">
+              {new Date(turn.timestamp).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })}
+              {turn.confidence != null && <span>• {Math.round(turn.confidence * 100)}%</span>}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function SessionViewer() {
-  const [sessionId, setSessionId] = useState('')
-  const [session, setSession] = useState(null)
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState(null)
+  const [sessions, setSessions] = useState([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(null)
+  const [resolving, setResolving] = useState({})
+  const [search, setSearch] = useState('')
 
-  async function fetchSession() {
-    if (!sessionId.trim()) return
+  const fetchSessions = useCallback(async () => {
     setLoading(true)
-    setError('')
-    setSession(null)
     try {
-      const res = await fetch(`${api.base}/session/${sessionId.trim()}`, {
+      const params = new URLSearchParams({ limit: 100 })
+      if (activeTab) params.set('status', activeTab)
+      const res = await fetch(`${api.base}/sessions/list?${params}`, {
         headers: { Authorization: `Bearer ${api.key}` },
       })
-      if (!res.ok) throw new Error('الجلسة غير موجودة')
       const data = await res.json()
-      setSession(data)
+      setSessions(data.sessions || [])
+      setTotal(data.total || 0)
     } catch (e) {
-      setError(e.message)
+      console.error(e)
     } finally {
       setLoading(false)
     }
+  }, [activeTab])
+
+  useEffect(() => {
+    setExpanded(null)
+    fetchSessions()
+  }, [fetchSessions])
+
+  async function resolveSession(sessionId) {
+    setResolving(r => ({ ...r, [sessionId]: true }))
+    try {
+      await fetch(`${api.base}/session/${sessionId}/resolve`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${api.key}` },
+      })
+      await fetchSessions()
+      if (expanded === sessionId) setExpanded(null)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setResolving(r => ({ ...r, [sessionId]: false }))
+    }
   }
 
-  const statusInfo = session ? (STATUS_LABELS[session.status] || { label: session.status, color: 'bg-gray-100 text-gray-700' }) : null
+  const filtered = sessions.filter(s => {
+    if (!search.trim()) return true
+    const q = search.trim().toLowerCase()
+    return s.session_id.toLowerCase().includes(q) || s.customer_id.toLowerCase().includes(q)
+  })
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">عرض المحادثات</h1>
-
-      <div className="flex gap-2 mb-6">
-        <input
-          type="text"
-          value={sessionId}
-          onChange={e => setSessionId(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && fetchSession()}
-          placeholder="أدخل معرّف الجلسة..."
-          className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-        />
+    <div className="p-6 max-w-5xl mx-auto">
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <h1 className="text-2xl font-bold text-gray-800">المحادثات</h1>
         <button
-          onClick={fetchSession}
-          disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm transition disabled:opacity-50"
+          onClick={fetchSessions}
+          className="text-sm bg-white border border-gray-200 hover:bg-gray-50 text-gray-500 px-3 py-1.5 rounded-lg transition"
         >
-          {loading ? 'جاري...' : 'بحث'}
+          ↻ تحديث
         </button>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm mb-4">
-          {error}
+      {/* Tabs */}
+      <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
+        {TABS.map(tab => (
+          <button
+            key={String(tab.value)}
+            onClick={() => setActiveTab(tab.value)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition whitespace-nowrap ${
+              activeTab === tab.value
+                ? 'bg-white text-gray-800 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="بحث بمعرّف الجلسة أو العميل..."
+          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+        />
+      </div>
+
+      {/* Count */}
+      <div className="text-xs text-gray-400 mb-3">
+        {loading ? 'جاري التحميل...' : `${filtered.length} جلسة${total > filtered.length ? ` (من ${total})` : ''}`}
+      </div>
+
+      {/* Session list */}
+      {loading ? (
+        <div className="text-center text-gray-400 py-20 text-sm">جاري التحميل...</div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white rounded-2xl shadow p-12 text-center text-gray-400">
+          <div className="text-4xl mb-3">📭</div>
+          <div>لا توجد جلسات</div>
         </div>
-      )}
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(s => {
+            const st = STATUS_STYLE[s.status] || { label: s.status, color: 'bg-gray-100 text-gray-500' }
+            const lastMsg = s.history?.[s.history.length - 1]
+            const isExpanded = expanded === s.session_id
+            const canResolve = s.status !== 'RESOLVED'
 
-      {session && (
-        <div className="bg-white rounded-2xl shadow overflow-hidden">
-          <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
-            <span className="font-mono text-xs text-gray-400">{session.session_id}</span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusInfo.color}`}>
-              {statusInfo.label}
-            </span>
-            <span className="text-xs text-gray-400">القناة: {session.channel}</span>
-            <span className="text-xs text-gray-400">العميل: {session.customer_id}</span>
-            <span className="text-xs text-gray-400 mr-auto">
-              {new Date(session.created_at).toLocaleString('ar')}
-            </span>
-          </div>
+            return (
+              <div key={s.session_id} className="bg-white rounded-2xl shadow overflow-hidden">
+                {/* Row */}
+                <div
+                  className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition"
+                  onClick={() => setExpanded(isExpanded ? null : s.session_id)}
+                >
+                  {/* Expand indicator */}
+                  <span className="text-gray-300 text-xs">{isExpanded ? '▲' : '▼'}</span>
 
-          <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
-            {session.history?.length === 0 ? (
-              <div className="text-center text-gray-400 py-6 text-sm">لا توجد رسائل</div>
-            ) : (
-              session.history.map((turn, i) => (
-                <div key={i} className={`flex gap-2 ${turn.role === 'customer' ? 'flex-row-reverse' : ''}`}>
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                    turn.role === 'agent' ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    {turn.role === 'agent' ? 'و' : 'ع'}
-                  </div>
-                  <div className={`max-w-sm ${turn.role === 'customer' ? 'items-end' : ''} flex flex-col`}>
-                    <div className={`px-3 py-2 rounded-2xl text-sm ${
-                      turn.role === 'agent'
-                        ? 'bg-gray-100 text-gray-800 rounded-tl-sm'
-                        : 'bg-blue-600 text-white rounded-tr-sm'
-                    }`}>
-                      {turn.message}
+                  {/* Status badge */}
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${st.color}`}>
+                    {st.label}
+                  </span>
+
+                  {/* Session + customer */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="font-mono text-xs text-gray-400">{s.session_id.slice(0, 8)}…</span>
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{s.channel}</span>
                     </div>
-                    <div className="text-xs text-gray-400 mt-0.5">
-                      {new Date(turn.timestamp).toLocaleTimeString('ar')}
-                      {turn.confidence !== null && turn.confidence !== undefined && ` • دقة: ${Math.round(turn.confidence * 100)}%`}
-                    </div>
+                    {lastMsg && (
+                      <div className="text-sm text-gray-600 truncate">
+                        {lastMsg.role === 'customer' ? '👤 ' : '🤖 '}{lastMsg.message}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Customer ID */}
+                  <div className="text-xs text-gray-400 hidden sm:block flex-shrink-0">
+                    {s.customer_id}
+                  </div>
+
+                  {/* Messages count */}
+                  <div className="text-xs text-gray-400 flex-shrink-0">
+                    {s.history?.length || 0} رسالة
+                  </div>
+
+                  {/* Time */}
+                  <div className="text-xs text-gray-400 flex-shrink-0">
+                    {timeAgo(s.updated_at)}
+                  </div>
+
+                  {/* Resolve button */}
+                  {canResolve && (
+                    <button
+                      onClick={e => { e.stopPropagation(); resolveSession(s.session_id) }}
+                      disabled={resolving[s.session_id]}
+                      className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-lg transition disabled:opacity-50 flex-shrink-0"
+                    >
+                      {resolving[s.session_id] ? '...' : 'إغلاق'}
+                    </button>
+                  )}
                 </div>
-              ))
-            )}
-          </div>
+
+                {/* Expanded history */}
+                {isExpanded && (
+                  <div className="border-t border-gray-100 p-4">
+                    <div className="text-xs text-gray-400 mb-3 flex gap-4">
+                      <span>الجلسة: <span className="font-mono text-gray-600">{s.session_id}</span></span>
+                      <span>العميل: <span className="text-gray-600">{s.customer_id}</span></span>
+                      <span>بدأت: {new Date(s.created_at).toLocaleString('ar')}</span>
+                    </div>
+                    <HistoryPanel history={s.history} />
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
