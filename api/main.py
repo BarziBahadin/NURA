@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -50,6 +51,11 @@ app.include_router(session.router,    prefix="/v1")
 app.include_router(handoff.router,    prefix="/v1")
 app.include_router(knowledge.router,  prefix="/v1")
 app.include_router(analytics.router,  prefix="/v1")
+
+
+@app.get("/widget.js", include_in_schema=False)
+async def serve_widget():
+    return FileResponse("/app/frontend/widget.js", media_type="application/javascript")
 
 
 @app.get("/")

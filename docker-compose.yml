@@ -19,6 +19,7 @@ services:
       - ./ingestion:/app/ingestion
       - ./.manafest:/app/manafest
       - ./models:/app/ml_models
+      - ./frontend:/app/frontend
     networks:
       - nura_network
     restart: unless-stopped

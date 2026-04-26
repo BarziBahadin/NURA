@@ -9,7 +9,7 @@ It handles common support queries automatically via a guided decision tree and f
 ## Architecture
 
 ```
-Customer (Web Widget · frontend/widget.html)
+Customer (Embeddable Widget · widget.js OR frontend/widget.html)
         │
         ├── Guided Topic Tree (instant, zero-API answers from embedded articles)
         │
@@ -112,7 +112,25 @@ Escalation triggers (configurable in `.env`):
 - `security_logs` — auth failures and rate limit hits
 - `ingestion_logs` — handbook ingestion history
 
-### Chat Widget (`frontend/widget.html`)
+### Chat Widget
+
+Two delivery modes for the same widget:
+
+**Embeddable (`frontend/widget.js`)** — single-line embed for any website:
+```html
+<script src="http://YOUR-SERVER:8080/widget.js"
+        data-api="http://YOUR-SERVER:8080/v1"
+        data-key="nura-dev-key-change-in-production"></script>
+```
+- Served at `/widget.js` directly from the NURA API
+- Self-contained IIFE — injects its own CSS and DOM, no build step on the host page
+- All CSS namespaced with `nura-` prefix to avoid conflicts with host page styles
+- Reads `data-api` and `data-key` from the script tag at parse time
+- Runs at the highest z-index (2147483640) so it floats above all host content
+
+**Standalone (`frontend/widget.html`)** — open directly in a browser for local testing
+
+Both modes share the same features:
 - Bilingual: Arabic (RTL) and Kurdish Kurmanji (LTR), switchable mid-session
 - Guided topic tree with instant inline answers
 - Free-text input routed to the 3-tier API (Rules → ML → OpenAI)
@@ -124,8 +142,8 @@ Escalation triggers (configurable in `.env`):
 
 ### Admin Panel (`/admin`)
 React + Vite + Tailwind, RTL Arabic UI on port 3004:
-- **Dashboard** — system health, service statuses, active services count
-- **Live Queue** — escalated sessions waiting for human agents
+- **Dashboard** — KPI cards (sessions, messages, confidence, escalation rate), hourly activity chart (GMT+3), busiest hour callout, source breakdown donut, last conversations table
+- **Live Queue** — escalated sessions waiting for human agents; shows waiting time badge (seconds/minutes/hours), Accept and Resolve buttons; sidebar badge shows live pending count
 - **Session Viewer** — full history, searchable by customer/date/channel
 - **Knowledge Base** — upload handbook files, trigger re-ingestion
 
@@ -169,8 +187,8 @@ open frontend/dashboard.html
 | API                | http://localhost:8080                      | FastAPI backend               |
 | API Docs           | http://localhost:8080/docs                 | Swagger UI                   |
 | Health Check       | http://localhost:8080/v1/health            | All service statuses         |
-| Analytics Dashboard| `frontend/dashboard.html`                  | Open directly in browser     |
-| Chat Widget        | `frontend/widget.html`                     | Open directly in browser     |
+| Chat Widget (embed)| http://localhost:8080/widget.js            | Embed via single `<script>` tag |
+| Chat Widget (local)| `frontend/widget.html`                     | Open directly in browser     |
 | Admin Panel        | http://localhost:3004                      | React dashboard              |
 | ChromaDB           | http://localhost:8001                      | Vector store (internal)      |
 | PostgreSQL         | localhost:5432                             | nura_user / NuraSecure2024!  |
@@ -380,15 +398,17 @@ NURA/
 │       ├── company_profile_ar.md
 │       └── Rcell Company Profile 6.pdf
 ├── frontend/
-│   ├── widget.html                   ← bilingual chat widget with guided tree + full button tracking
+│   ├── widget.js                     ← embeddable widget IIFE (served at /widget.js by the API)
+│   ├── widget.html                   ← standalone widget for local browser testing
 │   └── dashboard.html                ← analytics dashboard (open directly in browser)
 └── admin/
     └── src/
         ├── App.jsx                   ← React admin panel + API config
         └── pages/
-            ├── Dashboard.jsx         ← health + queue stats
-            ├── Queue.jsx             ← live handoff queue
-            └── Sessions.jsx          ← conversation viewer
+            ├── Dashboard.jsx         ← KPI cards, GMT+3 hourly chart, busiest hour callout
+            ├── LiveQueue.jsx         ← live handoff queue with waiting time + resolve button
+            ├── SessionViewer.jsx     ← conversation viewer (searchable)
+            └── KnowledgeBase.jsx     ← handbook upload + ingestion trigger
 ```
 
 ---
@@ -431,6 +451,8 @@ NURA/
 - [x] **Analytics dashboard** — KPIs, charts for volume, escalation rate, top topics (done: `dashboard.html`)
 - [x] **Full button tracking** — every widget interaction logged to `widget_events` (done)
 - [x] **Customer satisfaction rating** — thumbs up/down per bot response (done)
+- [x] **Embeddable widget** — single `<script>` tag embed, served at `/widget.js`, self-contained IIFE (done)
+- [x] **Live Queue improvements** — waiting time badge, Resolve button, live sidebar pending count (done)
 - [ ] **Export conversations to CSV** — from the admin panel
 - [ ] **Admin panel login** — JWT auth so the panel is not open to everyone on the network
 - [ ] **Real-time dashboard** — WebSocket push instead of manual refresh
