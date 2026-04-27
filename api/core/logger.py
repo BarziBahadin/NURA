@@ -94,6 +94,37 @@ async def log_widget_event(
         logger.error(f"Failed to log widget event: {e}")
 
 
+async def log_turn(
+    session_id: str,
+    customer_id: str,
+    channel: str,
+    role: str,
+    message: str,
+    source: str,
+    confidence: float = None,
+) -> None:
+    try:
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO chat_turns
+                  (session_id, customer_id, channel, role, message, source, confidence, created_at)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                """,
+                session_id,
+                customer_id,
+                channel,
+                role,
+                message,
+                source,
+                confidence,
+                datetime.now(timezone.utc),
+            )
+    except Exception as e:
+        logger.error(f"Failed to log turn: {e}")
+
+
 async def log_security_event(
     event_type: str, detail: str, ip: str = ""
 ) -> None:

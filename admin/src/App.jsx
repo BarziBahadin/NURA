@@ -11,10 +11,10 @@ const API_KEY = 'nura-dev-key-change-in-production'
 export const api = { base: API_BASE, key: API_KEY }
 
 const navItems = [
-  { path: '/', label: 'لوحة التحكم', icon: '📊' },
-  { path: '/queue', label: 'قائمة الانتظار', icon: '🔔' },
-  { path: '/sessions', label: 'المحادثات', icon: '💬' },
-  { path: '/knowledge', label: 'قاعدة المعرفة', icon: '📚' },
+  { path: '/', label: 'Dashboard', icon: '📊' },
+  { path: '/queue', label: 'Live Queue', icon: '🔔' },
+  { path: '/sessions', label: 'Sessions', icon: '💬' },
+  { path: '/knowledge', label: 'Knowledge Base', icon: '📚' },
 ]
 
 function Sidebar({ pendingCount }) {
@@ -72,7 +72,7 @@ export default function App() {
   }, [])
 
   return (
-    <div className="flex min-h-screen" style={{ direction: 'rtl' }}>
+    <div className="flex min-h-screen">
       <Sidebar pendingCount={pendingCount} />
       <main className="flex-1 overflow-auto">
         <Routes>

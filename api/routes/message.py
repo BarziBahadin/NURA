@@ -37,11 +37,12 @@ async def send_message(
         channel=payload.channel.value,
     )
 
-    # Already handed off to human
+    # Already handed off to human — save customer message so admin sees it, return no bot reply
     if session.status in (SessionStatus.pending_handoff, SessionStatus.human_active):
+        await append_turn(session, "customer", clean_message, source="customer")
         return NURAResponse(
             session_id=session.session_id,
-            response=HANDOFF_MESSAGE_AR,
+            response="",
             channel=session.channel,
             escalated=True,
             confidence=1.0,

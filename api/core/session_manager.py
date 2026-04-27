@@ -7,6 +7,7 @@ from typing import List, Optional
 import redis.asyncio as aioredis
 
 from config import settings
+from core.logger import log_turn
 from models.session import ConversationTurn, Session, SessionStatus
 
 logger = logging.getLogger(__name__)
@@ -63,18 +64,37 @@ async def get_session(session_id: str) -> Optional[Session]:
     return None
 
 
+async def publish_session_event(session_id: str, payload: dict) -> None:
+    r = get_redis()
+    try:
+        await r.publish(f"session:events:{session_id}", json.dumps(payload))
+    except Exception as e:
+        logger.error(f"Failed to publish session event: {e}")
+
+
 async def append_turn(
-    session: Session, role: str, message: str, confidence: float = 0.0
+    session: Session, role: str, message: str, confidence: float = 0.0, source: str = "bot"
 ) -> None:
     turn = ConversationTurn(
         role=role,
         message=message,
         timestamp=datetime.now(timezone.utc).isoformat(),
         confidence=confidence if role == "agent" else None,
+        source=source,
     )
     session.history.append(turn)
     session.updated_at = datetime.now(timezone.utc).isoformat()
     await save_session(session)
+    await publish_session_event(session.session_id, {"type": "turn", "turn": turn.model_dump()})
+    await log_turn(
+        session_id=session.session_id,
+        customer_id=session.customer_id,
+        channel=session.channel,
+        role=role,
+        message=message,
+        source=source,
+        confidence=confidence if role == "agent" else None,
+    )
 
 
 async def get_pending_handoff_sessions() -> List[Session]:

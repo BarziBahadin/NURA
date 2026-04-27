@@ -66,7 +66,7 @@ function HorizBar({ label, count, max, color }) {
   const pct = max > 0 ? Math.round((count / max) * 100) : 0
   return (
     <div className="flex items-center gap-3 mb-2">
-      <div className="w-36 text-xs text-gray-500 truncate text-right" dir="rtl">{label}</div>
+      <div className="w-36 text-xs text-gray-500 truncate">{label}</div>
       <div className="flex-1 bg-gray-100 rounded-full h-2.5">
         <div className="h-2.5 rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
       </div>
@@ -128,7 +128,6 @@ export default function Dashboard() {
 
   const escalationAlert = data && data.escalation_rate > 0.2
 
-  // prep data for recharts
   const hourlyData = data
     ? Array.from({ length: 24 }, (_, displayHour) => {
         const utcHour = (displayHour - 3 + 24) % 24
@@ -150,15 +149,15 @@ export default function Dashboard() {
   const maxEventCount  = data?.event_breakdown?.[0]?.count || 1
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-6xl">
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">لوحة التحكم</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
           {lastUpdated && (
             <div className="text-xs text-gray-400 mt-0.5">
-              آخر تحديث: {secondsAgo < 10 ? 'منذ لحظات' : `منذ ${secondsAgo} ثانية`} • تحديث تلقائي كل دقيقة
+              Last updated: {secondsAgo < 10 ? 'just now' : `${secondsAgo}s ago`} • auto-refreshes every minute
             </div>
           )}
         </div>
@@ -168,12 +167,12 @@ export default function Dashboard() {
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
                 days === d ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
               }`}>
-              {d} يوم
+              {d}d
             </button>
           ))}
           <button onClick={fetchData}
             className="px-3 py-1.5 rounded-lg text-sm bg-white border border-gray-200 hover:bg-gray-50 text-gray-500">
-            ↻ تحديث
+            ↻ Refresh
           </button>
         </div>
       </div>
@@ -181,37 +180,37 @@ export default function Dashboard() {
       {/* Alert */}
       {escalationAlert && (
         <div className="mb-5 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
-          ⚠️ معدل التصعيد مرتفع ({Math.round(data.escalation_rate * 100)}%) — يتجاوز 20%
+          ⚠️ Escalation rate is high ({Math.round(data.escalation_rate * 100)}%) — exceeds 20%
         </div>
       )}
 
       {loading ? (
-        <div className="text-center text-gray-400 py-20 text-sm">جاري تحميل البيانات...</div>
+        <div className="text-center text-gray-400 py-20 text-sm">Loading data...</div>
       ) : !data ? (
-        <div className="text-center text-red-400 py-20 text-sm">تعذّر تحميل البيانات — تأكد من تشغيل الـ API</div>
+        <div className="text-center text-red-400 py-20 text-sm">Failed to load data — make sure the API is running</div>
       ) : (
         <>
           {/* KPI row */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
-            <KpiCard label="إجمالي الجلسات"  value={data.total_sessions.toLocaleString()} sub={`خلال ${days} يوم`} />
-            <KpiCard label="إجمالي الرسائل"  value={data.total_messages.toLocaleString()}
-              sub={`${data.total_sessions > 0 ? (data.total_messages / data.total_sessions).toFixed(1) : 0} رسالة/جلسة`} />
-            <KpiCard label="متوسط الدقة"
+            <KpiCard label="Total Sessions"  value={data.total_sessions.toLocaleString()} sub={`last ${days} days`} />
+            <KpiCard label="Total Messages"  value={data.total_messages.toLocaleString()}
+              sub={`${data.total_sessions > 0 ? (data.total_messages / data.total_sessions).toFixed(1) : 0} msg/session`} />
+            <KpiCard label="Avg Confidence"
               value={`${Math.round(data.avg_confidence * 100)}%`}
-              sub="دقة الردود الآلية"
+              sub="automated response accuracy"
               color={data.avg_confidence >= 0.8 ? 'text-green-600' : data.avg_confidence >= 0.6 ? 'text-yellow-600' : 'text-red-600'} />
-            <KpiCard label="معدل التصعيد"
+            <KpiCard label="Escalation Rate"
               value={`${Math.round(data.escalation_rate * 100)}%`}
-              sub={`${data.escalations} تصعيد`}
+              sub={`${data.escalations} escalations`}
               color={escalationAlert ? 'text-red-600' : 'text-gray-800'}
               alert={escalationAlert} />
-            <KpiCard label="نقرات الشجرة" value={totalClicks.toLocaleString()} sub="إجمالي النقرات الموجّهة" />
+            <KpiCard label="Tree Clicks" value={totalClicks.toLocaleString()} sub="total guided interactions" />
           </div>
 
           {/* Daily traffic + Source donut */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div className="sm:col-span-2">
-              <SectionCard title="حجم الزيارات اليومي">
+              <SectionCard title="Daily Traffic">
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={data.daily_volume} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -219,16 +218,16 @@ export default function Dashboard() {
                     <YAxis tick={{ fontSize: 10 }} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                    <Line type="monotone" dataKey="messages" name="رسائل" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="sessions" name="جلسات" stroke="#7c3aed" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="messages" name="Messages" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="sessions" name="Sessions" stroke="#7c3aed" strokeWidth={2} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </SectionCard>
             </div>
 
-            <SectionCard title="مصادر الردود">
+            <SectionCard title="Response Sources">
               {pieData.length === 0 ? (
-                <div className="text-xs text-gray-400 py-8 text-center">لا توجد بيانات</div>
+                <div className="text-xs text-gray-400 py-8 text-center">No data</div>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
@@ -236,7 +235,7 @@ export default function Dashboard() {
                       paddingAngle={3} dataKey="value">
                       {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                     </Pie>
-                    <Tooltip formatter={(v, n) => [`${v} رسالة`, n]} />
+                    <Tooltip formatter={(v, n) => [`${v} messages`, n]} />
                     <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -246,25 +245,25 @@ export default function Dashboard() {
 
           {/* Hourly + Health */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-            <SectionCard title="توزيع الرسائل بالساعة">
+            <SectionCard title="Hourly Message Distribution">
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={hourlyData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                   <XAxis dataKey="hour" tick={{ fontSize: 9 }} interval={3} />
                   <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="messages" name="رسائل" fill="#6366f1" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="messages" name="Messages" fill="#6366f1" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
               {data.hourly_distribution.length > 0 && (() => {
                 const peak = data.hourly_distribution.reduce((a, b) => a.messages > b.messages ? a : b)
                 const peakLocal = (peak.hour + 3) % 24
-                return <div className="text-xs text-gray-400 mt-2 text-center">أكثر ساعة نشاطاً: {peakLocal}:00 — {peak.messages} رسالة</div>
+                return <div className="text-xs text-gray-400 mt-2 text-center">Busiest hour: {peakLocal}:00 — {peak.messages} messages</div>
               })()}
             </SectionCard>
 
             {health && (
-              <SectionCard title="حالة الخدمات">
+              <SectionCard title="Service Health">
                 <div className="grid grid-cols-2 gap-2">
                   {Object.entries(health.services).map(([name, status]) => (
                     <div key={name} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
@@ -280,9 +279,9 @@ export default function Dashboard() {
 
           {/* Button events + Top topics */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-            <SectionCard title="تفاعلات الأزرار">
+            <SectionCard title="Widget Interactions">
               {data.event_breakdown.length === 0 ? (
-                <div className="text-xs text-gray-400">لا توجد أحداث مسجّلة بعد</div>
+                <div className="text-xs text-gray-400">No events recorded yet</div>
               ) : data.event_breakdown.map(e => (
                 <HorizBar key={e.event_type}
                   label={EVENT_LABELS[e.event_type] || e.event_type}
@@ -290,9 +289,9 @@ export default function Dashboard() {
               ))}
             </SectionCard>
 
-            <SectionCard title="أكثر المواضيع تصفحاً">
+            <SectionCard title="Top Tree Topics">
               {data.top_tree_topics.length === 0 ? (
-                <div className="text-xs text-gray-400">لا توجد نقرات على الشجرة بعد</div>
+                <div className="text-xs text-gray-400">No tree clicks recorded yet</div>
               ) : data.top_tree_topics.slice(0, 10).map(t => (
                 <HorizBar key={t.topic_id} label={t.topic_label}
                   count={t.clicks} max={maxTopicClicks} color="#ea580c" />
@@ -301,19 +300,19 @@ export default function Dashboard() {
           </div>
 
           {/* Recent conversations */}
-          <SectionCard title="آخر المحادثات"
+          <SectionCard title="Recent Conversations"
             action={
               <button onClick={() => exportCSV(data.recent_conversations)}
                 className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg transition">
-                تصدير CSV ↓
+                Export CSV ↓
               </button>
             }>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" style={{ direction: 'rtl' }}>
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 text-xs text-gray-400">
-                    {['الجلسة','الرسالة','المصدر','الدقة','الحالة','الوقت'].map(h => (
-                      <th key={h} className="pb-2 text-right font-medium">{h}</th>
+                    {['Session','Message','Source','Confidence','Status','Time'].map(h => (
+                      <th key={h} className="pb-2 text-left font-medium">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -336,11 +335,11 @@ export default function Dashboard() {
                       </td>
                       <td className="py-2">
                         {r.escalated
-                          ? <span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">مصعّد</span>
-                          : <span className="bg-green-100 text-green-600 text-xs px-2 py-0.5 rounded-full">آلي</span>}
+                          ? <span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">Escalated</span>
+                          : <span className="bg-green-100 text-green-600 text-xs px-2 py-0.5 rounded-full">Automated</span>}
                       </td>
                       <td className="py-2 text-xs text-gray-400 whitespace-nowrap">
-                        {new Date(r.created_at).toLocaleDateString('ar', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}
+                        {new Date(r.created_at).toLocaleDateString('en', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}
                       </td>
                     </tr>
                   ))}

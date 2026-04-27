@@ -76,6 +76,23 @@ async def init_db() -> None:
             )
         """)
 
+        # chat_turns — every individual turn, any role/source
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS chat_turns (
+                id          SERIAL PRIMARY KEY,
+                session_id  TEXT NOT NULL,
+                customer_id TEXT,
+                channel     TEXT,
+                role        TEXT NOT NULL,
+                message     TEXT NOT NULL,
+                source      TEXT NOT NULL,
+                confidence  FLOAT,
+                created_at  TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_ct_session  ON chat_turns(session_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_ct_created  ON chat_turns(created_at)")
+
         # security_logs — auth failures and rate limit hits
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS security_logs (

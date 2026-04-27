@@ -348,6 +348,22 @@
       opacity: 0.6;
     }
 
+    .agent-bypass-btn {
+      margin-top: 12px;
+      width: 100%;
+      padding: 9px 14px;
+      background: none;
+      border: 1.5px dashed #f97316;
+      border-radius: 10px;
+      color: #ea580c;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s;
+    }
+    .agent-bypass-btn:hover { background: #fff7ed; }
+
     /* Input */
     .chat-footer {
       border-top: 1px solid #f0f2f5;
@@ -513,6 +529,8 @@
       treeRoot: 'كيف يمكنني مساعدتك؟',
       treeBack: '← رجوع',
       treeHome: '🏠 الرئيسية',
+      talkToAgent: '🎧 التحدث مع موظف مباشرةً',
+      sessionClosed: '🔒 تم إغلاق هذه الجلسة. شكراً لتواصلك معنا.',
     },
     ku: {
       dir: 'ltr',
@@ -536,6 +554,8 @@
       treeRoot: 'Çawa dikarim alîkariya te bikim?',
       treeBack: '← Vegerîn',
       treeHome: '🏠 Serxane',
+      talkToAgent: '🎧 Rasterast bi karmend re biaxive',
+      sessionClosed: '🔒 Ev rûniştgeha hate girtin. Spas ji bo têkiliya we.',
     },
   };
 
@@ -1204,6 +1224,8 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
   let isOpen             = false;
   let welcomed           = false;
   let isEscalated        = false;
+  let isSessionClosed    = false;
+  let agentEventSource   = null;
   let escalationBannerEl = null;
   let treeStack          = []; // stack of navigated parent nodes (not including root)
 
@@ -1228,6 +1250,39 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
 
   function currentTreeNode() {
     return treeStack.length > 0 ? treeStack[treeStack.length - 1] : TOPIC_TREE;
+  }
+
+  async function directToAgent() {
+    if (isEscalated) return;
+    try {
+      if (!sessionId) {
+        const initRes = await fetch(`${API_BASE}/message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
+          body: JSON.stringify({ session_id: null, customer_id: customerId, channel: 'web', message: 'أريد التحدث مع موظف' }),
+        });
+        const initData = await initRes.json();
+        sessionId = initData.session_id;
+        if (initData.escalated) {
+          isEscalated = true;
+          showEscalationBanner();
+          startAgentStream();
+          renderTree();
+          return;
+        }
+      }
+      await fetch(`${API_BASE}/handoff/${sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
+        body: JSON.stringify({ reason: 'direct_request' }),
+      });
+      isEscalated = true;
+      showEscalationBanner();
+      startAgentStream();
+      renderTree();
+    } catch (e) {
+      console.warn('directToAgent failed:', e);
+    }
   }
 
   function renderTree() {
@@ -1298,6 +1353,17 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
     });
 
     treePanel.appendChild(optsDiv);
+
+    if (treeStack.length === 0 && !isEscalated) {
+      const agentBtn = document.createElement('button');
+      agentBtn.className = 'agent-bypass-btn';
+      agentBtn.textContent = UI[currentLang].talkToAgent;
+      agentBtn.addEventListener('click', () => {
+        track('direct_to_agent', 'bypass_btn', '');
+        directToAgent();
+      });
+      treePanel.appendChild(agentBtn);
+    }
   }
 
   function handleLeaf(node) {
@@ -1359,10 +1425,12 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
     win.classList.add('open');
     badge.style.display = 'none';
     setTimeout(() => msgInput.focus(), 250);
+    if (isEscalated && !isSessionClosed) startAgentStream();
   }
   function closeChat() {
     isOpen = false;
     win.classList.remove('open');
+    stopAgentStream();
   }
 
   toggle.addEventListener('click', () => {
@@ -1506,6 +1574,41 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // ── SSE streaming (agent messages pushed in real-time) ────────────────────
+  function startAgentStream() {
+    if (agentEventSource || !sessionId) return;
+    agentEventSource = new EventSource(API_BASE + '/session/' + sessionId + '/stream');
+    agentEventSource.onmessage = function (e) {
+      try { handleStreamEvent(JSON.parse(e.data)); } catch (_) {}
+    };
+    agentEventSource.onerror = function () {
+      agentEventSource.close();
+      agentEventSource = null;
+      if (!isSessionClosed && isEscalated) setTimeout(startAgentStream, 5000);
+    };
+  }
+
+  function stopAgentStream() {
+    if (agentEventSource) { agentEventSource.close(); agentEventSource = null; }
+  }
+
+  function handleStreamEvent(event) {
+    if (event.type === 'turn') {
+      const t = event.turn;
+      if (t.role === 'agent' && t.source === 'human') appendAgentMsg(t.message);
+    } else if (event.type === 'status' && event.status === 'RESOLVED' && !isSessionClosed) {
+      isSessionClosed = true;
+      stopAgentStream();
+      const notice = document.createElement('div');
+      notice.className = 'escalation-banner';
+      notice.textContent = UI[currentLang].sessionClosed;
+      messagesEl.appendChild(notice);
+      scrollBottom();
+      msgInput.disabled = true;
+      sendBtn.disabled  = true;
+    }
+  }
+
   // ── Send (free-text, goes to API) ─────────────────────────────────────────
   async function sendMessage() {
     const text = msgInput.value.trim();
@@ -1543,11 +1646,12 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
       sessionId = data.session_id;
 
       hideTyping();
-      appendBotMsg(data.response, data.confidence, data.source);
+      if (data.response) appendBotMsg(data.response, data.confidence, data.source);
 
       if (data.escalated && !isEscalated) {
         isEscalated = true;
         showEscalationBanner();
+        startAgentStream();
       }
 
     } catch (e) {
@@ -1594,6 +1698,7 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
       });
       isEscalated = true;
       showEscalationBanner();
+      startAgentStream();
     } catch (e) {
       console.warn('Handoff request failed:', e);
     }

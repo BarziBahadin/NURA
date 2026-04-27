@@ -166,6 +166,13 @@
     '.nura-tree-nav-btn.home:hover { background: #f0f2f5; color: #555; border-color: #bbb; }',
 
     '.nura-tree-level-q { font-size: 11.5px; color: #555; font-weight: 600; margin-bottom: 7px; }',
+    '.nura-agent-bypass-btn {',
+    '  margin-top: 12px; width: 100%; padding: 9px 14px;',
+    '  background: none; border: 1.5px dashed #f97316; border-radius: 10px;',
+    '  color: #ea580c; font-size: 12.5px; font-weight: 600; cursor: pointer;',
+    '  transition: background 0.15s, color 0.15s;',
+    '}',
+    '.nura-agent-bypass-btn:hover { background: #fff7ed; }',
     '.nura-tree-options { display: flex; gap: 6px; flex-wrap: wrap; }',
     '.nura-tree-opt {',
     '  background: #fff; border: 1.5px solid #e0e0e0; color: #333;',
@@ -279,7 +286,9 @@
       noUserText: 'لا، شكراً', errorPrefix: 'تعذر الاتصال بالخادم',
       escalatingBanner: '⏳ جاري التواصل مع موظف بشري…',
       agentConnectedBanner: '✅ موظف بشري متصل الآن', agentLabel: 'موظف',
+      sessionClosed: '🔒 تم إغلاق هذه الجلسة. شكراً لتواصلك معنا.',
       treeRoot: 'كيف يمكنني مساعدتك؟', treeBack: '← رجوع', treeHome: '🏠 الرئيسية',
+      talkToAgent: '🎧 التحدث مع موظف مباشرةً',
     },
     ku: {
       dir: 'ltr', htmlLang: 'ku',
@@ -294,7 +303,9 @@
       noUserText: 'Na, spas', errorPrefix: 'Nexşeya serverê nehat',
       escalatingBanner: '⏳ Wekîlek mirovî têkilî te dide…',
       agentConnectedBanner: '✅ Wekîlek mirovî niha ve ye', agentLabel: 'Wekîl',
+      sessionClosed: '🔒 Ev rûniştgeha hate girtin. Spas ji bo têkiliya we.',
       treeRoot: 'Çawa dikarim alîkariya te bikim?', treeBack: '← Vegerîn', treeHome: '🏠 Serxane',
+      talkToAgent: '🎧 Rasterast bi karmend re biaxive',
     },
   };
 
@@ -427,8 +438,10 @@
   var isOpen             = false;
   var welcomed           = false;
   var isEscalated        = false;
+  var isSessionClosed    = false;
   var escalationBannerEl = null;
   var treeStack          = [];
+  var agentEventSource   = null;
 
   // ── DOM refs ───────────────────────────────────────────────────────────────
   var toggle      = root.querySelector('#chat-toggle');
@@ -447,6 +460,37 @@
   // ── Tree helpers ───────────────────────────────────────────────────────────
   function treeLabel(node) { return node.label[currentLang] || node.label.ar; }
   function currentTreeNode() { return treeStack.length > 0 ? treeStack[treeStack.length - 1] : TOPIC_TREE; }
+
+  async function directToAgent() {
+    if (isEscalated || isSessionClosed) return;
+    try {
+      if (!sessionId) {
+        var initRes = await fetch(API_BASE + '/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+          body: JSON.stringify({ session_id: null, customer_id: customerId, channel: 'web', message: 'أريد التحدث مع موظف' }),
+        });
+        var initData = await initRes.json();
+        sessionId = initData.session_id;
+        if (initData.escalated) {
+          isEscalated = true;
+          showEscalationBanner();
+          startAgentStream();
+          return;
+        }
+      }
+      await fetch(API_BASE + '/handoff/' + sessionId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+        body: JSON.stringify({ reason: 'direct_request' }),
+      });
+      isEscalated = true;
+      showEscalationBanner();
+      startAgentStream();
+    } catch (e) {
+      console.warn('directToAgent failed:', e);
+    }
+  }
 
   function renderTree() {
     var t    = UI[currentLang];
@@ -511,6 +555,17 @@
     });
 
     treePanel.appendChild(optsDiv);
+
+    if (treeStack.length === 0 && !isEscalated) {
+      var agentBtn = document.createElement('button');
+      agentBtn.className = 'nura-agent-bypass-btn';
+      agentBtn.textContent = UI[currentLang].talkToAgent;
+      agentBtn.addEventListener('click', function () {
+        track('direct_to_agent', 'bypass_btn', '');
+        directToAgent();
+      });
+      treePanel.appendChild(agentBtn);
+    }
   }
 
   function handleLeaf(node) {
@@ -561,10 +616,12 @@
     win.classList.add('nura-open');
     badge.style.display = 'none';
     setTimeout(function () { msgInput.focus(); }, 250);
+    if (isEscalated && !isSessionClosed) startAgentStream();
   }
   function closeChat() {
     isOpen = false;
     win.classList.remove('nura-open');
+    stopAgentStream();
   }
 
   toggle.addEventListener('click', function () {
@@ -706,6 +763,48 @@
     scrollBottom();
   }
 
+  // ── Agent message polling ──────────────────────────────────────────────────
+  function startAgentStream() {
+    if (agentEventSource || !sessionId) return;
+    agentEventSource = new EventSource(API_BASE + '/session/' + sessionId + '/stream');
+    agentEventSource.onmessage = function (e) {
+      try { handleStreamEvent(JSON.parse(e.data)); } catch (_) {}
+    };
+    agentEventSource.onerror = function () {
+      agentEventSource.close();
+      agentEventSource = null;
+      if (!isSessionClosed && isEscalated) {
+        setTimeout(startAgentStream, 5000);
+      }
+    };
+  }
+
+  function stopAgentStream() {
+    if (agentEventSource) {
+      agentEventSource.close();
+      agentEventSource = null;
+    }
+  }
+
+  function handleStreamEvent(event) {
+    if (event.type === 'turn') {
+      var t = event.turn;
+      if (t.role === 'agent' && t.source === 'human') {
+        appendAgentMsg(t.message);
+      }
+    } else if (event.type === 'status' && event.status === 'RESOLVED' && !isSessionClosed) {
+      isSessionClosed = true;
+      stopAgentStream();
+      var notice = document.createElement('div');
+      notice.className = 'nura-escalation-banner';
+      notice.textContent = UI[currentLang].sessionClosed;
+      messagesEl.appendChild(notice);
+      scrollBottom();
+      msgInput.disabled = true;
+      sendBtn.disabled  = true;
+    }
+  }
+
   // ── Send ───────────────────────────────────────────────────────────────────
   async function sendMessage() {
     var text = msgInput.value.trim();
@@ -734,11 +833,12 @@
       var data = await res.json();
       sessionId = data.session_id;
       hideTyping();
-      appendBotMsg(data.response, data.confidence, data.source);
+      if (data.response) appendBotMsg(data.response, data.confidence, data.source);
 
       if (data.escalated && !isEscalated) {
         isEscalated = true;
         showEscalationBanner();
+        startAgentStream();
       }
     } catch (e) {
       hideTyping();
@@ -777,6 +877,7 @@
       });
       isEscalated = true;
       showEscalationBanner();
+      startAgentStream();
     } catch (e) { console.warn('Handoff failed:', e); }
   }
 

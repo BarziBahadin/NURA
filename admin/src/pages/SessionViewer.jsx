@@ -2,31 +2,31 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { api } from '../App.jsx'
 
 const TABS = [
-  { label: 'الكل', value: null },
-  { label: 'نشط', value: 'ACTIVE' },
-  { label: 'انتظار موظف', value: 'PENDING_HANDOFF' },
-  { label: 'مع موظف', value: 'HUMAN_ACTIVE' },
-  { label: 'مغلق', value: 'RESOLVED' },
+  { label: 'All', value: null },
+  { label: 'Active', value: 'ACTIVE' },
+  { label: 'Pending', value: 'PENDING_HANDOFF' },
+  { label: 'With Agent', value: 'HUMAN_ACTIVE' },
+  { label: 'Resolved', value: 'RESOLVED' },
 ]
 
 const STATUS_STYLE = {
-  ACTIVE:          { label: 'نشط',           color: 'bg-green-100 text-green-700' },
-  PENDING_HANDOFF: { label: 'انتظار موظف',   color: 'bg-yellow-100 text-yellow-700' },
-  HUMAN_ACTIVE:    { label: 'مع موظف',       color: 'bg-blue-100 text-blue-700' },
-  RESOLVED:        { label: 'مغلق',          color: 'bg-gray-100 text-gray-500' },
+  ACTIVE:          { label: 'Active',      color: 'bg-green-100 text-green-700' },
+  PENDING_HANDOFF: { label: 'Pending',     color: 'bg-yellow-100 text-yellow-700' },
+  HUMAN_ACTIVE:    { label: 'With Agent',  color: 'bg-blue-100 text-blue-700' },
+  RESOLVED:        { label: 'Resolved',    color: 'bg-gray-100 text-gray-500' },
 }
 
 function timeAgo(iso) {
   const diff = Math.floor((Date.now() - new Date(iso)) / 1000)
-  if (diff < 60) return 'الآن'
-  if (diff < 3600) return `منذ ${Math.floor(diff / 60)} د`
-  if (diff < 86400) return `منذ ${Math.floor(diff / 3600)} س`
-  return `منذ ${Math.floor(diff / 86400)} ي`
+  if (diff < 60) return 'just now'
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  return `${Math.floor(diff / 86400)}d ago`
 }
 
 function HistoryPanel({ history }) {
   if (!history || history.length === 0)
-    return <div className="text-center text-gray-400 text-xs py-4">لا توجد رسائل</div>
+    return <div className="text-center text-gray-400 text-xs py-4">No messages</div>
   return (
     <div className="space-y-2 max-h-72 overflow-y-auto p-3 bg-gray-50 rounded-xl">
       {history.map((turn, i) => (
@@ -34,7 +34,7 @@ function HistoryPanel({ history }) {
           <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
             turn.role === 'agent' ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-600'
           }`}>
-            {turn.role === 'agent' ? 'و' : 'ع'}
+            {turn.role === 'agent' ? 'A' : 'C'}
           </div>
           <div className={`flex flex-col ${turn.role === 'customer' ? 'items-end' : ''}`}>
             <div className={`px-3 py-1.5 rounded-2xl text-sm max-w-xs ${
@@ -45,7 +45,7 @@ function HistoryPanel({ history }) {
               {turn.message}
             </div>
             <div className="text-xs text-gray-400 mt-0.5 flex gap-1">
-              {new Date(turn.timestamp).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })}
+              {new Date(turn.timestamp).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}
               {turn.confidence != null && <span>• {Math.round(turn.confidence * 100)}%</span>}
             </div>
           </div>
@@ -110,14 +110,14 @@ export default function SessionViewer() {
   })
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-gray-800">المحادثات</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Sessions</h1>
         <button
           onClick={fetchSessions}
           className="text-sm bg-white border border-gray-200 hover:bg-gray-50 text-gray-500 px-3 py-1.5 rounded-lg transition"
         >
-          ↻ تحديث
+          ↻ Refresh
         </button>
       </div>
 
@@ -144,23 +144,23 @@ export default function SessionViewer() {
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="بحث بمعرّف الجلسة أو العميل..."
+          placeholder="Search by session ID or customer..."
           className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
         />
       </div>
 
       {/* Count */}
       <div className="text-xs text-gray-400 mb-3">
-        {loading ? 'جاري التحميل...' : `${filtered.length} جلسة${total > filtered.length ? ` (من ${total})` : ''}`}
+        {loading ? 'Loading...' : `${filtered.length} session${filtered.length !== 1 ? 's' : ''}${total > filtered.length ? ` (of ${total})` : ''}`}
       </div>
 
       {/* Session list */}
       {loading ? (
-        <div className="text-center text-gray-400 py-20 text-sm">جاري التحميل...</div>
+        <div className="text-center text-gray-400 py-20 text-sm">Loading...</div>
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-2xl shadow p-12 text-center text-gray-400">
           <div className="text-4xl mb-3">📭</div>
-          <div>لا توجد جلسات</div>
+          <div>No sessions found</div>
         </div>
       ) : (
         <div className="space-y-2">
@@ -177,15 +177,12 @@ export default function SessionViewer() {
                   className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition"
                   onClick={() => setExpanded(isExpanded ? null : s.session_id)}
                 >
-                  {/* Expand indicator */}
                   <span className="text-gray-300 text-xs">{isExpanded ? '▲' : '▼'}</span>
 
-                  {/* Status badge */}
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${st.color}`}>
                     {st.label}
                   </span>
 
-                  {/* Session + customer */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-mono text-xs text-gray-400">{s.session_id.slice(0, 8)}…</span>
@@ -198,29 +195,25 @@ export default function SessionViewer() {
                     )}
                   </div>
 
-                  {/* Customer ID */}
                   <div className="text-xs text-gray-400 hidden sm:block flex-shrink-0">
                     {s.customer_id}
                   </div>
 
-                  {/* Messages count */}
                   <div className="text-xs text-gray-400 flex-shrink-0">
-                    {s.history?.length || 0} رسالة
+                    {s.history?.length || 0} msg
                   </div>
 
-                  {/* Time */}
                   <div className="text-xs text-gray-400 flex-shrink-0">
                     {timeAgo(s.updated_at)}
                   </div>
 
-                  {/* Resolve button */}
                   {canResolve && (
                     <button
                       onClick={e => { e.stopPropagation(); resolveSession(s.session_id) }}
                       disabled={resolving[s.session_id]}
                       className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-lg transition disabled:opacity-50 flex-shrink-0"
                     >
-                      {resolving[s.session_id] ? '...' : 'إغلاق'}
+                      {resolving[s.session_id] ? '...' : 'Resolve'}
                     </button>
                   )}
                 </div>
@@ -229,9 +222,9 @@ export default function SessionViewer() {
                 {isExpanded && (
                   <div className="border-t border-gray-100 p-4">
                     <div className="text-xs text-gray-400 mb-3 flex gap-4">
-                      <span>الجلسة: <span className="font-mono text-gray-600">{s.session_id}</span></span>
-                      <span>العميل: <span className="text-gray-600">{s.customer_id}</span></span>
-                      <span>بدأت: {new Date(s.created_at).toLocaleString('ar')}</span>
+                      <span>Session: <span className="font-mono text-gray-600">{s.session_id}</span></span>
+                      <span>Customer: <span className="text-gray-600">{s.customer_id}</span></span>
+                      <span>Started: {new Date(s.created_at).toLocaleString('en')}</span>
                     </div>
                     <HistoryPanel history={s.history} />
                   </div>
