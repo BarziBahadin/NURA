@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard.jsx'
 import LiveQueue from './pages/LiveQueue.jsx'
 import SessionViewer from './pages/SessionViewer.jsx'
 import KnowledgeBase from './pages/KnowledgeBase.jsx'
+import Reports from './pages/Reports.jsx'
 
 const API_BASE = import.meta.env.VITE_NURA_API_BASE || '/v1'
 const API_KEY = import.meta.env.VITE_NURA_API_KEY || ''
@@ -14,6 +15,7 @@ const navItems = [
   { path: '/', label: 'Dashboard', icon: '📊' },
   { path: '/queue', label: 'Live Queue', icon: '🔔' },
   { path: '/sessions', label: 'Sessions', icon: '💬' },
+  { path: '/reports', label: 'Reports', icon: '📈' },
   { path: '/knowledge', label: 'Knowledge Base', icon: '📚' },
 ]
 
@@ -79,6 +81,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/queue" element={<LiveQueue />} />
           <Route path="/sessions" element={<SessionViewer />} />
+          <Route path="/reports" element={<Reports />} />
           <Route path="/knowledge" element={<KnowledgeBase />} />
         </Routes>
       </main>

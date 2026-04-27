@@ -104,6 +104,79 @@ async def init_db() -> None:
             )
         """)
 
+        # message_feedback — per-turn thumbs up/down from customers
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS message_feedback (
+                id          SERIAL PRIMARY KEY,
+                session_id  TEXT NOT NULL,
+                customer_id TEXT,
+                channel     TEXT,
+                turn_id     TEXT,
+                score       TEXT NOT NULL,
+                source      TEXT,
+                reason      TEXT,
+                created_at  TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
+        # session_outcomes — detailed resolution records filled by agent on close
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS session_outcomes (
+                id                          SERIAL PRIMARY KEY,
+                session_id                  TEXT NOT NULL UNIQUE,
+                status                      TEXT,
+                issue_category              TEXT,
+                root_cause                  TEXT,
+                handoff_reason              TEXT,
+                resolution_notes            TEXT,
+                resolved_by                 TEXT,
+                accepted_at                 TIMESTAMPTZ,
+                resolved_at                 TIMESTAMPTZ,
+                first_agent_response_at     TIMESTAMPTZ,
+                time_to_accept_seconds      FLOAT,
+                time_to_resolution_seconds  FLOAT,
+                created_at                  TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        await conn.execute("""
+            ALTER TABLE session_outcomes
+            ADD COLUMN IF NOT EXISTS handoff_reason TEXT
+        """)
+
+        # message_insights — async intent/sentiment classification per customer turn
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS message_insights (
+                id                SERIAL PRIMARY KEY,
+                session_id        TEXT NOT NULL,
+                customer_id       TEXT,
+                channel           TEXT,
+                message_text      TEXT NOT NULL,
+                language          TEXT,
+                intent            TEXT,
+                sub_intent        TEXT,
+                sentiment         TEXT,
+                confidence_bucket TEXT,
+                is_knowledge_gap  BOOLEAN DEFAULT FALSE,
+                gap_reason        TEXT,
+                created_at        TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
+        # llm_usage_logs — token and cost tracking per OpenAI call
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS llm_usage_logs (
+                id               SERIAL PRIMARY KEY,
+                session_id       TEXT,
+                model            TEXT NOT NULL,
+                operation        TEXT NOT NULL,
+                prompt_tokens    INT DEFAULT 0,
+                completion_tokens INT DEFAULT 0,
+                total_tokens     INT DEFAULT 0,
+                estimated_cost   FLOAT DEFAULT 0.0,
+                created_at       TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_cl_created  ON conversation_logs(created_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_cl_session   ON conversation_logs(session_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_tc_topic    ON tree_clicks(topic_id)")
@@ -111,3 +184,11 @@ async def init_db() -> None:
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_we_type     ON widget_events(event_type)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_we_created  ON widget_events(created_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_sl_created  ON security_logs(created_at)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_mf_session  ON message_feedback(session_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_mf_created  ON message_feedback(created_at)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_so_session  ON session_outcomes(session_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_mi_session  ON message_insights(session_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_mi_intent   ON message_insights(intent)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_mi_created  ON message_insights(created_at)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_lu_session  ON llm_usage_logs(session_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_lu_created  ON llm_usage_logs(created_at)")

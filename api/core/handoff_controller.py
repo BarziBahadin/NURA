@@ -2,6 +2,8 @@ import logging
 
 from config import settings
 from core.sentiment import analyze_sentiment
+from typing import Tuple
+
 from models.session import Session, SessionStatus
 
 logger = logging.getLogger(__name__)
@@ -14,9 +16,9 @@ HANDOFF_MESSAGE_AR = (
 
 def check_handoff_triggers(
     session: Session, message: str, confidence: float
-) -> bool:
+) -> Tuple[bool, str]:
     if not settings.handoff_enabled:
-        return False
+        return False, ""
 
     triggers = settings.handoff_triggers_list
     sentiment = analyze_sentiment(message)
@@ -25,11 +27,11 @@ def check_handoff_triggers(
 
     if "explicit_request" in triggers and sentiment["escalation_requested"]:
         logger.info(f"Handoff triggered: explicit request — session {session.session_id}")
-        return True
+        return True, "explicit_request"
 
     if "angry_sentiment" in triggers and session.negative_score >= 2:
         logger.info(f"Handoff triggered: angry sentiment — session {session.session_id}")
-        return True
+        return True, "angry_sentiment"
 
     if confidence < 0.05:
         session.failure_count += 1
@@ -39,9 +41,9 @@ def check_handoff_triggers(
 
     if "two_failures" in triggers and session.failure_count >= 2:
         logger.info(f"Handoff triggered: two failures — session {session.session_id}")
-        return True
+        return True, "low_confidence"
 
-    return False
+    return False, ""
 
 
 def trigger_handoff(session: Session) -> Session:

@@ -6,6 +6,8 @@ from typing import Optional, Tuple
 from openai import AsyncOpenAI
 
 from config import settings
+from core.intent_classifier import estimate_chat_cost
+from core.logger import log_llm_usage
 from core.rag_engine import retrieve_context
 from core.text_preprocessor import TextPreprocessor
 from models.session import Session
@@ -97,27 +99,28 @@ SYSTEM_PROMPT_TEMPLATE = """أنت وكيل خدمة عملاء محترف في 
 8. لا تبدأ أي رد بعبارة ترحيب مثل "أهلاً وسهلاً" أو "شكراً لتواصلك" — تم إرسال رسالة الترحيب مسبقاً تلقائياً ولا يجب تكرارها أبداً. ابدأ مباشرةً بالإجابة."""
 
 
-async def generate_response(session: Session, message: str) -> Tuple[str, float, str]:
+async def generate_response(session: Session, message: str) -> Tuple[str, float, str, Optional[str]]:
     # 0. Rules engine — exact article match, zero cost
     if _rules_engine is not None:
         rules_result = _rules_engine.match(message)
         if rules_result:
             response, confidence = rules_result
-            return response, confidence, "rules"
+            return response, confidence, "rules", None
 
     # 1. Try local ML model first — free, instant, no API call
     if _conversation_service is not None:
         ml_result = _conversation_service.process(message)
         if ml_result["response"] and ml_result["confidence"] >= settings.ml_confidence_threshold:
             logger.info(f"ML answered (conf={ml_result['confidence']:.2f}, cat={ml_result['category']})")
-            return ml_result["response"], ml_result["confidence"], "local_model"
+            return ml_result["response"], ml_result["confidence"], "local_model", None
 
     # 2. Fall through to RAG + OpenAI
-    rag_context, confidence = await retrieve_context(message)
+    rag_context, confidence, source_doc = await retrieve_context(message)
 
     if not rag_context:
         rag_context = "لا يوجد سياق متاح من الدليل."
         confidence = 0.5
+        source_doc = None
     else:
         rag_context = _preprocessor.compress_whitespace(rag_context)
 
@@ -147,14 +150,26 @@ async def generate_response(session: Session, message: str) -> Tuple[str, float,
             temperature=0.3,
             max_completion_tokens=500,
         )
+        usage = getattr(resp, "usage", None)
+        prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+        completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+        await log_llm_usage(
+            session_id=session.session_id,
+            model=settings.openai_model,
+            operation="chat",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            estimated_cost=estimate_chat_cost(prompt_tokens, completion_tokens),
+        )
         reply = resp.choices[0].message.content.strip()
         if not reply:
             reply = "عذرًا، لم أتمكن من معالجة طلبك. سأقوم بتحويلك إلى أحد أعضاء فريقنا."
-        return reply, confidence, "openai"
+        return reply, confidence, "openai", source_doc
     except Exception as e:
         logger.error(f"OpenAI error: {e}")
         return (
             "عذرًا، يواجه النظام مشكلة مؤقتة. سيتم تحويلك إلى أحد أعضاء فريقنا.",
             0.0,
             "openai",
+            None,
         )

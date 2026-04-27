@@ -11,5 +11,6 @@ class NURAResponse(BaseModel):
     escalated: bool = False
     agent_id: Optional[str] = None
     confidence: float = 0.0
-    source: Optional[str] = None  # "local_model" | "openai"
+    source: Optional[str] = None        # "rules" | "local_model" | "openai"
+    source_doc: Optional[str] = None    # filename that answered this query (RAG only)
     status: str = "ok"

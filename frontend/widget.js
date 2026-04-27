@@ -130,6 +130,13 @@
     '.nura-source-tag.local  { background: #d4f7e8; color: #1a7a4a; }',
     '.nura-source-tag.openai { background: #e8d4f7; color: #6b1a99; }',
     '.nura-source-tag.low    { background: #ffecd4; color: #b45309; }',
+    '.nura-source-doc-chip {',
+    '  display: inline-flex; align-items: center; gap: 3px;',
+    '  font-size: 9.5px; color: #888; margin-top: 2px;',
+    '  background: #f5f5f5; border: 1px solid #e5e5e5;',
+    '  border-radius: 8px; padding: 1px 7px;',
+    '  max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;',
+    '}',
 
     '#nura-typing {',
     '  display: none; align-self: flex-end;',
@@ -227,6 +234,18 @@
     '  background: #fff0f0; color: #c0392b; border: 1px solid #f5c6cb;',
     '  padding: 8px 14px; border-radius: 12px; font-size: 13px; align-self: flex-end;',
     '}',
+    '.nura-rating-prompt {',
+    '  background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 12px;',
+    '  padding: 10px 14px; text-align: center; font-size: 13px; color: #555;',
+    '  animation: nuraFadeUp 0.2s ease;',
+    '}',
+    '.nura-rating-stars { display: flex; justify-content: center; gap: 4px; margin-top: 7px; }',
+    '.nura-star-btn {',
+    '  background: none; border: none; font-size: 24px; cursor: pointer;',
+    '  color: #ddd; transition: color 0.15s, transform 0.1s; line-height: 1; padding: 0 2px;',
+    '}',
+    '.nura-star-btn:hover, .nura-star-btn.lit { color: #f97316; }',
+    '.nura-star-btn:hover { transform: scale(1.15); }',
 
     '@media (max-width: 460px) {',
     '  #chat-window { width: calc(100vw - 24px); max-height: 90vh; }',
@@ -286,6 +305,8 @@
       escalatingBanner: '⏳ جاري التواصل مع موظف بشري…',
       agentConnectedBanner: '✅ موظف بشري متصل الآن', agentLabel: 'موظف',
       sessionClosed: '🔒 تم إغلاق هذه الجلسة. شكراً لتواصلك معنا.',
+      ratePrompt: 'كيف تقيّم تجربتك مع خدمة العملاء؟',
+      rateThanks: 'شكراً على تقييمك! نسعى دائماً للتحسين.',
       treeRoot: 'كيف يمكنني مساعدتك؟', treeBack: '← رجوع', treeHome: '🏠 الرئيسية',
       talkToAgent: '🎧 التحدث مع موظف مباشرةً',
     },
@@ -303,6 +324,8 @@
       escalatingBanner: '⏳ Wekîlek mirovî têkilî te dide…',
       agentConnectedBanner: '✅ Wekîlek mirovî niha ve ye', agentLabel: 'Wekîl',
       sessionClosed: '🔒 Ev rûniştgeha hate girtin. Spas ji bo têkiliya we.',
+      ratePrompt: 'Hûn xizmetguzariya xerîdar çawa dinirxînin?',
+      rateThanks: 'Spas ji bo nirxandina te! Em her tim hewl didin baştir bibin.',
       treeRoot: 'Çawa dikarim alîkariya te bikim?', treeBack: '← Vegerîn', treeHome: '🏠 Serxane',
       talkToAgent: '🎧 Rasterast bi karmend re biaxive',
     },
@@ -438,10 +461,11 @@
   var isOpen             = false;
   var welcomed           = false;
   var isEscalated        = false;
-  var isSessionClosed    = false;
-  var escalationBannerEl = null;
-  var treeStack          = [];
-  var agentEventSource   = null;
+  var isSessionClosed      = false;
+  var escalationBannerEl   = null;
+  var treeStack            = [];
+  var agentEventSource     = null;
+  var typingDebounceTimer  = null;
 
   // ── DOM refs ───────────────────────────────────────────────────────────────
   var toggle      = root.querySelector('#chat-toggle');
@@ -464,27 +488,15 @@
   async function directToAgent() {
     if (isEscalated || isSessionClosed) return;
     try {
-      if (!sessionId) {
-        var initRes = await fetch(API_BASE + '/message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: null, customer_id: customerId, channel: 'web', message: 'أريد التحدث مع موظف' }),
-        });
-        var initData = await initRes.json();
-        sessionId = initData.session_id;
-        sessionToken = initData.session_token || sessionToken;
-        if (initData.escalated) {
-          isEscalated = true;
-          showEscalationBanner();
-          startAgentStream();
-          return;
-        }
-      }
-      await fetch(API_BASE + '/handoff/' + sessionId, {
+      var handoffRes = await fetch(API_BASE + '/handoff/direct', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken || '' },
-        body: JSON.stringify({ reason: 'direct_request' }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, customer_id: customerId, channel: 'web', reason: 'direct_request' }),
       });
+      if (!handoffRes.ok) throw new Error('Handoff failed: ' + handoffRes.status);
+      var data = await handoffRes.json();
+      sessionId = data.session_id;
+      sessionToken = data.session_token || sessionToken;
       isEscalated = true;
       showEscalationBanner();
       startAgentStream();
@@ -641,6 +653,14 @@
     msgInput.style.height = 'auto';
     msgInput.style.height = Math.min(msgInput.scrollHeight, 100) + 'px';
     sendBtn.disabled = msgInput.value.trim() === '';
+    if (isEscalated && !isSessionClosed && sessionId && sessionToken) {
+      clearTimeout(typingDebounceTimer);
+      typingDebounceTimer = setTimeout(function () {
+        fetch(API_BASE + '/session/' + encodeURIComponent(sessionId) +
+          '/typing?sender=customer&session_token=' + encodeURIComponent(sessionToken),
+          { method: 'POST' }).catch(function () {});
+      }, 500);
+    }
   });
   msgInput.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -648,6 +668,10 @@
   sendBtn.addEventListener('click', sendMessage);
 
   // ── Render helpers ─────────────────────────────────────────────────────────
+  function fmtTime() {
+    return new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
+  }
+
   function escHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -670,12 +694,13 @@
   function appendUserMsg(text) {
     var div = document.createElement('div');
     div.className = 'nura-msg user';
-    div.innerHTML = '<div class="nura-bubble">' + escHtml(text) + '</div>';
+    div.innerHTML = '<div class="nura-bubble">' + escHtml(text) + '</div>' +
+      '<div class="nura-meta"><span>' + fmtTime() + '</span></div>';
     messagesEl.appendChild(div);
     scrollBottom();
   }
 
-  function appendBotMsg(text, confidence, source) {
+  function appendBotMsg(text, confidence, source, sourceDoc) {
     var t    = UI[currentLang];
     var div  = document.createElement('div');
     div.className = 'nura-msg bot';
@@ -691,9 +716,11 @@
 
     div.innerHTML =
       '<div class="nura-bubble">' + escHtml(mainText) + '</div>' +
+      (sourceDoc ? '<span class="nura-source-doc-chip" title="' + escHtml(sourceDoc) + '">📄 ' + escHtml(sourceDoc) + '</span>' : '') +
       '<div class="nura-meta">' +
         (pct   ? '<span>' + pct + '</span>' : '') +
         (label ? '<span class="nura-source-tag ' + tag + '">' + label + '</span>' : '') +
+        '<span>' + fmtTime() + '</span>' +
       '</div>';
 
     if (source) {
@@ -750,7 +777,7 @@
     div.className = 'nura-msg agent';
     div.innerHTML =
       '<div class="nura-bubble">' + escHtml(text) + '</div>' +
-      '<div class="nura-meta"><span>' + escHtml(agentName || t.agentLabel) + '</span></div>';
+      '<div class="nura-meta"><span>' + escHtml(agentName || t.agentLabel) + '</span><span>' + fmtTime() + '</span></div>';
     messagesEl.appendChild(div);
     scrollBottom();
     if (escalationBannerEl) escalationBannerEl.textContent = t.agentConnectedBanner;
@@ -789,12 +816,18 @@
     }
   }
 
+  var agentTypingTimer = null;
+
   function handleStreamEvent(event) {
     if (event.type === 'turn') {
       var t = event.turn;
       if (t.role === 'agent' && t.source === 'human') {
         appendAgentMsg(t.message);
       }
+    } else if (event.type === 'typing' && event.sender === 'agent') {
+      showTyping();
+      clearTimeout(agentTypingTimer);
+      agentTypingTimer = setTimeout(hideTyping, 3000);
     } else if (event.type === 'status' && event.status === 'RESOLVED' && !isSessionClosed) {
       isSessionClosed = true;
       stopAgentStream();
@@ -802,10 +835,45 @@
       notice.className = 'nura-escalation-banner';
       notice.textContent = UI[currentLang].sessionClosed;
       messagesEl.appendChild(notice);
+      showRatingPrompt();
       scrollBottom();
       msgInput.disabled = true;
       sendBtn.disabled  = true;
     }
+  }
+
+  function showRatingPrompt() {
+    var t = UI[currentLang];
+    var ratingDiv = document.createElement('div');
+    ratingDiv.className = 'nura-rating-prompt';
+    var p = document.createElement('p');
+    p.textContent = t.ratePrompt;
+    var starsRow = document.createElement('div');
+    starsRow.className = 'nura-rating-stars';
+    [1, 2, 3, 4, 5].forEach(function (score) {
+      var btn = document.createElement('button');
+      btn.className = 'nura-star-btn';
+      btn.textContent = '★';
+      btn.addEventListener('mouseenter', function () {
+        starsRow.querySelectorAll('.nura-star-btn').forEach(function (b, i) { b.classList.toggle('lit', i < score); });
+      });
+      btn.addEventListener('mouseleave', function () {
+        starsRow.querySelectorAll('.nura-star-btn').forEach(function (b) { b.classList.remove('lit'); });
+      });
+      btn.addEventListener('click', function () {
+        starsRow.querySelectorAll('.nura-star-btn').forEach(function (b, i) { b.classList.toggle('lit', i < score); b.disabled = true; });
+        fetch(API_BASE + '/session/' + encodeURIComponent(sessionId) + '/rating', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken || '' },
+          body: JSON.stringify({ score: score }),
+        }).catch(function () {});
+        setTimeout(function () { ratingDiv.innerHTML = '<p>' + escHtml(t.rateThanks) + '</p>'; }, 300);
+      });
+      starsRow.appendChild(btn);
+    });
+    ratingDiv.appendChild(p);
+    ratingDiv.appendChild(starsRow);
+    messagesEl.appendChild(ratingDiv);
   }
 
   // ── Send ───────────────────────────────────────────────────────────────────
@@ -837,7 +905,7 @@
       sessionId = data.session_id;
       sessionToken = data.session_token || sessionToken;
       hideTyping();
-      if (data.response) appendBotMsg(data.response, data.confidence, data.source);
+      if (data.response) appendBotMsg(data.response, data.confidence, data.source, data.source_doc);
 
       if (data.escalated && !isEscalated) {
         isEscalated = true;

@@ -48,24 +48,30 @@ def get_index() -> VectorStoreIndex:
     return _index
 
 
-async def retrieve_context(query: str) -> Tuple[str, float]:
+async def retrieve_context(query: str) -> Tuple[str, float, Optional[str]]:
     try:
         index = get_index()
         retriever = index.as_retriever(similarity_top_k=settings.rag_top_k)
         nodes = await asyncio.to_thread(retriever.retrieve, query)
 
         if not nodes:
-            return "", 0.0
+            return "", 0.0, None
 
         chunks = [node.get_content() for node in nodes]
         scores = [node.score if node.score else 0.5 for node in nodes]
 
         context = "\n\n---\n\n".join(chunks)
         avg_score = sum(scores) / len(scores)
-        return context, round(avg_score, 3)
+
+        top_meta = nodes[0].node.metadata if nodes else {}
+        source_doc = top_meta.get("file_name") or top_meta.get("file_path") or None
+        if source_doc:
+            source_doc = source_doc.split("/")[-1]  # basename only
+
+        return context, round(avg_score, 3), source_doc
     except Exception as e:
         logger.error(f"RAG retrieval error: {e}")
-        return "", 0.0
+        return "", 0.0, None
 
 
 def reset_index() -> None:

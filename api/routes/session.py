@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -6,10 +7,19 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from core.auth import is_valid_api_key, verify_api_key
+from core.logger import log_session_outcome
 from core.session_manager import append_turn, get_all_sessions, get_session, publish_session_event, save_session
 from models.session import SessionStatus
 
 router = APIRouter()
+
+
+class ResolveBody(BaseModel):
+    status: str = "solved"
+    issue_category: str = ""
+    root_cause: str = ""
+    resolution_notes: str = ""
+    resolved_by: str = "Agent"
 
 
 def verify_session_access(request: Request, session) -> None:
@@ -43,12 +53,47 @@ async def close_session(session_id: str, _: None = Depends(verify_api_key)):
 
 
 @router.post("/session/{session_id}/resolve")
-async def resolve_session(session_id: str, _: None = Depends(verify_api_key)):
+async def resolve_session(
+    session_id: str,
+    body: ResolveBody | None = None,
+    _: None = Depends(verify_api_key),
+):
+    body = body or ResolveBody()
     session = await get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     session.status = SessionStatus.resolved
+    resolved_at = datetime.now(timezone.utc)
+    created_at = datetime.fromisoformat(session.created_at)
+    accepted_at = None
+    if session.metadata.get("accepted_at"):
+        try:
+            accepted_at = datetime.fromisoformat(session.metadata["accepted_at"])
+        except ValueError:
+            accepted_at = None
+    first_agent_response_at = None
+    for turn in session.history:
+        if turn.role == "agent" and turn.source == "human":
+            try:
+                first_agent_response_at = datetime.fromisoformat(turn.timestamp)
+            except ValueError:
+                first_agent_response_at = None
+            break
     await save_session(session)
+    await log_session_outcome(
+        session_id=session_id,
+        status=body.status,
+        issue_category=body.issue_category,
+        root_cause=body.root_cause,
+        handoff_reason=session.metadata.get("handoff_reason", ""),
+        resolution_notes=body.resolution_notes,
+        resolved_by=body.resolved_by,
+        accepted_at=accepted_at,
+        resolved_at=resolved_at,
+        first_agent_response_at=first_agent_response_at,
+        time_to_accept_seconds=max(0, (accepted_at - created_at).total_seconds()) if accepted_at else None,
+        time_to_resolution_seconds=max(0, (resolved_at - created_at).total_seconds()),
+    )
     await publish_session_event(session_id, {"type": "status", "status": "RESOLVED"})
     return {"ok": True, "session_id": session_id}
 
@@ -82,6 +127,10 @@ class AgentMessageBody(BaseModel):
     agent_name: str = "Agent"
 
 
+class RatingBody(BaseModel):
+    score: int
+
+
 @router.post("/session/{session_id}/agent-message")
 async def send_agent_message(
     session_id: str,
@@ -94,6 +143,33 @@ async def send_agent_message(
     if session.status != SessionStatus.human_active:
         raise HTTPException(status_code=409, detail="Session is not in HUMAN_ACTIVE state")
     await append_turn(session, role="agent", message=body.message, source="human")
+    return {"ok": True}
+
+
+@router.post("/session/{session_id}/typing")
+async def session_typing(session_id: str, request: Request, sender: str = "agent"):
+    session = await get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if sender == "agent":
+        if not is_valid_api_key(request):
+            raise HTTPException(status_code=401, detail="Unauthorized")
+    else:
+        verify_session_access(request, session)
+    await publish_session_event(session_id, {"type": "typing", "sender": sender})
+    return {"ok": True}
+
+
+@router.post("/session/{session_id}/rating")
+async def rate_session(session_id: str, body: RatingBody, request: Request):
+    session = await get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    verify_session_access(request, session)
+    if not 1 <= body.score <= 5:
+        raise HTTPException(status_code=400, detail="Score must be between 1 and 5")
+    session.metadata["rating"] = body.score
+    await save_session(session)
     return {"ok": True}
 
 

@@ -95,6 +95,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 export default function Dashboard() {
   const [data, setData]           = useState(null)
   const [health, setHealth]       = useState(null)
+  const [ratings, setRatings]     = useState(null)
   const [days, setDays]           = useState(30)
   const [loading, setLoading]     = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
@@ -103,12 +104,14 @@ export default function Dashboard() {
   const fetchData = useCallback(async () => {
     try {
       const h = { Authorization: `Bearer ${api.key}` }
-      const [analytics, healthData] = await Promise.all([
+      const [analytics, healthData, ratingsData] = await Promise.all([
         fetch(`${api.base}/analytics/dashboard?days=${days}`, { headers: h }).then(r => r.json()),
         fetch(`${api.base}/health`, { headers: h }).then(r => r.json()),
+        fetch(`${api.base}/analytics/ratings`, { headers: h }).then(r => r.json()),
       ])
       setData(analytics)
       setHealth(healthData)
+      setRatings(ratingsData)
       setLastUpdated(Date.now())
       setSecondsAgo(0)
     } catch (e) {
@@ -194,7 +197,7 @@ export default function Dashboard() {
       ) : (
         <>
           {/* KPI row */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
             <KpiCard label="Total Sessions"  value={data.total_sessions.toLocaleString()} sub={`last ${days} days`} />
             <KpiCard label="Total Messages"  value={data.total_messages.toLocaleString()}
               sub={`${data.total_sessions > 0 ? (data.total_messages / data.total_sessions).toFixed(1) : 0} msg/session`} />
@@ -208,6 +211,42 @@ export default function Dashboard() {
               color={escalationAlert ? 'text-red-600' : 'text-gray-800'}
               alert={escalationAlert} />
             <KpiCard label="Tree Clicks" value={totalClicks.toLocaleString()} sub="total guided interactions" />
+            <KpiCard
+              label="Avg Rating"
+              value={ratings?.avg_rating != null ? `★ ${ratings.avg_rating.toFixed(1)}` : '—'}
+              sub={ratings?.total_rated ? `${ratings.total_rated} ratings` : 'no ratings yet'}
+              color={ratings?.avg_rating >= 4 ? 'text-yellow-500' : ratings?.avg_rating >= 3 ? 'text-orange-500' : 'text-gray-500'}
+            />
+            <KpiCard
+              label="Deflection"
+              value={`${Math.round((data.deflection_rate || 0) * 100)}%`}
+              sub="sessions not escalated"
+              color="text-green-600"
+            />
+            <KpiCard
+              label="Feedback"
+              value={`${Math.round((data.feedback_positive_rate || 0) * 100)}%`}
+              sub={`${data.feedback_total || 0} answer votes`}
+              color={(data.feedback_positive_rate || 0) >= 0.75 ? 'text-green-600' : 'text-orange-500'}
+            />
+            <KpiCard
+              label="Resolution"
+              value={`${Math.round(data.avg_time_to_resolution_seconds || 0)}s`}
+              sub={`${data.resolved_sessions || 0} resolved`}
+              color="text-blue-600"
+            />
+            <KpiCard
+              label="Knowledge Gaps"
+              value={(data.knowledge_gaps || 0).toLocaleString()}
+              sub="low-confidence/gap intents"
+              color={(data.knowledge_gaps || 0) > 0 ? 'text-red-600' : 'text-gray-500'}
+            />
+            <KpiCard
+              label="AI Cost"
+              value={`$${Number(data.estimated_ai_cost || 0).toFixed(4)}`}
+              sub={`${(data.llm_total_tokens || 0).toLocaleString()} tokens`}
+              color="text-purple-600"
+            />
           </div>
 
           {/* Daily traffic + Source donut */}

@@ -42,6 +42,12 @@ class Settings(BaseSettings):
 
     handoff_enabled: bool = True
     handoff_triggers: str = "angry_sentiment,explicit_request,two_failures,keywords"
+    escalation_webhook_url: str = ""
+
+    # LLM cost constants (USD per 1K tokens) — update when model pricing changes
+    openai_cost_input_per_1k: float = 0.00015     # gpt-4o-mini input
+    openai_cost_output_per_1k: float = 0.0006     # gpt-4o-mini output
+    openai_cost_embedding_per_1k: float = 0.00002  # text-embedding-3-small
 
     admin_secret_key: str = "admin-secret-change-in-production"
 
