@@ -1,5 +1,6 @@
 import json
 import uuid
+import secrets
 import logging
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 _redis_client: Optional[aioredis.Redis] = None
 SESSION_TTL = 3600 * 24  # 24 hours
+CUSTOMER_TOKEN_KEY = "customer_token"
 
 
 def get_redis() -> aioredis.Redis:
@@ -45,8 +47,17 @@ async def get_or_create_session(
         created_at=now,
         updated_at=now,
     )
+    session.metadata[CUSTOMER_TOKEN_KEY] = secrets.token_urlsafe(32)
     await save_session(session)
     return session
+
+
+def get_customer_token(session: Session) -> str:
+    token = session.metadata.get(CUSTOMER_TOKEN_KEY)
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session.metadata[CUSTOMER_TOKEN_KEY] = token
+    return token
 
 
 async def save_session(session: Session) -> None:

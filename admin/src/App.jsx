@@ -5,8 +5,8 @@ import LiveQueue from './pages/LiveQueue.jsx'
 import SessionViewer from './pages/SessionViewer.jsx'
 import KnowledgeBase from './pages/KnowledgeBase.jsx'
 
-const API_BASE = 'http://localhost:8080/v1'
-const API_KEY = 'nura-dev-key-change-in-production'
+const API_BASE = import.meta.env.VITE_NURA_API_BASE || '/v1'
+const API_KEY = import.meta.env.VITE_NURA_API_KEY || ''
 
 export const api = { base: API_BASE, key: API_KEY }
 

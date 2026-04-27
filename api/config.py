@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     api_host: str = "0.0.0.0"
     api_port: int = 8000
-    api_key: str = "nura-dev-key-change-in-production"
+    api_key: str
 
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     postgres_port: int = 5432
     postgres_db: str = "nura_db"
     postgres_user: str = "nura_user"
-    postgres_password: str = "NuraSecure2024!"
+    postgres_password: str
 
     redis_host: str = "redis"
     redis_port: int = 6379

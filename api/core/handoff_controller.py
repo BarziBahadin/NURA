@@ -31,15 +31,15 @@ def check_handoff_triggers(
         logger.info(f"Handoff triggered: angry sentiment — session {session.session_id}")
         return True
 
-    if "two_failures" in triggers and session.failure_count >= 2:
-        logger.info(f"Handoff triggered: two failures — session {session.session_id}")
-        return True
-
     if confidence < 0.05:
         session.failure_count += 1
         logger.info(
             f"Low confidence ({confidence}) — failure count: {session.failure_count}"
         )
+
+    if "two_failures" in triggers and session.failure_count >= 2:
+        logger.info(f"Handoff triggered: two failures — session {session.session_id}")
+        return True
 
     return False
 

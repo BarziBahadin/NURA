@@ -25,7 +25,6 @@ FRONTEND_PID=$!
 echo ""
 echo "All services running:"
 echo "  Widget     → http://localhost:9000/widget.html"
-echo "  Dashboard  → http://localhost:9000/dashboard.html"
 echo "  API        → http://localhost:8080"
 echo "  Admin      → http://localhost:3004"
 echo ""

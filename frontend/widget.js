@@ -3,7 +3,6 @@
 
   var _s = document.currentScript;
   var API_BASE = (_s && _s.getAttribute('data-api')) || 'http://localhost:8080/v1';
-  var API_KEY  = (_s && _s.getAttribute('data-key'))  || '';
 
   // ── Inject styles ──────────────────────────────────────────────────────────
   var style = document.createElement('style');
@@ -434,6 +433,7 @@
   // ── State ──────────────────────────────────────────────────────────────────
   var currentLang        = 'ar';
   var sessionId          = null;
+  var sessionToken       = null;
   var customerId         = 'widget-' + Math.random().toString(36).substr(2, 8);
   var isOpen             = false;
   var welcomed           = false;
@@ -467,11 +467,12 @@
       if (!sessionId) {
         var initRes = await fetch(API_BASE + '/message', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_id: null, customer_id: customerId, channel: 'web', message: 'أريد التحدث مع موظف' }),
         });
         var initData = await initRes.json();
         sessionId = initData.session_id;
+        sessionToken = initData.session_token || sessionToken;
         if (initData.escalated) {
           isEscalated = true;
           showEscalationBanner();
@@ -481,7 +482,7 @@
       }
       await fetch(API_BASE + '/handoff/' + sessionId, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+        headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken || '' },
         body: JSON.stringify({ reason: 'direct_request' }),
       });
       isEscalated = true;
@@ -765,8 +766,10 @@
 
   // ── Agent message polling ──────────────────────────────────────────────────
   function startAgentStream() {
-    if (agentEventSource || !sessionId) return;
-    agentEventSource = new EventSource(API_BASE + '/session/' + sessionId + '/stream');
+    if (agentEventSource || !sessionId || !sessionToken) return;
+    var streamUrl = API_BASE + '/session/' + encodeURIComponent(sessionId) +
+      '/stream?session_token=' + encodeURIComponent(sessionToken);
+    agentEventSource = new EventSource(streamUrl);
     agentEventSource.onmessage = function (e) {
       try { handleStreamEvent(JSON.parse(e.data)); } catch (_) {}
     };
@@ -821,7 +824,7 @@
     try {
       var res = await fetch(API_BASE + '/message', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: sessionId, channel: 'web', customer_id: customerId, message: text }),
       });
 
@@ -832,6 +835,7 @@
 
       var data = await res.json();
       sessionId = data.session_id;
+      sessionToken = data.session_token || sessionToken;
       hideTyping();
       if (data.response) appendBotMsg(data.response, data.confidence, data.source);
 
@@ -872,7 +876,7 @@
     try {
       await fetch(API_BASE + '/handoff/' + sessionId, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+        headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken || '' },
         body: JSON.stringify({ reason: 'bad_feedback' }),
       });
       isEscalated = true;

@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   nura-api:
     build: ./api
@@ -41,7 +39,7 @@ services:
     environment:
       POSTGRES_DB: nura_db
       POSTGRES_USER: nura_user
-      POSTGRES_PASSWORD: NuraSecure2024!
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     ports:
       - "5432:5432"
     volumes:
@@ -71,8 +69,13 @@ services:
     restart: unless-stopped
 
   nura-admin:
-    build: ./admin
+    build:
+      context: ./admin
+      args:
+        VITE_NURA_API_BASE: /v1
     container_name: nura-admin
+    environment:
+      API_KEY: ${API_KEY:?API_KEY is required}
     ports:
       - "3004:80"
     networks:

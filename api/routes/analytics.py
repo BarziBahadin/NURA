@@ -3,30 +3,42 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from core.auth import verify_api_key
 from core.logger import log_tree_click, log_widget_event
 from db.postgres import get_db_pool
-from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
+
+ALLOWED_EVENT_TYPES = {
+    "chat_open", "chat_close", "lang_switch", "send_message",
+    "tree_click", "tree_back", "tree_home", "followup_yes",
+    "followup_no", "feedback_good", "feedback_bad", "direct_to_agent",
+}
 
 
 class EventPayload(BaseModel):
-    session_id:  Optional[str] = None
-    customer_id: Optional[str] = None
-    event_type:  str
-    label:       Optional[str] = None
-    meta:        Optional[str] = None
+    session_id:  Optional[str] = Field(default=None, max_length=128)
+    customer_id: Optional[str] = Field(default=None, max_length=128)
+    event_type:  str = Field(..., max_length=64)
+    label:       Optional[str] = Field(default=None, max_length=256)
+    meta:        Optional[str] = Field(default=None, max_length=512)
     # tree-specific (kept for compat)
     topic_id:    Optional[str] = None
     article_id:  Optional[int] = None
 
 
 @router.post("/analytics/click")
-async def track_event(payload: EventPayload):
+@limiter.limit("120/minute")
+async def track_event(request: Request, payload: EventPayload):
     # Open endpoint — widget fires this without an API key
+    if payload.event_type not in ALLOWED_EVENT_TYPES:
+        raise HTTPException(status_code=400, detail="Unsupported event type")
     await log_widget_event(
         session_id=payload.session_id or "",
         customer_id=payload.customer_id or "",

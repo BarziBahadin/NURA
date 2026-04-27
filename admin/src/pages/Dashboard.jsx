@@ -11,11 +11,14 @@ import { api } from '../App.jsx'
 const SOURCE_COLORS = {
   openai:      '#7c3aed',
   rag:         '#10b981',
+  rules:       '#f59e0b',
+  local_model: '#0d9488',
   'rule-based':'#f59e0b',
   escalated:   '#ef4444',
 }
 const SOURCE_LABELS = {
-  openai: 'AI (OpenAI)', rag: 'RAG', 'rule-based': 'Rules', escalated: 'Escalated',
+  openai: 'AI (OpenAI)', rag: 'RAG', rules: 'Rules', local_model: 'ML',
+  'rule-based': 'Rules', escalated: 'Escalated',
 }
 const EVENT_LABELS = {
   chat_open: 'Chat Opened', chat_close: 'Chat Closed',

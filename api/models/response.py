@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class NURAResponse(BaseModel):
     session_id: str
+    session_token: Optional[str] = None
     response: str
     channel: str
     escalated: bool = False

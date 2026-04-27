@@ -36,7 +36,7 @@ Customer (Embeddable Widget · widget.js OR frontend/widget.html)
 ## What Is Built
 
 ### Core API (`/api`)
-- FastAPI backend with Bearer token auth on all endpoints
+- FastAPI backend with Bearer token auth on admin/internal endpoints; public widget message and telemetry endpoints are rate-limited
 - Rate limiting via slowapi (30 req/min per customer)
 - CORS configured for local dev (ports 3000, 3001, 5173, 8080)
 
@@ -95,7 +95,7 @@ Escalation triggers (configurable in `.env`):
 | `feedback_good` | Thumbs-up feedback given |
 | `feedback_bad` | Thumbs-down feedback given |
 
-**Analytics Dashboard** (`frontend/dashboard.html`):
+**Analytics Dashboard** (React admin panel):
 - KPI cards: sessions, messages, avg confidence, escalation rate, total tree clicks
 - Donut chart: answer source breakdown (Rules / ML / AI / Escalated)
 - Line chart: daily messages + sessions over time
@@ -119,13 +119,12 @@ Two delivery modes for the same widget:
 **Embeddable (`frontend/widget.js`)** — single-line embed for any website:
 ```html
 <script src="http://YOUR-SERVER:8080/widget.js"
-        data-api="http://YOUR-SERVER:8080/v1"
-        data-key="nura-dev-key-change-in-production"></script>
+        data-api="http://YOUR-SERVER:8080/v1"></script>
 ```
 - Served at `/widget.js` directly from the NURA API
 - Self-contained IIFE — injects its own CSS and DOM, no build step on the host page
 - All CSS namespaced with `nura-` prefix to avoid conflicts with host page styles
-- Reads `data-api` and `data-key` from the script tag at parse time
+- Reads `data-api` from the script tag at parse time
 - Runs at the highest z-index (2147483640) so it floats above all host content
 
 **Standalone (`frontend/widget.html`)** — open directly in a browser for local testing
@@ -165,7 +164,7 @@ No SSH tunnel or local GPU required — all AI runs through OpenAI API.
 docker compose up -d
 
 # 2. Check everything is healthy
-curl -H "Authorization: Bearer nura-dev-key-change-in-production" \
+curl -H "Authorization: Bearer $API_KEY" \
   http://localhost:8080/v1/health
 
 # 3. Ingest the handbook into ChromaDB (first time only, or after handbook changes)
@@ -174,8 +173,8 @@ docker exec nura-api python /app/ingestion/ingest.py
 # 4. Open the chat widget
 open frontend/widget.html
 
-# 5. Open the analytics dashboard
-open frontend/dashboard.html
+# 5. Open the admin dashboard
+open http://localhost:3004
 ```
 
 ---
@@ -191,7 +190,7 @@ open frontend/dashboard.html
 | Chat Widget (local)| `frontend/widget.html`                     | Open directly in browser     |
 | Admin Panel        | http://localhost:3004                      | React dashboard              |
 | ChromaDB           | http://localhost:8001                      | Vector store (internal)      |
-| PostgreSQL         | localhost:5432                             | nura_user / NuraSecure2024!  |
+| PostgreSQL         | localhost:5432                             | nura_user / configured password |
 | Redis              | localhost:6379                             | Session cache                |
 
 ---
@@ -201,7 +200,6 @@ open frontend/dashboard.html
 ### POST /v1/message
 ```bash
 curl -X POST http://localhost:8080/v1/message \
-  -H "Authorization: Bearer nura-dev-key-change-in-production" \
   -H "Content-Type: application/json" \
   -d '{
     "session_id": null,
@@ -248,14 +246,14 @@ Returns sessions, messages, confidence, escalation rate, source breakdown, top t
 
 ### GET /v1/health
 ```bash
-curl -H "Authorization: Bearer nura-dev-key-change-in-production" \
+curl -H "Authorization: Bearer $API_KEY" \
   http://localhost:8080/v1/health
 ```
 
 ### POST /v1/knowledge/ingest
 ```bash
 curl -X POST http://localhost:8080/v1/knowledge/ingest \
-  -H "Authorization: Bearer nura-dev-key-change-in-production"
+  -H "Authorization: Bearer $API_KEY"
 ```
 
 ---
@@ -399,8 +397,7 @@ NURA/
 │       └── Rcell Company Profile 6.pdf
 ├── frontend/
 │   ├── widget.js                     ← embeddable widget IIFE (served at /widget.js by the API)
-│   ├── widget.html                   ← standalone widget for local browser testing
-│   └── dashboard.html                ← analytics dashboard (open directly in browser)
+│   └── widget.html                   ← standalone widget for local browser testing
 └── admin/
     └── src/
         ├── App.jsx                   ← React admin panel + API config
@@ -422,8 +419,8 @@ NURA/
 | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embeddings for RAG |
 | `COMPANY_NAME` | `Rcell Telecom` | Injected into every system prompt |
 | `AGENT_NAME` | `NURA` | Agent identity |
-| `API_KEY` | `nura-dev-key-change-in-production` | **Change before production** |
-| `POSTGRES_PASSWORD` | `NuraSecure2024!` | **Change before production** |
+| `API_KEY` | required | Bearer key for admin/internal endpoints |
+| `POSTGRES_PASSWORD` | required | PostgreSQL password |
 | `ADMIN_SECRET_KEY` | `admin-secret-change-in-production` | **Change before production** |
 | `RAG_TOP_K` | `3` | Chunks retrieved per query |
 | `RAG_CHUNK_SIZE` | `512` | Token chunk size for ingestion |
@@ -448,7 +445,7 @@ NURA/
 - [ ] **Expand guided tree** — add more leaf nodes as new articles are added
 
 ### Analytics & Admin
-- [x] **Analytics dashboard** — KPIs, charts for volume, escalation rate, top topics (done: `dashboard.html`)
+- [x] **Analytics dashboard** — KPIs, charts for volume, escalation rate, top topics (done in React admin)
 - [x] **Full button tracking** — every widget interaction logged to `widget_events` (done)
 - [x] **Customer satisfaction rating** — thumbs up/down per bot response (done)
 - [x] **Embeddable widget** — single `<script>` tag embed, served at `/widget.js`, self-contained IIFE (done)

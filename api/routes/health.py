@@ -1,9 +1,10 @@
 import httpx
 import redis.asyncio as aioredis
 from openai import AsyncOpenAI
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from typing import Optional
 
+from core.auth import verify_api_key
 from config import settings
 
 router = APIRouter()
@@ -19,7 +20,7 @@ def get_openai_client() -> AsyncOpenAI:
 
 
 @router.get("/health")
-async def health_check():
+async def health_check(_: None = Depends(verify_api_key)):
     services = {
         "api": "ok",
         "openai": "unknown",

@@ -5,11 +5,20 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from core.auth import verify_api_key
+from core.auth import is_valid_api_key, verify_api_key
 from core.session_manager import append_turn, get_all_sessions, get_session, publish_session_event, save_session
 from models.session import SessionStatus
 
 router = APIRouter()
+
+
+def verify_session_access(request: Request, session) -> None:
+    if is_valid_api_key(request):
+        return
+    supplied = request.query_params.get("session_token") or request.headers.get("X-Session-Token", "")
+    expected = session.metadata.get("customer_token", "")
+    if not expected or supplied != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 @router.get("/session/{session_id}")
@@ -89,10 +98,11 @@ async def send_agent_message(
 
 
 @router.get("/session/{session_id}/messages")
-async def get_session_messages(session_id: str, since: str = ""):
+async def get_session_messages(session_id: str, request: Request, since: str = ""):
     session = await get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    verify_session_access(request, session)
     turns = session.history
     if since:
         turns = [t for t in turns if t.timestamp > since]
@@ -107,6 +117,7 @@ async def session_stream(session_id: str, request: Request):
     session = await get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    verify_session_access(request, session)
 
     from core.session_manager import get_redis
 

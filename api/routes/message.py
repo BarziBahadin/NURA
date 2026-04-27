@@ -1,10 +1,9 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from core.auth import verify_api_key
 from core.handoff_controller import (
     HANDOFF_MESSAGE_AR,
     check_handoff_triggers,
@@ -12,7 +11,7 @@ from core.handoff_controller import (
 )
 from core.logger import log_conversation
 from core.orchestrator import generate_response
-from core.session_manager import append_turn, get_or_create_session, save_session
+from core.session_manager import append_turn, get_customer_token, get_or_create_session, save_session
 from models.message import IncomingMessage
 from models.response import NURAResponse
 from models.session import SessionStatus
@@ -27,7 +26,6 @@ limiter = Limiter(key_func=get_remote_address)
 async def send_message(
     request: Request,
     payload: IncomingMessage,
-    _: None = Depends(verify_api_key),
 ):
     clean_message = payload.message.strip()[:2000]
 
@@ -39,9 +37,12 @@ async def send_message(
 
     # Already handed off to human — save customer message so admin sees it, return no bot reply
     if session.status in (SessionStatus.pending_handoff, SessionStatus.human_active):
+        token = get_customer_token(session)
+        await save_session(session)
         await append_turn(session, "customer", clean_message, source="customer")
         return NURAResponse(
             session_id=session.session_id,
+            session_token=token,
             response="",
             channel=session.channel,
             escalated=True,
@@ -56,6 +57,8 @@ async def send_message(
     if should_escalate:
         session = trigger_handoff(session)
         response_text = HANDOFF_MESSAGE_AR
+
+    session_token = get_customer_token(session)
 
     # Save conversation
     await append_turn(session, "customer", clean_message)
@@ -76,6 +79,7 @@ async def send_message(
 
     return NURAResponse(
         session_id=session.session_id,
+        session_token=session_token,
         response=response_text,
         channel=session.channel,
         escalated=should_escalate,

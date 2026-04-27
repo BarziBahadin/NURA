@@ -1,6 +1,7 @@
 import logging
 import os
 import subprocess
+from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
 
@@ -10,6 +11,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
+HANDBOOK_DIR = Path("/app/handbook")
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 
 def run_ingestion():
@@ -35,22 +38,35 @@ async def upload_handbook(
     file: UploadFile = File(...),
     _: None = Depends(verify_api_key),
 ):
-    ext = os.path.splitext(file.filename)[1].lower()
+    original_name = file.filename or ""
+    safe_name = Path(original_name).name
+    ext = Path(safe_name).suffix.lower()
+    if not safe_name or safe_name in {".", ".."}:
+        raise HTTPException(status_code=400, detail="Invalid filename")
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
             detail=f"File type not allowed. Supported: {list(ALLOWED_EXTENSIONS)}",
         )
 
-    save_path = f"/app/handbook/{file.filename}"
-    content = await file.read()
+    HANDBOOK_DIR.mkdir(parents=True, exist_ok=True)
+    save_path = (HANDBOOK_DIR / safe_name).resolve()
+    if HANDBOOK_DIR.resolve() not in save_path.parents:
+        raise HTTPException(status_code=400, detail="Invalid upload path")
+
+    total = 0
     with open(save_path, "wb") as f:
-        f.write(content)
+        while chunk := await file.read(1024 * 1024):
+            total += len(chunk)
+            if total > MAX_UPLOAD_BYTES:
+                save_path.unlink(missing_ok=True)
+                raise HTTPException(status_code=413, detail="File too large")
+            f.write(chunk)
 
     background_tasks.add_task(run_ingestion)
     return {
-        "message": f"Uploaded: {file.filename}. Ingestion started in background.",
-        "filename": file.filename,
+        "message": f"Uploaded: {safe_name}. Ingestion started in background.",
+        "filename": safe_name,
     }
 
 

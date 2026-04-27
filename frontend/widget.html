@@ -502,8 +502,7 @@
 </div>
 
 <script>
-  const API_BASE = 'http://192.168.6.92:8080/v1';
-  const API_KEY  = 'nura-dev-key-change-in-production';
+  const API_BASE = 'http://localhost:8080/v1';
 
   // ── UI strings per language ───────────────────────────────────────────────
   const UI = {
@@ -1220,6 +1219,7 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
   // ── State ─────────────────────────────────────────────────────────────────
   let currentLang        = 'ar';
   let sessionId          = null;
+  let sessionToken       = null;
   let customerId         = 'widget-' + Math.random().toString(36).substr(2, 8);
   let isOpen             = false;
   let welcomed           = false;
@@ -1258,11 +1258,12 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
       if (!sessionId) {
         const initRes = await fetch(`${API_BASE}/message`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_id: null, customer_id: customerId, channel: 'web', message: 'أريد التحدث مع موظف' }),
         });
         const initData = await initRes.json();
         sessionId = initData.session_id;
+        sessionToken = initData.session_token || sessionToken;
         if (initData.escalated) {
           isEscalated = true;
           showEscalationBanner();
@@ -1273,7 +1274,7 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
       }
       await fetch(`${API_BASE}/handoff/${sessionId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
+        headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken || '' },
         body: JSON.stringify({ reason: 'direct_request' }),
       });
       isEscalated = true;
@@ -1576,8 +1577,9 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
 
   // ── SSE streaming (agent messages pushed in real-time) ────────────────────
   function startAgentStream() {
-    if (agentEventSource || !sessionId) return;
-    agentEventSource = new EventSource(API_BASE + '/session/' + sessionId + '/stream');
+    if (agentEventSource || !sessionId || !sessionToken) return;
+    const streamUrl = `${API_BASE}/session/${encodeURIComponent(sessionId)}/stream?session_token=${encodeURIComponent(sessionToken)}`;
+    agentEventSource = new EventSource(streamUrl);
     agentEventSource.onmessage = function (e) {
       try { handleStreamEvent(JSON.parse(e.data)); } catch (_) {}
     };
@@ -1627,7 +1629,6 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`,
         },
         body: JSON.stringify({
           session_id: sessionId,
@@ -1644,6 +1645,7 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
 
       const data = await res.json();
       sessionId = data.session_id;
+      sessionToken = data.session_token || sessionToken;
 
       hideTyping();
       if (data.response) appendBotMsg(data.response, data.confidence, data.source);
@@ -1692,7 +1694,7 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`,
+          'X-Session-Token': sessionToken || '',
         },
         body: JSON.stringify({ reason: 'bad_feedback' }),
       });
