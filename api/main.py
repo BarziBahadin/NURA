@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,7 @@ from slowapi.util import get_remote_address
 from config import settings
 from db.postgres import init_db
 from routes import analytics, handoff, health, knowledge, message, session
+from routes.telegram import run_telegram_poller
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,7 +25,13 @@ async def lifespan(app: FastAPI):
     logger.info("Starting NURA API...")
     await init_db()
     logger.info("Database initialized")
+    tg_task = asyncio.create_task(run_telegram_poller())
     yield
+    tg_task.cancel()
+    try:
+        await tg_task
+    except asyncio.CancelledError:
+        pass
     logger.info("Shutting down NURA API...")
 
 
