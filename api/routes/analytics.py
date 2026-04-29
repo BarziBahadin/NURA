@@ -317,31 +317,41 @@ async def get_dashboard(days: int = 30, _: None = Depends(verify_api_key)):
 
 
 @router.get("/analytics/reports")
-async def get_reports(days: int = 30, _: None = Depends(verify_api_key)):
+async def get_reports(
+    days: int = 30,
+    channel: Optional[str] = None,
+    _: None = Depends(verify_api_key),
+):
     pool = await get_db_pool()
     since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    # $2 = channel filter (None means no filter — Postgres IS NULL check skips it)
+    ch = channel or None
 
     async with pool.acquire() as conn:
         gap_rows = await conn.fetch(
             """
-            SELECT message_text, intent, sub_intent, gap_reason, created_at
+            SELECT message_text, intent, sub_intent, gap_reason, channel, created_at
             FROM message_insights
-            WHERE created_at >= $1 AND is_knowledge_gap = TRUE
+            WHERE created_at >= $1
+              AND is_knowledge_gap = TRUE
+              AND ($2::text IS NULL OR channel = $2)
             ORDER BY created_at DESC
-            LIMIT 50
+            LIMIT 100
             """,
-            since,
+            since, ch,
         )
         intent_rows = await conn.fetch(
             """
             SELECT intent, sub_intent, COUNT(*) AS count
             FROM message_insights
             WHERE created_at >= $1
+              AND ($2::text IS NULL OR channel = $2)
             GROUP BY intent, sub_intent
             ORDER BY count DESC
             LIMIT 30
             """,
-            since,
+            since, ch,
         )
         handoff_rows = await conn.fetch(
             """
@@ -358,7 +368,7 @@ async def get_reports(days: int = 30, _: None = Depends(verify_api_key)):
             SELECT status, issue_category, root_cause, COUNT(*) AS count,
                    ROUND(AVG(time_to_resolution_seconds)::numeric, 1) AS avg_resolution
             FROM session_outcomes
-            WHERE created_at >= $1 OR resolved_at >= $1
+            WHERE (created_at >= $1 OR resolved_at >= $1)
             GROUP BY status, issue_category, root_cause
             ORDER BY count DESC
             LIMIT 30
@@ -388,15 +398,30 @@ async def get_reports(days: int = 30, _: None = Depends(verify_api_key)):
             """,
             since,
         )
+        bad_feedback_rows = await conn.fetch(
+            """
+            SELECT cl.session_id, cl.customer_message, cl.agent_response,
+                   cl.source, mf.reason, mf.created_at
+            FROM message_feedback mf
+            JOIN conversation_logs cl ON cl.session_id = mf.session_id
+            WHERE mf.created_at >= $1 AND mf.score = 'bad'
+              AND ($2::text IS NULL OR cl.channel = $2)
+            ORDER BY mf.created_at DESC
+            LIMIT 50
+            """,
+            since, ch,
+        )
 
     return {
         "period_days": days,
+        "channel_filter": channel,
         "knowledge_gaps": [
             {
                 "message_text": r["message_text"],
                 "intent": r["intent"],
                 "sub_intent": r["sub_intent"],
                 "gap_reason": r["gap_reason"],
+                "channel": r["channel"],
                 "created_at": r["created_at"].isoformat(),
             }
             for r in gap_rows
@@ -425,6 +450,17 @@ async def get_reports(days: int = 30, _: None = Depends(verify_api_key)):
             for r in cost_rows
         ],
         "channels": [dict(r) for r in channel_rows],
+        "bad_feedback": [
+            {
+                "session_id": r["session_id"],
+                "customer_message": r["customer_message"],
+                "agent_response": r["agent_response"],
+                "source": r["source"],
+                "reason": r["reason"],
+                "created_at": r["created_at"].isoformat(),
+            }
+            for r in bad_feedback_rows
+        ],
     }
 
 

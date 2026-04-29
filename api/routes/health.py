@@ -1,3 +1,4 @@
+import time
 import httpx
 import redis.asyncio as aioredis
 from openai import AsyncOpenAI
@@ -10,6 +11,8 @@ from config import settings
 router = APIRouter()
 
 _openai_client: Optional[AsyncOpenAI] = None
+_health_cache: dict = {}
+_HEALTH_TTL = 60  # seconds — avoids hammering OpenAI/Chroma on every dashboard refresh
 
 
 def get_openai_client() -> AsyncOpenAI:
@@ -21,6 +24,10 @@ def get_openai_client() -> AsyncOpenAI:
 
 @router.get("/health")
 async def health_check(_: None = Depends(verify_api_key)):
+    now = time.monotonic()
+    if _health_cache.get("at", 0) and (now - _health_cache["at"]) < _HEALTH_TTL:
+        return _health_cache["result"]
+
     services = {
         "api": "ok",
         "openai": "unknown",
@@ -67,4 +74,7 @@ async def health_check(_: None = Depends(verify_api_key)):
         services["postgres"] = "error"
 
     overall = "ok" if all(v == "ok" for v in services.values()) else "degraded"
-    return {"status": overall, "services": services}
+    result = {"status": overall, "services": services}
+    _health_cache["result"] = result
+    _health_cache["at"] = now
+    return result
