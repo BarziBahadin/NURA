@@ -2,16 +2,37 @@
 
 This document tracks the backend hardening work needed to move NURA from a strong MVP/internal pilot into a more reliable production-ready system.
 
+## Progress Snapshot
+
+Completed:
+
+- Phase 1: Safety Net
+- Phase 2: Real Migrations
+- Phase 3: Durable Sessions
+- Phase 4: Background Jobs
+
+Remaining:
+
+- Phase 5: Telegram Architecture
+- Phase 6: Auth Upgrade
+- Phase 7: Analytics Performance
+- Phase 8: Observability
+- Phase 9: Configuration Cleanup
+- Phase 10: Refactor For Maintainability
+
 ## Current Backend Assessment
 
-NURA currently has a useful and working backend: FastAPI routes, Redis sessions, PostgreSQL logging, RAG/OpenAI integration, human handoff, analytics, reports, and early multi-channel support.
+NURA currently has a useful and working backend: FastAPI routes, Redis plus PostgreSQL-backed sessions, PostgreSQL logging, Alembic migrations, Redis-backed background jobs, RAG/OpenAI integration, human handoff, analytics, reports, and early multi-channel support.
 
-The main risk is not that the backend is bad. The main risk is that several important production concerns are still MVP-style:
+Several major reliability risks have now been reduced:
 
-- Limited automated tests.
-- Redis is the main live session store.
-- Database schema changes happen at app startup.
-- Important background work uses raw async tasks.
+- Critical backend flows have automated tests.
+- Redis sessions now have a PostgreSQL durable copy.
+- Alembic exists as the migration path.
+- Intent classification and escalation webhooks use a Redis-backed job queue.
+
+The remaining important production concerns are:
+
 - Telegram polling is running inside the API process.
 - Admin auth is still simple API-key based.
 - Analytics queries will become heavier as data grows.
@@ -22,6 +43,8 @@ The main risk is not that the backend is bad. The main risk is that several impo
 ## Phase 1: Safety Net
 
 Add automated backend tests before doing larger refactors.
+
+Status: completed initial test suite. Current coverage includes message flow, handoff, accept, resolve, dashboard, reports, session-token access, durable sessions, and job queue dispatch.
 
 Tasks:
 
@@ -52,6 +75,8 @@ Make future changes safer and catch broken flows before they reach the running a
 
 Move schema management out of API startup.
 
+Status: completed initial Alembic migration path. Current database is at migration `20260430_002`. `DB_AUTO_INIT` still defaults to enabled so existing local/dev startup behavior remains compatible until deployments explicitly move to migrations.
+
 Tasks:
 
 - Add Alembic.
@@ -79,6 +104,8 @@ Make database changes predictable, reviewable, and safe across dev, staging, and
 ## Phase 3: Durable Sessions
 
 Keep Redis fast, but make PostgreSQL the durable backup for sessions.
+
+Status: implemented initial durable session storage. Redis remains the fast live cache, while PostgreSQL now stores a durable copy and is used to restore sessions on Redis misses.
 
 Tasks:
 
@@ -109,6 +136,8 @@ Prevent active customer sessions from disappearing if Redis restarts or keys exp
 ## Phase 4: Background Jobs
 
 Replace important fire-and-forget tasks with durable jobs.
+
+Status: completed initial Redis-backed job queue with retries. Intent classification and escalation webhooks now enqueue jobs. The API can run a local-compatible worker, and a standalone worker entrypoint/service is available for production split-out.
 
 Tasks:
 

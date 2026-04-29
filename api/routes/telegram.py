@@ -7,7 +7,7 @@ import httpx
 
 from config import settings
 from core.handoff_controller import HANDOFF_MESSAGE_AR, check_handoff_triggers, trigger_handoff
-from core.intent_classifier import classify_and_log_message
+from core.job_queue import JOB_INTENT_CLASSIFICATION, enqueue_job
 from core.logger import log_conversation, log_session_outcome
 from core.orchestrator import generate_response
 from core.session_manager import append_turn, get_or_create_session, save_session
@@ -254,7 +254,8 @@ async def _handle_message(msg: dict) -> None:
         escalated=should_escalate,
         source=source if not should_escalate else "escalated",
     )
-    asyncio.create_task(classify_and_log_message(
+    await enqueue_job(
+        JOB_INTENT_CLASSIFICATION,
         session_id=session.session_id,
         customer_id=customer_id,
         channel="telegram",
@@ -262,7 +263,7 @@ async def _handle_message(msg: dict) -> None:
         confidence=confidence,
         source=source if not should_escalate else "escalated",
         escalated=should_escalate,
-    ))
+    )
 
     # After AI reply, show the menu again so user can easily navigate
     keyboard = _build_keyboard(_TOPIC_TREE)

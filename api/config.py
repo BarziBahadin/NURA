@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from typing import List
 
@@ -22,6 +23,9 @@ class Settings(BaseSettings):
     postgres_user: str = "nura_user"
     postgres_password: str
 
+    # Keep old startup schema creation enabled until production deploys Alembic.
+    db_auto_init: bool = True
+
     redis_host: str = "redis"
     redis_port: int = 6379
 
@@ -45,6 +49,11 @@ class Settings(BaseSettings):
     escalation_webhook_url: str = ""
     telegram_bot_token: str = ""
 
+    background_jobs_enabled: bool = True
+    job_worker_enabled: bool = True
+    job_max_attempts: int = 3
+    job_retry_delay_seconds: float = 5.0
+
     # LLM cost constants (USD per 1K tokens) — update when model pricing changes
     openai_cost_input_per_1k: float = 0.00015     # gpt-4o-mini input
     openai_cost_output_per_1k: float = 0.0006     # gpt-4o-mini output
@@ -53,6 +62,13 @@ class Settings(BaseSettings):
     admin_secret_key: str = "admin-secret-change-in-production"
 
     cors_origins: str = "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080,http://localhost:9000"
+
+    @field_validator("admin_secret_key")
+    @classmethod
+    def admin_secret_key_must_be_changed(cls, v: str) -> str:
+        if v == "admin-secret-change-in-production":
+            raise ValueError("ADMIN_SECRET_KEY must be changed from the default before running")
+        return v
 
     @property
     def cors_origins_list(self) -> List[str]:

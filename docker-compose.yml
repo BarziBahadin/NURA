@@ -22,8 +22,34 @@ services:
       - nura_network
     restart: unless-stopped
 
+  nura-worker:
+    build: ./api
+    container_name: nura-worker
+    command: ["python", "-m", "workers.job_worker"]
+    env_file: .env
+    environment:
+      JOB_WORKER_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    volumes:
+      - ./ingestion/handbook:/app/handbook
+      - ./ingestion:/app/ingestion
+      - ./.manafest:/app/manafest
+      - ./models:/app/ml_models
+      - ./frontend:/app/frontend
+    networks:
+      - nura_network
+    profiles:
+      - workers
+    restart: unless-stopped
+
   chromadb:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:1.0.0
     container_name: nura-chromadb
     ports:
       - "8001:8000"

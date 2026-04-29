@@ -1,3 +1,4 @@
+import hmac
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -17,7 +18,7 @@ def verify_handoff_access(request: Request, session) -> None:
         return
     supplied = request.query_params.get("session_token") or request.headers.get("X-Session-Token", "")
     expected = session.metadata.get("customer_token", "")
-    if not expected or supplied != expected:
+    if not expected or not hmac.compare_digest(supplied, expected):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
@@ -29,7 +30,7 @@ class DirectHandoffBody(BaseModel):
 
 
 @router.post("/handoff/direct")
-async def direct_handoff(body: DirectHandoffBody):
+async def direct_handoff(body: DirectHandoffBody, _: None = Depends(verify_api_key)):
     session = await get_or_create_session(
         session_id=body.session_id,
         customer_id=body.customer_id,

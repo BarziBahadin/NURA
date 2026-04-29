@@ -29,6 +29,10 @@ async def init_db() -> None:
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         logger.info("PostgreSQL connection established")
+        if not settings.db_auto_init:
+            await conn.fetchval("SELECT 1")
+            logger.info("DB_AUTO_INIT disabled; skipping startup schema creation")
+            return
 
         # conversation_logs — add source column if this is an older schema
         await conn.execute("""
@@ -92,6 +96,22 @@ async def init_db() -> None:
         """)
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_ct_session  ON chat_turns(session_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_ct_created  ON chat_turns(created_at)")
+
+        # sessions — durable copy of live Redis session state
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                session_id     TEXT PRIMARY KEY,
+                customer_id    TEXT NOT NULL,
+                channel        TEXT NOT NULL,
+                status         TEXT NOT NULL,
+                history        JSONB NOT NULL DEFAULT '[]'::jsonb,
+                failure_count  INT NOT NULL DEFAULT 0,
+                negative_score INT NOT NULL DEFAULT 0,
+                metadata       JSONB NOT NULL DEFAULT '{}'::jsonb,
+                created_at     TIMESTAMPTZ NOT NULL,
+                updated_at     TIMESTAMPTZ NOT NULL
+            )
+        """)
 
         # security_logs — auth failures and rate limit hits
         await conn.execute("""
@@ -183,6 +203,9 @@ async def init_db() -> None:
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_tc_created  ON tree_clicks(created_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_we_type     ON widget_events(event_type)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_we_created  ON widget_events(created_at)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_status  ON sessions(status)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_channel ON sessions(channel)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_sl_created  ON security_logs(created_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_mf_session  ON message_feedback(session_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_mf_created  ON message_feedback(created_at)")

@@ -42,6 +42,24 @@ React Admin Panel - port 3004
 
 ## Current Features
 
+### Backend Hardening Status
+
+Completed hardening phases:
+
+- Automated backend test suite for critical flows.
+- Alembic database migrations.
+- Durable PostgreSQL-backed sessions with Redis recovery.
+- Redis-backed background job queue for important side effects.
+
+Still planned:
+
+- Telegram worker/webhook cleanup.
+- Admin login, users, and roles.
+- Analytics performance improvements and date-range limits.
+- Structured logs, metrics, request IDs, and error tracking.
+- Production configuration cleanup.
+- Shared message pipeline refactor for all channels.
+
 ### Chat Widget
 
 - Embeddable `frontend/widget.js`, served by the API at `/widget.js`.
@@ -76,6 +94,12 @@ Handoff can be triggered by:
 
 When a handoff happens, the system stores the handoff reason. When an agent accepts a session, it stores `accepted_at`. When the session is resolved, the agent can record outcome fields.
 
+### Session Durability
+
+Redis remains the fast live session cache, but sessions are also persisted to PostgreSQL. If Redis misses a session, the backend attempts to restore it from the durable `sessions` table and writes it back into Redis.
+
+Human handoff sessions get a longer Redis TTL than normal bot-only sessions so active support conversations are less likely to expire during follow-up.
+
 ### Admin Panel
 
 The admin panel is built with React, Vite, and Tailwind.
@@ -109,6 +133,29 @@ Available reporting endpoints:
 - `GET /v1/analytics/dashboard?days=30`
 - `GET /v1/analytics/reports?days=30`
 - `GET /v1/analytics/ratings`
+
+### Background Jobs
+
+Important side effects are sent through a Redis-backed job queue instead of raw fire-and-forget tasks.
+
+Current queued jobs:
+
+- intent classification
+- escalation webhook delivery
+
+The API runs a compatible background worker by default for local development. A standalone worker entrypoint also exists:
+
+```bash
+python -m workers.job_worker
+```
+
+Docker Compose includes an optional worker service behind the `workers` profile:
+
+```bash
+docker compose --profile workers up -d nura-worker
+```
+
+When running a dedicated worker in production, set `JOB_WORKER_ENABLED=false` for the API process and keep it enabled for the worker process.
 
 ---
 
@@ -157,6 +204,7 @@ docker compose exec nura-api python /app/ingestion/ingest.py
 | ChromaDB | `http://localhost:8001` | Vector store |
 | PostgreSQL | `localhost:5432` | Main reporting/logging DB |
 | Redis | `localhost:6379` | Session cache |
+| Worker | optional Compose profile | Redis-backed background jobs |
 
 ---
 
@@ -250,6 +298,7 @@ curl -X POST http://localhost:8080/v1/session/SESSION_ID/resolve \
 | Table | Purpose |
 |---|---|
 | `conversation_logs` | Customer and assistant messages, source, confidence, escalation state |
+| `sessions` | Durable copy of live session state, history, metadata, and status |
 | `tree_clicks` | Guided tree navigation and article usage |
 | `widget_events` | Widget button clicks and telemetry |
 | `message_feedback` | Good/bad response ratings |
@@ -277,6 +326,19 @@ docker compose exec nura-postgres psql -U nura_user -d nura_db \
   -c "SELECT status, issue_category, handoff_reason, COUNT(*) FROM session_outcomes GROUP BY status, issue_category, handoff_reason;"
 ```
 
+### Database Migrations
+
+Alembic is configured under `api/db/migrations`.
+
+Run migrations from inside the API container or an environment with the API dependencies installed:
+
+```bash
+cd /app
+alembic -c alembic.ini upgrade head
+```
+
+For local Docker, the current app still keeps startup schema creation enabled by default through `DB_AUTO_INIT=true`. After a deployment is fully using Alembic, set `DB_AUTO_INIT=false` so startup only checks the database connection.
+
 ---
 
 ## Key Files
@@ -295,6 +357,7 @@ NURA/
 |   |   |-- orchestrator.py
 |   |   |-- rag_engine.py
 |   |   |-- intent_classifier.py
+|   |   |-- job_queue.py
 |   |   |-- handoff_controller.py
 |   |   |-- session_manager.py
 |   |   |-- text_preprocessor.py
@@ -307,6 +370,12 @@ NURA/
 |   |   |-- health.py
 |   |-- db/
 |   |   |-- postgres.py
+|   |   |-- migrations/
+|   |-- workers/
+|   |   |-- job_worker.py
+|-- tests/
+|   |-- conftest.py
+|   |-- test_backend_phase1.py
 |-- ingestion/
 |   |-- ingest.py
 |   |-- handbook/
@@ -345,30 +414,43 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 | `RAG_CHUNK_SIZE` | Chunk size for ingestion |
 | `HANDOFF_ENABLED` | Enable or disable human handoff |
 | `HANDOFF_TRIGGERS` | Comma-separated handoff trigger list |
+| `BACKGROUND_JOBS_ENABLED` | Enable Redis-backed background job enqueueing |
+| `JOB_WORKER_ENABLED` | Run a background job worker in this process |
+| `JOB_MAX_ATTEMPTS` | Max attempts before a job is moved to the failed queue |
+| `JOB_RETRY_DELAY_SECONDS` | Delay between job retries |
 | `CORS_ORIGINS` | Allowed browser origins |
 
 ---
 
 ## Recently Added
 
+- Automated backend tests for message, handoff, resolve, analytics, reports, durable sessions, and job queue behavior.
+- Alembic migrations with current schema through `20260430_002`.
 - Async LLM intent classification.
 - Message insight logging for intents, sentiment, confidence bucket, and knowledge gaps.
 - LLM token usage and estimated cost logging.
 - Handoff reason tracking.
 - Agent accept timestamp tracking.
+- Durable PostgreSQL-backed session recovery.
 - Detailed resolve outcomes: status, category, root cause, notes, resolver, timing.
 - Extended dashboard KPIs.
 - New `/v1/analytics/reports` endpoint.
 - New admin Reports page with five tabs.
 - Live Queue resolve modal with outcome fields.
 - Direct human-agent path that bypasses ML when the customer asks for an agent.
+- Redis-backed background job queue for intent classification and escalation webhooks.
 
 ---
 
 ## Roadmap
 
+- Move Telegram polling out of the API process or convert it to webhooks.
+- Add admin login, users, roles, and audit logs.
+- Add analytics indexes, report date caps, and later daily aggregate tables.
+- Add structured logs, request IDs, metrics, and error tracking.
+- Clean up dev/staging/production configuration.
+- Refactor shared message processing for web, Telegram, WhatsApp, and future channels.
 - WhatsApp Business / Meta Cloud API channel adapter.
-- Telegram bot channel adapter.
 - CSV export from reports.
 - More reporting filters by channel, agent, and issue category.
 - Admin UI for editing article knowledge.

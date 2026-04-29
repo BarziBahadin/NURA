@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -69,7 +69,7 @@ async def track_event(request: Request, payload: EventPayload):
 
 
 @router.get("/analytics/dashboard")
-async def get_dashboard(days: int = 30, _: None = Depends(verify_api_key)):
+async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = Depends(verify_api_key)):
     pool = await get_db_pool()
     since = datetime.now(timezone.utc) - timedelta(days=days)
 
@@ -318,7 +318,7 @@ async def get_dashboard(days: int = 30, _: None = Depends(verify_api_key)):
 
 @router.get("/analytics/reports")
 async def get_reports(
-    days: int = 30,
+    days: int = Query(default=30, ge=1, le=365),
     channel: Optional[str] = None,
     _: None = Depends(verify_api_key),
 ):

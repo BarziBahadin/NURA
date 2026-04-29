@@ -10,6 +10,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from config import settings
+from core.job_queue import run_job_worker
 from db.postgres import init_db
 from routes import analytics, handoff, health, knowledge, message, session
 from routes.telegram import run_telegram_poller
@@ -25,13 +26,18 @@ async def lifespan(app: FastAPI):
     logger.info("Starting NURA API...")
     await init_db()
     logger.info("Database initialized")
-    tg_task = asyncio.create_task(run_telegram_poller())
+    background_tasks = [
+        asyncio.create_task(run_telegram_poller()),
+        asyncio.create_task(run_job_worker()),
+    ]
     yield
-    tg_task.cancel()
-    try:
-        await tg_task
-    except asyncio.CancelledError:
-        pass
+    for task in background_tasks:
+        task.cancel()
+    for task in background_tasks:
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     logger.info("Shutting down NURA API...")
 
 

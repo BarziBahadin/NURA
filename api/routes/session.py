@@ -1,8 +1,9 @@
 import asyncio
+import hmac
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
@@ -27,7 +28,7 @@ def verify_session_access(request: Request, session) -> None:
         return
     supplied = request.query_params.get("session_token") or request.headers.get("X-Session-Token", "")
     expected = session.metadata.get("customer_token", "")
-    if not expected or supplied != expected:
+    if not expected or not hmac.compare_digest(supplied, expected):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
@@ -101,7 +102,7 @@ async def resolve_session(
 @router.get("/sessions/list")
 async def list_sessions(
     status: Optional[str] = None,
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=500),
     _: None = Depends(verify_api_key),
 ):
     sessions = await get_all_sessions(status_filter=status)
