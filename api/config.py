@@ -4,6 +4,7 @@ from typing import List
 
 
 class Settings(BaseSettings):
+    app_env: str = "development"
     company_name: str = "Your Company"
     agent_name: str = "NURA"
     agent_tone: str = "formal"
@@ -48,6 +49,7 @@ class Settings(BaseSettings):
     handoff_triggers: str = "angry_sentiment,explicit_request,two_failures,keywords"
     escalation_webhook_url: str = ""
     telegram_bot_token: str = ""
+    telegram_poller_enabled: bool = True
 
     background_jobs_enabled: bool = True
     job_worker_enabled: bool = True
@@ -60,13 +62,16 @@ class Settings(BaseSettings):
     openai_cost_embedding_per_1k: float = 0.00002  # text-embedding-3-small
 
     admin_secret_key: str = "admin-secret-change-in-production"
+    admin_username: str = "admin"
+    admin_password: str = ""
+    admin_token_ttl_seconds: int = 3600 * 8
 
     cors_origins: str = "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080,http://localhost:9000"
 
     @field_validator("admin_secret_key")
     @classmethod
-    def admin_secret_key_must_be_changed(cls, v: str) -> str:
-        if v == "admin-secret-change-in-production":
+    def admin_secret_key_must_be_changed(cls, v: str, info) -> str:
+        if info.data.get("app_env") == "production" and v == "admin-secret-change-in-production":
             raise ValueError("ADMIN_SECRET_KEY must be changed from the default before running")
         return v
 

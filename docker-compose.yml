@@ -48,6 +48,33 @@ services:
       - workers
     restart: unless-stopped
 
+  nura-telegram:
+    build: ./api
+    container_name: nura-telegram
+    command: ["python", "-m", "workers.telegram_worker"]
+    env_file: .env
+    environment:
+      TELEGRAM_POLLER_ENABLED: "true"
+      JOB_WORKER_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    volumes:
+      - ./ingestion/handbook:/app/handbook
+      - ./ingestion:/app/ingestion
+      - ./.manafest:/app/manafest
+      - ./models:/app/ml_models
+      - ./frontend:/app/frontend
+    networks:
+      - nura_network
+    profiles:
+      - telegram
+    restart: unless-stopped
+
   chromadb:
     image: chromadb/chroma:1.0.0
     container_name: nura-chromadb

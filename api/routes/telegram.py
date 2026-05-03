@@ -6,10 +6,7 @@ from typing import Optional
 import httpx
 
 from config import settings
-from core.handoff_controller import HANDOFF_MESSAGE_AR, check_handoff_triggers, trigger_handoff
-from core.job_queue import JOB_INTENT_CLASSIFICATION, enqueue_job
-from core.logger import log_conversation, log_session_outcome
-from core.orchestrator import generate_response
+from core.message_pipeline import process_customer_message
 from core.session_manager import append_turn, get_or_create_session, save_session
 from models.session import SessionStatus
 
@@ -227,47 +224,17 @@ async def _handle_message(msg: dict) -> None:
         await _send(chat_id, AGENT_WAITING_AR)
         return
 
-    response_text, confidence, source, source_doc = await generate_response(session, text)
-
-    should_escalate, handoff_reason = check_handoff_triggers(session, text, confidence)
-    if should_escalate:
-        session = trigger_handoff(session)
-        session.metadata["handoff_reason"] = handoff_reason
-        response_text = HANDOFF_MESSAGE_AR
-        await log_session_outcome(
-            session_id=session.session_id,
-            status="pending_handoff",
-            handoff_reason=handoff_reason,
-        )
-
-    await append_turn(session, "customer", text)
-    await append_turn(session, "agent", response_text, confidence)
-    await save_session(session)
-
-    await log_conversation(
-        session_id=session.session_id,
+    result = await process_customer_message(
+        session_id=session_id,
         customer_id=customer_id,
         channel="telegram",
-        customer_message=text,
-        agent_response=response_text,
-        confidence=confidence,
-        escalated=should_escalate,
-        source=source if not should_escalate else "escalated",
-    )
-    await enqueue_job(
-        JOB_INTENT_CLASSIFICATION,
-        session_id=session.session_id,
-        customer_id=customer_id,
-        channel="telegram",
-        message_text=text,
-        confidence=confidence,
-        source=source if not should_escalate else "escalated",
-        escalated=should_escalate,
+        message=text,
+        include_session_token=False,
     )
 
     # After AI reply, show the menu again so user can easily navigate
     keyboard = _build_keyboard(_TOPIC_TREE)
-    await _send(chat_id, response_text, reply_markup=keyboard)
+    await _send(chat_id, result.response_text or AGENT_WAITING_AR, reply_markup=keyboard)
 
 
 # ── Update dispatcher ─────────────────────────────────────────────────────
@@ -284,6 +251,9 @@ async def _handle_update(update: dict) -> None:
 # ── Long-polling loop ─────────────────────────────────────────────────────
 
 async def run_telegram_poller() -> None:
+    if not settings.telegram_poller_enabled:
+        logger.info("Telegram polling disabled by TELEGRAM_POLLER_ENABLED")
+        return
     if not settings.telegram_bot_token:
         logger.info("TELEGRAM_BOT_TOKEN not set — Telegram polling disabled")
         return

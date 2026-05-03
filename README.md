@@ -53,12 +53,10 @@ Completed hardening phases:
 
 Still planned:
 
-- Telegram worker/webhook cleanup.
-- Admin login, users, and roles.
-- Analytics performance improvements and date-range limits.
-- Structured logs, metrics, request IDs, and error tracking.
-- Production configuration cleanup.
-- Shared message pipeline refactor for all channels.
+- Full admin user-management UI.
+- Scheduled aggregation jobs when traffic grows.
+- External metrics/error tooling such as Prometheus and Sentry.
+- Production deployment profile with API, worker, and Telegram split into separate processes.
 
 ### Chat Widget
 
@@ -157,6 +155,31 @@ docker compose --profile workers up -d nura-worker
 
 When running a dedicated worker in production, set `JOB_WORKER_ENABLED=false` for the API process and keep it enabled for the worker process.
 
+### Telegram
+
+Telegram can run inside the API process for local development, controlled by `TELEGRAM_POLLER_ENABLED`.
+
+For production, run exactly one standalone Telegram worker:
+
+```bash
+docker compose --profile telegram up -d nura-telegram
+```
+
+Then set `TELEGRAM_POLLER_ENABLED=false` on the API service to avoid duplicate polling.
+
+### Admin Auth And Observability
+
+Admin endpoints still accept the internal API key for compatibility. A token login flow is also available:
+
+- `POST /v1/auth/login`
+- `GET /v1/auth/me`
+
+Request observability includes:
+
+- `X-Request-ID` response header
+- slow request logging
+- protected `GET /v1/metrics`
+
 ---
 
 ## Quick Start
@@ -205,6 +228,7 @@ docker compose exec nura-api python /app/ingestion/ingest.py
 | PostgreSQL | `localhost:5432` | Main reporting/logging DB |
 | Redis | `localhost:6379` | Session cache |
 | Worker | optional Compose profile | Redis-backed background jobs |
+| Telegram Worker | optional Compose profile | Standalone Telegram polling |
 
 ---
 
@@ -414,10 +438,15 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 | `RAG_CHUNK_SIZE` | Chunk size for ingestion |
 | `HANDOFF_ENABLED` | Enable or disable human handoff |
 | `HANDOFF_TRIGGERS` | Comma-separated handoff trigger list |
+| `TELEGRAM_POLLER_ENABLED` | Run Telegram polling in this process |
 | `BACKGROUND_JOBS_ENABLED` | Enable Redis-backed background job enqueueing |
 | `JOB_WORKER_ENABLED` | Run a background job worker in this process |
 | `JOB_MAX_ATTEMPTS` | Max attempts before a job is moved to the failed queue |
 | `JOB_RETRY_DELAY_SECONDS` | Delay between job retries |
+| `ADMIN_USERNAME` | Admin login username |
+| `ADMIN_PASSWORD` | Admin login password |
+| `ADMIN_TOKEN_TTL_SECONDS` | Admin token lifetime |
+| `APP_ENV` | Runtime environment: development/staging/production |
 | `CORS_ORIGINS` | Allowed browser origins |
 
 ---
@@ -439,17 +468,20 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 - Live Queue resolve modal with outcome fields.
 - Direct human-agent path that bypasses ML when the customer asks for an agent.
 - Redis-backed background job queue for intent classification and escalation webhooks.
+- Standalone Telegram worker option.
+- Admin token login and `/auth/me`.
+- Request IDs, slow request logging, and `/v1/metrics`.
+- Analytics hardening indexes and daily aggregate tables.
+- Shared message pipeline for web and Telegram.
 
 ---
 
 ## Roadmap
 
-- Move Telegram polling out of the API process or convert it to webhooks.
-- Add admin login, users, roles, and audit logs.
-- Add analytics indexes, report date caps, and later daily aggregate tables.
-- Add structured logs, request IDs, metrics, and error tracking.
-- Clean up dev/staging/production configuration.
-- Refactor shared message processing for web, Telegram, WhatsApp, and future channels.
+- Add full admin user-management UI and persistent admin user records.
+- Add scheduled aggregate refresh jobs.
+- Add external metrics/error tooling.
+- Convert Telegram to webhook mode if long polling becomes operationally awkward.
 - WhatsApp Business / Meta Cloud API channel adapter.
 - CSV export from reports.
 - More reporting filters by channel, agent, and issue category.

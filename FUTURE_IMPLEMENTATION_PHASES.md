@@ -10,15 +10,19 @@ Completed:
 - Phase 2: Real Migrations
 - Phase 3: Durable Sessions
 - Phase 4: Background Jobs
-
-Remaining:
-
 - Phase 5: Telegram Architecture
 - Phase 6: Auth Upgrade
 - Phase 7: Analytics Performance
 - Phase 8: Observability
 - Phase 9: Configuration Cleanup
 - Phase 10: Refactor For Maintainability
+
+Remaining production polish:
+
+- Move API deployments to `TELEGRAM_POLLER_ENABLED=false` and run the standalone Telegram service.
+- Replace environment-based admin user with a full user-management UI/table flow.
+- Populate daily aggregate tables with scheduled jobs when traffic grows.
+- Add external metrics/error tooling such as Prometheus and Sentry.
 
 ## Current Backend Assessment
 
@@ -31,12 +35,12 @@ Several major reliability risks have now been reduced:
 - Alembic exists as the migration path.
 - Intent classification and escalation webhooks use a Redis-backed job queue.
 
-The remaining important production concerns are:
+The remaining important production concerns are operational:
 
-- Telegram polling is running inside the API process.
-- Admin auth is still simple API-key based.
-- Analytics queries will become heavier as data grows.
-- Observability and production configuration need cleanup.
+- Dedicated production deployment settings must be chosen carefully.
+- Telegram should run in one standalone process in production.
+- Admin users need a real management UI if multiple operators will use it.
+- Aggregates and external observability should be enabled when traffic grows.
 
 ---
 
@@ -165,6 +169,8 @@ Make async side effects reliable instead of hoping raw `asyncio.create_task` fin
 
 Do not run Telegram polling inside the main API process in production.
 
+Status: implemented a standalone Telegram worker entrypoint and optional Compose service. API polling remains available behind `TELEGRAM_POLLER_ENABLED` for local compatibility.
+
 Tasks:
 
 - Move Telegram long polling into a separate worker service, or switch to Telegram webhooks.
@@ -182,6 +188,8 @@ Prevent duplicate Telegram processing and keep the API process focused on HTTP t
 ## Phase 6: Auth Upgrade
 
 Move admin access from simple API-key use toward proper user auth.
+
+Status: implemented admin login tokens, role-aware auth helpers, `/auth/login`, `/auth/me`, and login audit events. API-key compatibility remains for existing admin proxy/internal calls.
 
 Tasks:
 
@@ -209,6 +217,8 @@ Make the admin panel safe for multiple real users and real operational use.
 ## Phase 7: Analytics Performance
 
 Prepare reporting for larger datasets.
+
+Status: implemented request date caps, added analytics indexes, and added daily aggregate tables for future scheduled aggregation.
 
 Tasks:
 
@@ -238,6 +248,8 @@ Keep dashboard and reports fast as conversation volume increases.
 
 Make failures easier to see, debug, and measure.
 
+Status: implemented request IDs, request/slow-request logging, in-memory request metrics, and protected `/v1/metrics`.
+
 Tasks:
 
 - Add structured JSON logs.
@@ -264,6 +276,8 @@ Know when the system is failing before users tell you.
 
 Make environments explicit and safer.
 
+Status: added `APP_ENV`, production-only secret validation, admin login config, Telegram worker flags, job config, and refreshed `.env.example`.
+
 Tasks:
 
 - Validate required environment variables on startup.
@@ -285,6 +299,8 @@ Make deployments repeatable and reduce surprises from missing or unsafe config.
 ## Phase 10: Refactor For Maintainability
 
 Extract business logic out of route files.
+
+Status: implemented shared `process_customer_message(...)` pipeline and moved web/Telegram message handling onto that path.
 
 Tasks:
 

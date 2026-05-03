@@ -13,6 +13,9 @@ os.environ.setdefault("API_KEY", "test-api-key")
 os.environ.setdefault("POSTGRES_PASSWORD", "test-postgres-password")
 os.environ.setdefault("OPENAI_API_KEY", "test-openai-key")
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "")
+os.environ.setdefault("ADMIN_SECRET_KEY", "test-admin-secret")
+os.environ.setdefault("ADMIN_USERNAME", "admin")
+os.environ.setdefault("ADMIN_PASSWORD", "password")
 
 ROOT = Path(__file__).resolve().parents[1]
 API_DIR = ROOT / "api"

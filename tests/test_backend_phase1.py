@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import json
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -23,31 +24,19 @@ def test_message_endpoint_generates_response_without_external_services(monkeypat
     from routes import message as message_route
 
     session = make_session()
-    logged = {}
 
-    async def fake_get_or_create_session(session_id, customer_id, channel):
-        return session
+    async def fake_process_customer_message(**kwargs):
+        return SimpleNamespace(
+            session=session,
+            session_token="token",
+            response_text="جواب تجريبي",
+            confidence=0.91,
+            source="openai",
+            source_doc="handbook.pdf",
+            escalated=False,
+        )
 
-    async def fake_generate_response(session, message):
-        return "جواب تجريبي", 0.91, "openai", "handbook.pdf"
-
-    async def fake_append_turn(session, role, message, confidence=0.0, source="bot"):
-        session.history.append(type("Turn", (), {"role": role, "message": message})())
-
-    async def fake_log_conversation(**kwargs):
-        logged.update(kwargs)
-
-    async def fake_enqueue_job(job_type, **kwargs):
-        logged["job_type"] = job_type
-        logged["job_payload"] = kwargs
-
-    monkeypatch.setattr(message_route, "get_or_create_session", fake_get_or_create_session)
-    monkeypatch.setattr(message_route, "generate_response", fake_generate_response)
-    monkeypatch.setattr(message_route, "check_handoff_triggers", lambda *_: (False, ""))
-    monkeypatch.setattr(message_route, "append_turn", fake_append_turn)
-    monkeypatch.setattr(message_route, "save_session", lambda session: _async_none())
-    monkeypatch.setattr(message_route, "log_conversation", fake_log_conversation)
-    monkeypatch.setattr(message_route, "enqueue_job", fake_enqueue_job)
+    monkeypatch.setattr(message_route, "process_customer_message", fake_process_customer_message)
 
     client = TestClient(build_app(message_route.router))
     response = client.post(
@@ -62,36 +51,27 @@ def test_message_endpoint_generates_response_without_external_services(monkeypat
     assert body["escalated"] is False
     assert body["source"] == "openai"
     assert body["source_doc"] == "handbook.pdf"
-    assert logged["customer_message"] == "مرحبا"
-    assert logged["source"] == "openai"
-    assert logged["job_type"] == message_route.JOB_INTENT_CLASSIFICATION
-    assert logged["job_payload"]["message_text"] == "مرحبا"
 
 
 def test_message_endpoint_escalates_with_handoff_reason(monkeypatch, build_app):
     from routes import message as message_route
 
     session = make_session()
-    outcomes = []
-    jobs = []
+    session.status = SessionStatus.pending_handoff
+    session.metadata["handoff_reason"] = "explicit_request"
 
-    async def fake_generate_response(session, message):
-        return "model answer should be replaced", 0.88, "openai", None
+    async def fake_process_customer_message(**kwargs):
+        return SimpleNamespace(
+            session=session,
+            session_token="token",
+            response_text="handoff",
+            confidence=0.88,
+            source=None,
+            source_doc=None,
+            escalated=True,
+        )
 
-    async def fake_log_session_outcome(**kwargs):
-        outcomes.append(kwargs)
-
-    async def fake_enqueue_job(job_type, **kwargs):
-        jobs.append({"type": job_type, "payload": kwargs})
-
-    monkeypatch.setattr(message_route, "get_or_create_session", lambda **_: _async_value(session))
-    monkeypatch.setattr(message_route, "generate_response", fake_generate_response)
-    monkeypatch.setattr(message_route, "check_handoff_triggers", lambda *_: (True, "explicit_request"))
-    monkeypatch.setattr(message_route, "append_turn", lambda *_, **__: _async_none())
-    monkeypatch.setattr(message_route, "save_session", lambda *_: _async_none())
-    monkeypatch.setattr(message_route, "log_conversation", lambda **_: _async_none())
-    monkeypatch.setattr(message_route, "log_session_outcome", fake_log_session_outcome)
-    monkeypatch.setattr(message_route, "enqueue_job", fake_enqueue_job)
+    monkeypatch.setattr(message_route, "process_customer_message", fake_process_customer_message)
 
     client = TestClient(build_app(message_route.router))
     response = client.post(
@@ -105,12 +85,6 @@ def test_message_endpoint_escalates_with_handoff_reason(monkeypatch, build_app):
     assert body["source"] is None
     assert session.status == SessionStatus.pending_handoff
     assert session.metadata["handoff_reason"] == "explicit_request"
-    assert outcomes[0]["status"] == "pending_handoff"
-    assert outcomes[0]["handoff_reason"] == "explicit_request"
-    assert [job["type"] for job in jobs] == [
-        message_route.JOB_ESCALATION_WEBHOOK,
-        message_route.JOB_INTENT_CLASSIFICATION,
-    ]
 
 
 def test_direct_handoff_creates_pending_session(monkeypatch, build_app):
@@ -212,6 +186,21 @@ def test_customer_session_token_allows_message_access(monkeypatch, build_app):
     assert ok_response.status_code == 200
     assert ok_response.json()["status"] == SessionStatus.active.value
     assert denied_response.status_code == 401
+
+
+def test_admin_login_and_me(monkeypatch, build_app):
+    from routes import auth as auth_route
+
+    monkeypatch.setattr(auth_route, "log_security_event", lambda *_, **__: _async_none())
+    client = TestClient(build_app(auth_route.router))
+    login = client.post("/v1/auth/login", json={"username": "admin", "password": "password"})
+
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+
+    me = client.get("/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200
+    assert me.json()["role"] == "admin"
 
 
 @pytest.mark.asyncio

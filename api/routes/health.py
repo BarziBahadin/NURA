@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from typing import Optional
 
 from core.auth import verify_api_key
+from core.observability import metrics_snapshot
 from config import settings
 
 router = APIRouter()
@@ -78,3 +79,8 @@ async def health_check(_: None = Depends(verify_api_key)):
     _health_cache["result"] = result
     _health_cache["at"] = now
     return result
+
+
+@router.get("/metrics")
+async def metrics(_: None = Depends(verify_api_key)):
+    return metrics_snapshot()
