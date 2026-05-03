@@ -35,3 +35,13 @@ export function authHeaders() {
   const token = getToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
+
+export function getRole() {
+  const p = parseToken(getToken())
+  return p?.role || ''
+}
+
+export function getUsername() {
+  const p = parseToken(getToken())
+  return p?.sub || ''
+}

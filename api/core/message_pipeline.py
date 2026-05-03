@@ -25,13 +25,16 @@ async def process_customer_message(
     channel: str,
     message: str,
     include_session_token: bool = True,
+    attachment_url: str | None = None,
+    message_type: str = "text",
 ) -> MessagePipelineResult:
     clean_message = message.strip()[:2000]
     session = await get_or_create_session(session_id=session_id, customer_id=customer_id, channel=channel)
 
     if session.status in (SessionStatus.pending_handoff, SessionStatus.human_active):
         token = get_customer_token(session) if include_session_token else None
-        await append_turn(session, "customer", clean_message, source="customer")
+        await append_turn(session, "customer", clean_message, source="customer",
+                          attachment_url=attachment_url, message_type=message_type)
         return MessagePipelineResult(session, token, "", 1.0, None, None, True)
 
     response_text, confidence, source, source_doc = await generate_response(session, clean_message)
@@ -55,7 +58,8 @@ async def process_customer_message(
         )
 
     token = get_customer_token(session) if include_session_token else None
-    await append_turn(session, "customer", clean_message)
+    await append_turn(session, "customer", clean_message, source="customer",
+                      attachment_url=attachment_url, message_type=message_type)
     await append_turn(session, "agent", response_text, confidence)
     await save_session(session)
 

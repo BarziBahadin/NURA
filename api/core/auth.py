@@ -89,3 +89,25 @@ def require_roles(*roles: str):
             raise HTTPException(status_code=403, detail="Forbidden")
 
     return dependency
+
+
+def hash_password(password: str) -> str:
+    import bcrypt
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+async def verify_db_password(username: str, password: str) -> dict | None:
+    import bcrypt
+    from db.postgres import get_db_pool
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT username, password_hash, role, display_name, is_active "
+            "FROM admin_users WHERE username = $1",
+            username,
+        )
+    if not row or not row["is_active"]:
+        return None
+    if not bcrypt.checkpw(password.encode(), row["password_hash"].encode()):
+        return None
+    return dict(row)

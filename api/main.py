@@ -13,7 +13,8 @@ from config import settings
 from core.job_queue import run_job_worker
 from core.observability import ObservabilityMiddleware
 from db.postgres import init_db
-from routes import analytics, auth, handoff, health, knowledge, message, session
+from routes import analytics, auth, handoff, health, knowledge, message, monitor, session, upload, users
+from routes.auth import seed_admin_user
 from routes.telegram import run_telegram_poller
 
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +28,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting NURA API...")
     await init_db()
     logger.info("Database initialized")
+    await seed_admin_user()
     background_tasks = [asyncio.create_task(run_job_worker())]
     if settings.telegram_poller_enabled:
         background_tasks.append(asyncio.create_task(run_telegram_poller()))
@@ -67,6 +69,9 @@ app.include_router(session.router,    prefix="/v1")
 app.include_router(handoff.router,    prefix="/v1")
 app.include_router(knowledge.router,  prefix="/v1")
 app.include_router(analytics.router,  prefix="/v1")
+app.include_router(users.router,      prefix="/v1")
+app.include_router(upload.router,     prefix="/v1")
+app.include_router(monitor.router,    prefix="/v1")
 
 
 @app.get("/widget.js", include_in_schema=False)

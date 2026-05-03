@@ -17,6 +17,8 @@ class ConversationTurn(BaseModel):
     timestamp: str
     confidence: Optional[float] = None
     source: str = "bot"
+    attachment_url: Optional[str] = None
+    message_type: str = "text"
 
 
 class Session(BaseModel):

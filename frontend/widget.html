@@ -413,6 +413,30 @@
     #send-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
     #send-btn svg { width: 18px; height: 18px; fill: #fff; }
 
+    #attach-btn {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: #f0f2f5;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 17px;
+      transition: background 0.15s;
+      color: #888;
+    }
+    #attach-btn:hover { background: #e0e4ea; color: #555; }
+
+    .chat-img {
+      max-width: 200px;
+      border-radius: 8px;
+      margin-top: 4px;
+      display: block;
+      cursor: pointer;
+    }
+
     /* Feedback */
     .feedback-btns { display: flex; gap: 4px; margin-top: 4px; justify-content: flex-end; }
     .fb-btn {
@@ -530,6 +554,8 @@
       <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
     </button>
     <textarea id="msg-input" rows="1" placeholder="اكتب رسالتك هنا…" maxlength="500"></textarea>
+    <button id="attach-btn" type="button" title="إرفاق صورة">📎</button>
+    <input type="file" id="file-input" accept="image/*,.pdf" style="display:none">
   </div>
 </div>
 
@@ -1489,6 +1515,69 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
   sendBtn.addEventListener('click', sendMessage);
+
+  // ── Attachment upload ──────────────────────────────────────────────────────
+  const attachBtn = document.getElementById('attach-btn');
+  const fileInput = document.getElementById('file-input');
+
+  attachBtn.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    fileInput.value = '';
+    attachBtn.disabled = true;
+
+    const form = new FormData();
+    form.append('file', file);
+    form.append('session_id', sessionId || '');
+
+    try {
+      const uploadRes = await fetch(
+        `${API_BASE}/upload?session_token=${encodeURIComponent(sessionToken || '')}`,
+        { method: 'POST', body: form }
+      );
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        throw new Error(err.detail || `Upload error ${uploadRes.status}`);
+      }
+      const { url } = await uploadRes.json();
+      const msgType = file.type.startsWith('image/') ? 'image' : 'file';
+
+      // Show preview immediately in chat
+      const previewDiv = document.createElement('div');
+      previewDiv.className = 'msg user';
+      if (msgType === 'image') {
+        previewDiv.innerHTML = `<img src="${url}" class="chat-img" onclick="window.open('${url}')"><div class="meta"><span>${fmtTime()}</span></div>`;
+      } else {
+        previewDiv.innerHTML = `<div class="bubble">📄 <a href="${url}" target="_blank" style="color:inherit;text-decoration:underline">${escHtml(file.name)}</a></div><div class="meta"><span>${fmtTime()}</span></div>`;
+      }
+      messagesEl.appendChild(previewDiv);
+      scrollBottom();
+
+      // Send through message pipeline so agents see it
+      await fetch(`${API_BASE}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          channel: 'web',
+          customer_id: customerId,
+          message: msgType === 'image' ? '[صورة]' : `[ملف: ${file.name}]`,
+          attachment_url: url,
+          message_type: msgType,
+        }),
+      });
+    } catch (e) {
+      const errDiv = document.createElement('div');
+      errDiv.className = 'error-bubble';
+      errDiv.textContent = `⚠️ ${e.message}`;
+      messagesEl.appendChild(errDiv);
+      scrollBottom();
+    } finally {
+      attachBtn.disabled = false;
+    }
+  });
 
   // ── Render helpers ─────────────────────────────────────────────────────────
   function appendUserMsg(text) {

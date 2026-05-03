@@ -25,6 +25,8 @@ async def send_message(
         channel=payload.channel.value,
         message=payload.message,
         include_session_token=True,
+        attachment_url=payload.attachment_url,
+        message_type=payload.message_type,
     )
     return NURAResponse(
         session_id=result.session.session_id,

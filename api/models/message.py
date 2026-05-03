@@ -19,6 +19,8 @@ class IncomingMessage(BaseModel):
     customer_id: str
     message: str = Field(..., max_length=2000)
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    attachment_url: Optional[str] = None
+    message_type: str = "text"
 
 
 class StandardMessage(BaseModel):

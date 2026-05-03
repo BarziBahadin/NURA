@@ -184,7 +184,13 @@ async def publish_session_event(session_id: str, payload: dict) -> None:
 
 
 async def append_turn(
-    session: Session, role: str, message: str, confidence: float = 0.0, source: str = "bot"
+    session: Session,
+    role: str,
+    message: str,
+    confidence: float = 0.0,
+    source: str = "bot",
+    attachment_url: str | None = None,
+    message_type: str = "text",
 ) -> None:
     turn = ConversationTurn(
         role=role,
@@ -192,6 +198,8 @@ async def append_turn(
         timestamp=datetime.now(timezone.utc).isoformat(),
         confidence=confidence if role == "agent" else None,
         source=source,
+        attachment_url=attachment_url,
+        message_type=message_type,
     )
     session.history.append(turn)
     session.updated_at = datetime.now(timezone.utc).isoformat()

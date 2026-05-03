@@ -1,31 +1,36 @@
 import React, { useState, useEffect } from 'react'
-import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
 import Dashboard from './pages/Dashboard.jsx'
 import LiveQueue from './pages/LiveQueue.jsx'
 import SessionViewer from './pages/SessionViewer.jsx'
 import KnowledgeBase from './pages/KnowledgeBase.jsx'
 import Reports from './pages/Reports.jsx'
 import Login from './pages/Login.jsx'
-import { API_BASE, getToken, setToken, isTokenValid } from './lib/api.js'
+import UserManagement from './pages/UserManagement.jsx'
+import SystemMonitor from './pages/SystemMonitor.jsx'
+import { API_BASE, getToken, setToken, isTokenValid, getRole } from './lib/api.js'
 
 // api.key is a live getter so every fetch call reads the current stored token.
 // nginx injects the real API key for /v1/ routes, so backend auth always works.
-// The JWT is used for: (a) showing/hiding the login page, (b) future direct-API use.
+// The JWT is used for: (a) showing/hiding the login page, (b) role-based nav.
 export const api = {
   base: API_BASE,
   get key() { return getToken() },
 }
 
-const navItems = [
-  { path: '/', label: 'Dashboard', icon: '📊' },
-  { path: '/queue', label: 'Live Queue', icon: '🔔' },
-  { path: '/sessions', label: 'Sessions', icon: '💬' },
-  { path: '/reports', label: 'Reports', icon: '📈' },
-  { path: '/knowledge', label: 'Knowledge Base', icon: '📚' },
+const ALL_NAV_ITEMS = [
+  { path: '/',          label: 'Dashboard',      icon: '📊', roles: ['admin', 'viewer'] },
+  { path: '/queue',     label: 'Live Queue',      icon: '🔔', roles: ['admin', 'agent'] },
+  { path: '/sessions',  label: 'Sessions',        icon: '💬', roles: ['admin', 'agent', 'viewer'] },
+  { path: '/reports',   label: 'Reports',         icon: '📈', roles: ['admin', 'viewer'] },
+  { path: '/knowledge', label: 'Knowledge Base',  icon: '📚', roles: ['admin'] },
+  { path: '/users',     label: 'Team',            icon: '👥', roles: ['admin'] },
+  { path: '/monitor',   label: 'System Monitor',  icon: '🖥️', roles: ['admin'] },
 ]
 
-function Sidebar({ pendingCount, onLogout }) {
+function Sidebar({ pendingCount, onLogout, role }) {
   const { pathname } = useLocation()
+  const navItems = ALL_NAV_ITEMS.filter(item => item.roles.includes(role))
   return (
     <aside className="w-56 bg-gray-900 text-white flex flex-col min-h-screen">
       <div className="p-5 border-b border-gray-700">
@@ -67,9 +72,9 @@ function Sidebar({ pendingCount, onLogout }) {
 }
 
 export default function App() {
-  // Initialise from localStorage, but only accept the token if it isn't expired.
   const [authed, setAuthed] = useState(() => isTokenValid(getToken()))
   const [pendingCount, setPendingCount] = useState(0)
+  const role = getRole()
 
   function handleLogin(token) {
     setToken(token)
@@ -108,7 +113,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar pendingCount={pendingCount} onLogout={handleLogout} />
+      <Sidebar pendingCount={pendingCount} onLogout={handleLogout} role={role} />
       <main className="flex-1 overflow-auto">
         <Routes>
           <Route path="/" element={<Dashboard />} />
@@ -116,6 +121,8 @@ export default function App() {
           <Route path="/sessions" element={<SessionViewer />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/knowledge" element={<KnowledgeBase />} />
+          <Route path="/users" element={<UserManagement />} />
+          <Route path="/monitor" element={<SystemMonitor />} />
         </Routes>
       </main>
     </div>

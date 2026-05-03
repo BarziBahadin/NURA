@@ -43,6 +43,15 @@ function HistoryPanel({ history }) {
                 : 'bg-blue-600 text-white rounded-tr-sm'
             }`}>
               {turn.message}
+              {turn.attachment_url && turn.message_type === 'image' && (
+                <img src={turn.attachment_url} alt="attachment"
+                  className="mt-1 max-w-xs rounded-lg border cursor-pointer"
+                  onClick={() => window.open(turn.attachment_url)} />
+              )}
+              {turn.attachment_url && turn.message_type === 'file' && (
+                <a href={turn.attachment_url} target="_blank" rel="noreferrer"
+                  className="block mt-1 text-blue-400 underline text-xs">📄 View attachment</a>
+              )}
             </div>
             <div className="text-xs text-gray-400 mt-0.5 flex gap-1">
               {new Date(turn.timestamp).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}

@@ -117,6 +117,15 @@ function ChatHistory({ turns }) {
                 : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm'
             }`}>
               {t.message}
+              {t.attachment_url && t.message_type === 'image' && (
+                <img src={t.attachment_url} alt="attachment"
+                  className="mt-1 max-w-xs rounded-lg border cursor-pointer"
+                  onClick={() => window.open(t.attachment_url)} />
+              )}
+              {t.attachment_url && t.message_type === 'file' && (
+                <a href={t.attachment_url} target="_blank" rel="noreferrer"
+                  className="block mt-1 text-blue-300 underline text-xs">📄 View attachment</a>
+              )}
             </div>
             <div className="text-xs text-gray-400 mt-0.5">
               {new Date(t.timestamp).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}
