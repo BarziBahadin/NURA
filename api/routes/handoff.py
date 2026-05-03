@@ -2,19 +2,22 @@ import hmac
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
-from core.auth import is_valid_api_key, verify_api_key
+from core.auth import has_admin_access, is_valid_api_key, verify_api_key
 from core.logger import log_session_outcome
 from core.session_manager import get_customer_token, get_or_create_session, get_session, save_session
 from models.session import SessionStatus
 from datetime import datetime, timezone
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 
 def verify_handoff_access(request: Request, session) -> None:
-    if is_valid_api_key(request):
+    if has_admin_access(request):
         return
     supplied = request.query_params.get("session_token") or request.headers.get("X-Session-Token", "")
     expected = session.metadata.get("customer_token", "")
@@ -24,13 +27,14 @@ def verify_handoff_access(request: Request, session) -> None:
 
 class DirectHandoffBody(BaseModel):
     session_id: Optional[str] = None
-    customer_id: str
-    channel: str = "web"
-    reason: str = "direct_request"
+    customer_id: str = Field(..., max_length=128)
+    channel: str = Field(default="web", max_length=32)
+    reason: str = Field(default="direct_request", max_length=128)
 
 
 @router.post("/handoff/direct")
-async def direct_handoff(body: DirectHandoffBody, _: None = Depends(verify_api_key)):
+@limiter.limit("20/minute")
+async def direct_handoff(body: DirectHandoffBody, request: Request):
     session = await get_or_create_session(
         session_id=body.session_id,
         customer_id=body.customer_id,

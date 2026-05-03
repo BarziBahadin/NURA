@@ -71,8 +71,8 @@ class Settings(BaseSettings):
     @field_validator("admin_secret_key")
     @classmethod
     def admin_secret_key_must_be_changed(cls, v: str, info) -> str:
-        if info.data.get("app_env") == "production" and v == "admin-secret-change-in-production":
-            raise ValueError("ADMIN_SECRET_KEY must be changed from the default before running")
+        if v == "admin-secret-change-in-production":
+            raise ValueError("ADMIN_SECRET_KEY must be changed from the default value")
         return v
 
     @property

@@ -4,10 +4,10 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
-from core.auth import is_valid_api_key, verify_api_key
+from core.auth import has_admin_access, is_valid_api_key, verify_api_key
 from core.logger import log_session_outcome
 from core.session_manager import append_turn, get_all_sessions, get_session, publish_session_event, save_session
 from models.session import SessionStatus
@@ -16,15 +16,15 @@ router = APIRouter()
 
 
 class ResolveBody(BaseModel):
-    status: str = "solved"
-    issue_category: str = ""
-    root_cause: str = ""
-    resolution_notes: str = ""
-    resolved_by: str = "Agent"
+    status: str = Field(default="solved", max_length=64)
+    issue_category: str = Field(default="", max_length=128)
+    root_cause: str = Field(default="", max_length=512)
+    resolution_notes: str = Field(default="", max_length=2048)
+    resolved_by: str = Field(default="Agent", max_length=128)
 
 
 def verify_session_access(request: Request, session) -> None:
-    if is_valid_api_key(request):
+    if has_admin_access(request):
         return
     supplied = request.query_params.get("session_token") or request.headers.get("X-Session-Token", "")
     expected = session.metadata.get("customer_token", "")
@@ -153,7 +153,7 @@ async def session_typing(session_id: str, request: Request, sender: str = "agent
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if sender == "agent":
-        if not is_valid_api_key(request):
+        if not has_admin_access(request):
             raise HTTPException(status_code=401, detail="Unauthorized")
     else:
         verify_session_access(request, session)
