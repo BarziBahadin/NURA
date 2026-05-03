@@ -8,6 +8,7 @@ import Reports from './pages/Reports.jsx'
 import Login from './pages/Login.jsx'
 import UserManagement from './pages/UserManagement.jsx'
 import SystemMonitor from './pages/SystemMonitor.jsx'
+import KnowledgeGapQueue from './pages/KnowledgeGapQueue.jsx'
 import { API_BASE, getToken, setToken, isTokenValid, getRole } from './lib/api.js'
 
 // api.key is a live getter so every fetch call reads the current stored token.
@@ -23,10 +24,64 @@ const ALL_NAV_ITEMS = [
   { path: '/queue',     label: 'Live Queue',      icon: '🔔', roles: ['admin', 'agent'] },
   { path: '/sessions',  label: 'Sessions',        icon: '💬', roles: ['admin', 'agent', 'viewer'] },
   { path: '/reports',   label: 'Reports',         icon: '📈', roles: ['admin', 'viewer'] },
+  { path: '/gaps',      label: 'Knowledge Gaps',  icon: '🧩', roles: ['admin'] },
   { path: '/knowledge', label: 'Knowledge Base',  icon: '📚', roles: ['admin'] },
   { path: '/users',     label: 'Team',            icon: '👥', roles: ['admin'] },
   { path: '/monitor',   label: 'System Monitor',  icon: '🖥️', roles: ['admin'] },
 ]
+
+function AiToggle({ role }) {
+  const [enabled, setEnabled] = React.useState(null)
+
+  React.useEffect(() => {
+    async function fetchStatus() {
+      try {
+        const res = await fetch(`${API_BASE}/ai/status`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        })
+        const data = await res.json()
+        setEnabled(data.ai_enabled)
+      } catch {}
+    }
+    fetchStatus()
+    const t = setInterval(fetchStatus, 10000)
+    return () => clearInterval(t)
+  }, [])
+
+  if (!['admin', 'agent'].includes(role)) return null
+
+  async function toggle() {
+    if (enabled === null) return
+    const endpoint = enabled ? 'disable' : 'enable'
+    try {
+      const res = await fetch(`${API_BASE}/ai/${endpoint}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getToken()}` },
+      })
+      const data = await res.json()
+      setEnabled(data.ai_enabled)
+    } catch {}
+  }
+
+  return (
+    <div className="mb-2">
+      <button
+        onClick={toggle}
+        disabled={role !== 'admin'}
+        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition ${
+          enabled
+            ? 'bg-green-900/60 text-green-300 hover:bg-green-900'
+            : 'bg-red-900/60 text-red-300 hover:bg-red-900'
+        } disabled:cursor-default`}
+        title={role !== 'admin' ? 'Admin only' : (enabled ? 'Click to disable AI' : 'Click to enable AI')}
+      >
+        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${enabled ? 'bg-green-400' : 'bg-red-400'}`} />
+        AI {enabled === null ? '…' : enabled ? 'Enabled' : 'Disabled'}
+        {role === 'admin' && <span className="ml-auto opacity-60 text-xs">{enabled ? 'ON' : 'OFF'}</span>}
+      </button>
+    </div>
+  )
+}
 
 function Sidebar({ pendingCount, onLogout, role }) {
   const { pathname } = useLocation()
@@ -59,6 +114,7 @@ function Sidebar({ pendingCount, onLogout, role }) {
         ))}
       </nav>
       <div className="p-4 border-t border-gray-700">
+        <AiToggle role={role} />
         <button
           onClick={onLogout}
           className="w-full text-xs text-gray-400 hover:text-white hover:bg-gray-700 px-3 py-2 rounded-lg transition text-left"
@@ -120,6 +176,7 @@ export default function App() {
           <Route path="/queue" element={<LiveQueue />} />
           <Route path="/sessions" element={<SessionViewer />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/gaps" element={<KnowledgeGapQueue />} />
           <Route path="/knowledge" element={<KnowledgeBase />} />
           <Route path="/users" element={<UserManagement />} />
           <Route path="/monitor" element={<SystemMonitor />} />

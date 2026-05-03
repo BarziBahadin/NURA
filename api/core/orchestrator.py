@@ -1,6 +1,7 @@
 import json
 import logging
 from pathlib import Path
+import re
 from typing import Optional, Tuple
 
 from openai import AsyncOpenAI
@@ -10,6 +11,7 @@ from core.intent_classifier import estimate_chat_cost
 from core.logger import log_llm_usage
 from core.rag_engine import retrieve_context
 from core.text_preprocessor import TextPreprocessor
+from db.postgres import get_db_pool
 from models.session import Session
 
 logger = logging.getLogger(__name__)
@@ -75,6 +77,11 @@ SYSTEM_PROMPT_TEMPLATE = """أنت وكيل خدمة عملاء محترف في 
 تحدث دائمًا باللغة العربية الفصحى بأسلوب رسمي ومهذب.
 إذا كتب العميل بلغة أخرى، رد بنفس اللغة مع الحفاظ على الأسلوب الرسمي.
 
+إجابات معتمدة من مراجعة فجوات المعرفة:
+---
+{curated_gap_answers}
+---
+
 قاعدة المعرفة المعتمدة لخدمات الشركة:
 ---
 {articles_kb}
@@ -99,6 +106,59 @@ SYSTEM_PROMPT_TEMPLATE = """أنت وكيل خدمة عملاء محترف في 
 8. لا تبدأ أي رد بعبارة ترحيب مثل "أهلاً وسهلاً" أو "شكراً لتواصلك" — تم إرسال رسالة الترحيب مسبقاً تلقائياً ولا يجب تكرارها أبداً. ابدأ مباشرةً بالإجابة."""
 
 
+def _tokens(text: str) -> set[str]:
+    return {t for t in re.findall(r"\w+", text.lower()) if len(t) > 2}
+
+
+async def retrieve_curated_gap_answers(message: str) -> str:
+    try:
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT customer_message, approved_answer, intent, sub_intent
+                FROM knowledge_gap_reviews
+                WHERE status IN ('approved', 'resolved')
+                  AND approved_answer IS NOT NULL
+                  AND approved_answer != ''
+                ORDER BY reviewed_at DESC NULLS LAST, updated_at DESC
+                LIMIT 200
+                """
+            )
+    except Exception as e:
+        logger.warning(f"Curated gap lookup failed: {e}")
+        return "غير متاح."
+
+    query_tokens = _tokens(message)
+    if not query_tokens:
+        return "غير متاح."
+
+    scored = []
+    for row in rows:
+        haystack = " ".join(
+            [
+                row["customer_message"] or "",
+                row["intent"] or "",
+                row["sub_intent"] or "",
+            ]
+        )
+        overlap = len(query_tokens & _tokens(haystack))
+        if overlap:
+            scored.append((overlap, row))
+
+    if not scored:
+        return "غير متاح."
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    snippets = []
+    for _, row in scored[:3]:
+        snippets.append(
+            f"سؤال سابق: {row['customer_message']}\n"
+            f"الإجابة المعتمدة: {row['approved_answer']}"
+        )
+    return "\n\n".join(snippets)
+
+
 async def generate_response(session: Session, message: str) -> Tuple[str, float, str, Optional[str]]:
     # 0. Rules engine — exact article match, zero cost
     if _rules_engine is not None:
@@ -114,7 +174,8 @@ async def generate_response(session: Session, message: str) -> Tuple[str, float,
             logger.info(f"ML answered (conf={ml_result['confidence']:.2f}, cat={ml_result['category']})")
             return ml_result["response"], ml_result["confidence"], "local_model", None
 
-    # 2. Fall through to RAG + OpenAI
+    # 2. Fall through to curated gap answers + RAG + OpenAI
+    curated_gap_answers = await retrieve_curated_gap_answers(message)
     rag_context, confidence, source_doc = await retrieve_context(message)
 
     if not rag_context:
@@ -134,6 +195,7 @@ async def generate_response(session: Session, message: str) -> Tuple[str, float,
 
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         company_name=settings.company_name,
+        curated_gap_answers=curated_gap_answers,
         articles_kb=_ARTICLES_KB if _ARTICLES_KB else "غير متاح.",
         rag_context=rag_context,
         conversation_history=history_text,

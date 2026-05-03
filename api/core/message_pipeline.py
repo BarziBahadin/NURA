@@ -7,6 +7,8 @@ from core.orchestrator import generate_response
 from core.session_manager import append_turn, get_customer_token, get_or_create_session, save_session
 from models.session import Session, SessionStatus
 
+AI_MAINTENANCE_MESSAGE = "عذراً، الخدمة في وضع الصيانة حالياً. يُرجى المحاولة لاحقاً أو التواصل معنا مباشرةً."
+
 
 @dataclass
 class MessagePipelineResult:
@@ -28,8 +30,16 @@ async def process_customer_message(
     attachment_url: str | None = None,
     message_type: str = "text",
 ) -> MessagePipelineResult:
+    from routes.ai_control import is_ai_enabled
     clean_message = message.strip()[:2000]
     session = await get_or_create_session(session_id=session_id, customer_id=customer_id, channel=channel)
+
+    if not await is_ai_enabled():
+        token = get_customer_token(session) if include_session_token else None
+        await append_turn(session, "customer", clean_message, source="customer",
+                          attachment_url=attachment_url, message_type=message_type)
+        await append_turn(session, "agent", AI_MAINTENANCE_MESSAGE, confidence=1.0, source="bot")
+        return MessagePipelineResult(session, token, AI_MAINTENANCE_MESSAGE, 1.0, None, None, False)
 
     if session.status in (SessionStatus.pending_handoff, SessionStatus.human_active):
         token = get_customer_token(session) if include_session_token else None

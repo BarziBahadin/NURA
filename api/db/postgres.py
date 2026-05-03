@@ -194,6 +194,30 @@ async def init_db() -> None:
             )
         """)
 
+        # knowledge_gap_reviews — admin workflow for turning failed answers into curated knowledge
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS knowledge_gap_reviews (
+                id                SERIAL PRIMARY KEY,
+                insight_id        INT UNIQUE REFERENCES message_insights(id) ON DELETE SET NULL,
+                session_id        TEXT NOT NULL,
+                customer_id       TEXT,
+                channel           TEXT,
+                customer_message  TEXT NOT NULL,
+                intent            TEXT,
+                sub_intent        TEXT,
+                gap_reason        TEXT,
+                status            TEXT NOT NULL DEFAULT 'pending'
+                                  CHECK (status IN ('pending','drafted','approved','rejected','resolved')),
+                proposed_answer   TEXT,
+                approved_answer   TEXT,
+                notes             TEXT,
+                reviewed_by       TEXT,
+                reviewed_at       TIMESTAMPTZ,
+                created_at        TIMESTAMPTZ DEFAULT NOW(),
+                updated_at        TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
         # llm_usage_logs — token and cost tracking per OpenAI call
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS llm_usage_logs (
@@ -256,6 +280,8 @@ async def init_db() -> None:
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_mi_intent   ON message_insights(intent)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_mi_created  ON message_insights(created_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_mi_created_intent ON message_insights(created_at, intent)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_kgr_status_created ON knowledge_gap_reviews(status, created_at DESC)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_kgr_intent ON knowledge_gap_reviews(intent)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_lu_session  ON llm_usage_logs(session_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_lu_created  ON llm_usage_logs(created_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_lu_created_operation ON llm_usage_logs(created_at, operation)")

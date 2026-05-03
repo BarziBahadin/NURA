@@ -139,6 +139,161 @@ function ChatHistory({ turns }) {
   )
 }
 
+function PreviewModal({ session, onClose, onAccept, accepting }) {
+  const customerTurns = (session.history || []).filter(t => t.role === 'customer')
+  const botTurns = (session.history || []).filter(t => t.role !== 'customer')
+  const lastCustomer = customerTurns[customerTurns.length - 1]
+  const reason = session.metadata?.handoff_reason || 'manual'
+
+  return (
+    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
+        <div className="p-5 border-b border-gray-100 bg-yellow-50">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-2">
+                <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-0.5 rounded-full font-medium">
+                  Waiting
+                </span>
+                <span className="bg-white text-gray-600 text-xs px-2 py-0.5 rounded-full border border-yellow-100">
+                  {session.channel}
+                </span>
+                <span className="bg-orange-100 text-orange-600 text-xs px-2 py-0.5 rounded-full font-medium">
+                  ⏱ {waitingTime(session.updated_at)}
+                </span>
+              </div>
+              <h2 className="text-lg font-bold text-gray-800">Review Before Accepting</h2>
+              <div className="text-xs text-gray-500 mt-1">
+                <span className="font-mono">{session.session_id.slice(0, 8)}…</span>
+                <span className="mx-1">•</span>
+                <span>{session.customer_id}</span>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-white/80 hover:bg-white text-gray-500 hover:text-gray-700 transition"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-gray-50 rounded-xl p-3">
+              <div className="text-xs text-gray-400 mb-1">Customer Messages</div>
+              <div className="text-xl font-bold text-gray-800">{customerTurns.length}</div>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3">
+              <div className="text-xs text-gray-400 mb-1">Bot Replies</div>
+              <div className="text-xl font-bold text-gray-800">{botTurns.length}</div>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3">
+              <div className="text-xs text-gray-400 mb-1">Reason</div>
+              <div className="text-sm font-semibold text-gray-700 truncate">{reason}</div>
+            </div>
+          </div>
+
+          {lastCustomer && (
+            <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
+              <div className="text-xs text-orange-500 font-semibold mb-1">Latest customer message</div>
+              <div className="text-sm text-gray-800" style={{ direction: 'auto' }}>
+                {lastCustomer.message}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <div className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-2">
+              Conversation Preview
+            </div>
+            <ChatHistory turns={session.history || []} />
+          </div>
+        </div>
+
+        <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            disabled={accepting}
+            className="px-3 py-2 rounded-xl text-sm bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+          >
+            Not now
+          </button>
+          <button
+            onClick={() => onAccept(session.session_id)}
+            disabled={accepting}
+            className="px-4 py-2 rounded-xl text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {accepting ? 'Accepting...' : 'Accept Chat'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PendingHandoffCard({ s, onPreview, onResolve, resolving }) {
+  const history = s.history || []
+  const customerTurns = history.filter(t => t.role === 'customer')
+  const lastCustomer = [...customerTurns].reverse().find(t => t.message)
+  const reason = s.metadata?.handoff_reason || 'handoff'
+
+  return (
+    <div className="bg-white rounded-2xl shadow p-4 border-l-4 border-yellow-400">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="font-mono text-xs text-gray-400">{s.session_id.split('-')[0]}…</span>
+            <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-0.5 rounded-full">
+              {s.channel}
+            </span>
+            <span className="bg-orange-100 text-orange-600 text-xs px-2 py-0.5 rounded-full font-medium">
+              ⏱ {waitingTime(s.updated_at)}
+            </span>
+            <span className="bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full">
+              {reason}
+            </span>
+          </div>
+          <div className="text-sm text-gray-700 font-medium truncate">
+            Customer: {s.customer_id}
+          </div>
+          <div className="mt-3 bg-gray-50 border border-gray-100 rounded-xl p-3">
+            <div className="text-xs text-gray-400 mb-1">Preview</div>
+            {lastCustomer ? (
+              <div
+                className="text-sm text-gray-700 overflow-hidden"
+                style={{ direction: 'auto', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
+              >
+                {lastCustomer.message}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-400">No customer messages yet</div>
+            )}
+            <div className="text-xs text-gray-400 mt-2">
+              {history.length} total turns • {customerTurns.length} customer messages
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 flex-shrink-0">
+          <button
+            onClick={() => onPreview(s)}
+            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-xl transition whitespace-nowrap"
+          >
+            Preview & Accept
+          </button>
+          <button
+            onClick={() => onResolve(s)}
+            disabled={resolving}
+            className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm px-3 py-2 rounded-xl transition disabled:opacity-50 whitespace-nowrap"
+          >
+            {resolving ? '...' : 'Resolve'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ActiveChatCard({ s, onResolved }) {
   const [turns, setTurns] = useState(s.history || [])
   const [input, setInput] = useState('')
@@ -345,6 +500,7 @@ export default function LiveQueue() {
   const [accepting, setAccepting] = useState({})
   const [resolving, setResolving] = useState({})
   const [resolveTarget, setResolveTarget] = useState(null)
+  const [previewTarget, setPreviewTarget] = useState(null)
   const prevPendingRef = useRef(null)
 
   async function fetchQueue() {
@@ -374,6 +530,7 @@ export default function LiveQueue() {
         method: 'POST',
         headers: { Authorization: `Bearer ${api.key}` },
       })
+      setPreviewTarget(null)
       await fetchQueue()
     } catch (e) {
       console.error(e)
@@ -409,7 +566,7 @@ export default function LiveQueue() {
   const active = sessions.filter(s => s.status === 'HUMAN_ACTIVE')
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Live Queue</h1>
         <div className="flex gap-2">
@@ -445,47 +602,25 @@ export default function LiveQueue() {
             <ActiveChatCard key={s.session_id} s={s} onResolved={fetchQueue} />
           ))}
 
-          {/* PENDING_HANDOFF — accept / resolve only */}
+          {/* PENDING_HANDOFF — preview before accepting */}
           {pending.map(s => (
-            <div key={s.session_id} className="bg-white rounded-2xl shadow p-4 flex items-center gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <span className="font-mono text-xs text-gray-400">{s.session_id.split('-')[0]}…</span>
-                  <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-0.5 rounded-full">
-                    {s.channel}
-                  </span>
-                  <span className="bg-orange-100 text-orange-600 text-xs px-2 py-0.5 rounded-full font-medium">
-                    ⏱ {waitingTime(s.updated_at)}
-                  </span>
-                </div>
-                <div className="text-sm text-gray-700 font-medium truncate">
-                  Customer: {s.customer_id}
-                </div>
-                {s.history?.length > 0 && (
-                  <div className="text-xs text-gray-400 truncate mt-0.5">
-                    Last message: {s.history[s.history.length - 1]?.message?.slice(0, 80)}
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2 flex-shrink-0">
-                <button
-                  onClick={() => setResolveTarget(s)}
-                  disabled={resolving[s.session_id]}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm px-3 py-2 rounded-xl transition disabled:opacity-50 whitespace-nowrap"
-                >
-                  {resolving[s.session_id] ? '...' : 'Resolve'}
-                </button>
-                <button
-                  onClick={() => acceptSession(s.session_id)}
-                  disabled={accepting[s.session_id]}
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-xl transition disabled:opacity-50 whitespace-nowrap"
-                >
-                  {accepting[s.session_id] ? '...' : 'Accept'}
-                </button>
-              </div>
-            </div>
+            <PendingHandoffCard
+              key={s.session_id}
+              s={s}
+              onPreview={setPreviewTarget}
+              onResolve={setResolveTarget}
+              resolving={!!resolving[s.session_id]}
+            />
           ))}
         </div>
+      )}
+      {previewTarget && (
+        <PreviewModal
+          session={previewTarget}
+          accepting={!!accepting[previewTarget.session_id]}
+          onClose={() => setPreviewTarget(null)}
+          onAccept={acceptSession}
+        />
       )}
       {resolveTarget && (
         <ResolveModal

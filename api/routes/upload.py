@@ -1,7 +1,8 @@
 import os
 import uuid
+from urllib.parse import urlencode
 
-from fastapi import APIRouter, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -29,9 +30,21 @@ def _check_session_auth(request: Request, session) -> None:
 
 @router.post("/upload")
 @limiter.limit("20/minute")
-async def upload_file(request: Request, file: UploadFile, session_id: str = ""):
+async def upload_file(
+    request: Request,
+    file: UploadFile = File(...),
+    session_id: str = Form(default=""),
+):
+    session_id = session_id or request.query_params.get("session_id", "")
     if not session_id and not has_admin_access(request):
         raise HTTPException(status_code=400, detail="session_id is required")
+
+    session = None
+    if session_id:
+        session = await get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        _check_session_auth(request, session)
 
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(status_code=415, detail="File type not allowed")
@@ -49,7 +62,11 @@ async def upload_file(request: Request, file: UploadFile, session_id: str = ""):
     with open(dest_path, "wb") as f:
         f.write(contents)
 
-    url = f"/v1/uploads/{session_id or 'admin'}/{filename}"
+    path_url = f"/v1/uploads/{session_id or 'admin'}/{filename}"
+    url = str(request.base_url).rstrip("/") + path_url
+    supplied_token = request.query_params.get("session_token") or request.headers.get("X-Session-Token", "")
+    if session_id and supplied_token:
+        url += "?" + urlencode({"session_token": supplied_token})
     return {"url": url, "filename": filename, "content_type": file.content_type}
 
 
