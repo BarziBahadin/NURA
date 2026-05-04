@@ -34,13 +34,20 @@ def run_evaluation(training_csv, model_path: Path, vectorizer_path: Path, thresh
     if df.empty:
         raise ValueError("training_pairs.csv is empty.")
 
-    _train_df, test_df = _stratified_split(df, TEST_FRACTION, RANDOM_SEED)
+    # Article-derived rows share the same answer across many paraphrases — testing
+    # on them inflates accuracy because all paraphrases are trivially similar to
+    # training examples. Evaluate on non-article data only for honest numbers.
+    article_mask = df["request_id"].astype(str).str.startswith("article_")
+    non_article_df = df[~article_mask]
+    eval_df = non_article_df if len(non_article_df) >= 10 else df
+
+    _train_df, test_df = _stratified_split(eval_df, TEST_FRACTION, RANDOM_SEED)
 
     print(f"\n{'='*60}")
     print(f"  Evaluation Report")
     print(f"{'='*60}")
-    print(f"  Total pairs   : {len(df):,}")
-    print(f"  Test set      : {len(test_df):,}  ({TEST_FRACTION*100:.0f}%)")
+    print(f"  Total pairs   : {len(df):,}  (article-derived excluded from eval: {article_mask.sum()})")
+    print(f"  Test set      : {len(test_df):,}  ({TEST_FRACTION*100:.0f}% of non-article data)")
     print(f"  Threshold     : {threshold}")
     print(f"{'='*60}\n")
 

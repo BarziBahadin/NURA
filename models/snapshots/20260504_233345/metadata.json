@@ -1,0 +1,8 @@
+{
+  "n_features": 500,
+  "n_samples": 584,
+  "n_categories": 20,
+  "training_date": "2026-05-04T23:33:45.716126",
+  "semantic_embeddings": false,
+  "snapshot_date": "20260504_233345"
+}

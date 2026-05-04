@@ -16,7 +16,7 @@ import pandas as pd
 
 from training.config import (
     TRAINING_CSV, LOCAL_MODEL_PATH, VECTORIZER_PATH,
-    SNAPSHOTS_DIR, MIN_CONFIDENCE_LOCAL, ARTICLES_JSON,
+    SNAPSHOTS_DIR, MIN_CONFIDENCE_LOCAL, INCLUDE_APPROVED_GAPS,
 )
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -31,9 +31,25 @@ def cli():
 @cli.command('process-data')
 @click.option('--chat-csv', default=None, help='Path to base chat.csv')
 @click.option('--requests-csv', default=None, help='Path to base requests.csv')
-def process_data(chat_csv, requests_csv):
+@click.option(
+    '--include-gaps/--no-include-gaps',
+    default=INCLUDE_APPROVED_GAPS,
+    help='Include approved Knowledge Gap Queue answers from Postgres.',
+)
+@click.option('--gap-limit', default=1000, type=int, help='Max approved gaps to import')
+@click.option(
+    '--include-articles/--no-include-articles',
+    default=False,
+    help='Include article KB pairs in ML training (off by default — articles are covered by the rules engine and RAG).',
+)
+def process_data(chat_csv, requests_csv, include_gaps, gap_limit, include_articles):
     """Process data sources and generate training_pairs.csv"""
-    from training.processor import extract_from_chat_logs, load_articles_as_pairs
+    from training.processor import (
+        extract_from_chat_logs,
+        load_approved_gap_pairs,
+        load_articles_as_pairs,
+        load_manual_training_pairs,
+    )
 
     frames = []
 
@@ -47,14 +63,30 @@ def process_data(chat_csv, requests_csv):
         if not chat_df.empty:
             frames.append(chat_df)
     else:
-        click.echo("No chat logs provided — using articles only.")
+        click.echo("No chat logs provided — skipping chat log extraction.")
 
-    # Articles
-    click.echo("Loading articles knowledge base...")
-    article_pairs = load_articles_as_pairs()
-    click.echo(f"  → {len(article_pairs)} pairs from articles")
-    if article_pairs:
-        frames.append(pd.DataFrame(article_pairs))
+    # Articles: covered by rules engine + RAG at runtime; skip ML training by default
+    if include_articles:
+        click.echo("Loading articles knowledge base for ML training...")
+        article_pairs = load_articles_as_pairs()
+        click.echo(f"  → {len(article_pairs)} pairs from articles")
+        if article_pairs:
+            frames.append(pd.DataFrame(article_pairs))
+    else:
+        click.echo("Articles skipped (handled by rules engine + RAG — use --include-articles to override).")
+
+    click.echo("Loading manual curated training pairs...")
+    manual_pairs = load_manual_training_pairs()
+    click.echo(f"  → {len(manual_pairs)} manual pairs")
+    if manual_pairs:
+        frames.append(pd.DataFrame(manual_pairs))
+
+    if include_gaps:
+        click.echo("Loading approved knowledge gaps...")
+        gap_pairs = load_approved_gap_pairs(limit=gap_limit)
+        click.echo(f"  → {len(gap_pairs)} pairs from approved reviews")
+        if gap_pairs:
+            frames.append(pd.DataFrame(gap_pairs))
 
     if not frames:
         click.echo("ERROR: No training data found.")
@@ -71,6 +103,31 @@ def process_data(chat_csv, requests_csv):
     for cat, count in combined['category'].value_counts().items():
         click.echo(f"  {cat:<30} {count}")
     click.echo(f"\nSaved → {TRAINING_CSV}")
+
+
+@cli.command('export-approved-gaps')
+@click.option('--limit', default=1000, type=int, help='Max approved gaps to import')
+def export_approved_gaps(limit):
+    """Append approved Knowledge Gap Queue answers to training_pairs.csv"""
+    from training.processor import load_approved_gap_pairs
+
+    gap_pairs = load_approved_gap_pairs(limit=limit)
+    if not gap_pairs:
+        click.echo("No approved knowledge gaps found.")
+        return
+
+    gap_df = pd.DataFrame(gap_pairs)
+    if TRAINING_CSV.exists():
+        existing = pd.read_csv(TRAINING_CSV)
+        combined = pd.concat([existing, gap_df], ignore_index=True)
+    else:
+        combined = gap_df
+
+    combined = combined.drop_duplicates(subset=['customer_question', 'agent_response'])
+    TRAINING_CSV.parent.mkdir(parents=True, exist_ok=True)
+    combined.to_csv(TRAINING_CSV, index=False, encoding='utf-8')
+    click.echo(f"Added approved gaps. Total pairs: {len(combined)}")
+    click.echo(f"Saved → {TRAINING_CSV}")
 
 
 @cli.command('train-model')
@@ -170,10 +227,20 @@ def rollback(snapshot):
 @click.pass_context
 @click.option('--chat-csv', default=None)
 @click.option('--requests-csv', default=None)
-def run_pipeline(ctx, chat_csv, requests_csv):
+@click.option('--include-gaps/--no-include-gaps', default=INCLUDE_APPROVED_GAPS)
+@click.option('--gap-limit', default=1000, type=int)
+@click.option('--include-articles/--no-include-articles', default=False)
+def run_pipeline(ctx, chat_csv, requests_csv, include_gaps, gap_limit, include_articles):
     """Full pipeline: process → train → evaluate"""
     click.echo("=== NURA Training Pipeline ===\n")
-    ctx.invoke(process_data, chat_csv=chat_csv, requests_csv=requests_csv)
+    ctx.invoke(
+        process_data,
+        chat_csv=chat_csv,
+        requests_csv=requests_csv,
+        include_gaps=include_gaps,
+        gap_limit=gap_limit,
+        include_articles=include_articles,
+    )
     click.echo()
     ctx.invoke(train_model)
     click.echo()

@@ -75,7 +75,13 @@ class LocalModelService:
 
     def _fuzzy_fallback(self, normalized_q: str) -> tuple[int, float]:
         best_idx, best_ratio = 0, 0.0
+        q_len = len(normalized_q)
         for i, tq in enumerate(self._normalized_questions):
+            # SequenceMatcher upper bound: 2*common_chars / (len_a + len_b)
+            # Skip if even a perfect match couldn't beat current best
+            max_possible = 2 * min(q_len, len(tq)) / (q_len + len(tq) + 1e-9)
+            if max_possible <= best_ratio:
+                continue
             r = SequenceMatcher(None, normalized_q, tq).ratio()
             if r > best_ratio:
                 best_ratio = r

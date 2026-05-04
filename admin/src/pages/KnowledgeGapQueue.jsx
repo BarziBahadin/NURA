@@ -216,7 +216,7 @@ export default function KnowledgeGapQueue() {
       <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Knowledge Gap Queue</h1>
-          <div className="text-sm text-gray-400 mt-1">Turn failed customer questions into reviewed answers the AI can reuse.</div>
+          <div className="text-sm text-gray-400 mt-1">Turn failed customer questions into reviewed answers the AI and local ML can reuse.</div>
         </div>
         <button
           onClick={fetchReviews}
@@ -224,6 +224,16 @@ export default function KnowledgeGapQueue() {
         >
           Refresh
         </button>
+      </div>
+
+      <div className="bg-slate-900 text-slate-100 rounded-2xl shadow p-4 mb-5">
+        <div className="text-sm font-semibold">ML retraining loop</div>
+        <div className="text-xs text-slate-400 mt-1">
+          Approved answers in this queue are imported into the next local ML training run.
+        </div>
+        <code className="block mt-3 text-xs bg-black/30 rounded-xl px-3 py-2 overflow-x-auto">
+          python -m training.cli run-pipeline
+        </code>
       </div>
 
       <div className="bg-white rounded-2xl shadow p-4 mb-5">

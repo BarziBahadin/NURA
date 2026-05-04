@@ -37,6 +37,11 @@ _NO_ANSWER = (
     '• أو أعد صياغة سؤالك وسأحاول مساعدتك.'
 )
 
+_OUT_OF_SCOPE = (
+    'أنا متخصص في خدمات Rcell فقط. '
+    'يمكنني مساعدتك في الإنترنت، الباقات، الشريحة، التطبيقات، الرصيد، أو خدمات الدعم.'
+)
+
 _STOP = {
     'انا', 'أنا', 'نحن', 'هو', 'هي', 'هم', 'انت', 'أنت', 'انتم', 'أنتم',
     'هذا', 'هذه', 'هؤلاء', 'ذلك', 'تلك', 'الذي', 'التي', 'الذين',
@@ -113,6 +118,8 @@ class ConversationService:
                 result = alt
 
         if result["confidence"] >= self.threshold and result["response"]:
+            if result.get("category") == "out_of_scope":
+                return {**result, "response": _OUT_OF_SCOPE}
             response_text = result["response"] + _FOLLOW_UP
             return {**result, "response": response_text}
 
