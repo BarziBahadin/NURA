@@ -19,6 +19,20 @@ WELCOME_AR = (
     "اختر موضوعًا من القائمة أو اكتب سؤالك مباشرة:"
 )
 AGENT_WAITING_AR = "تم استلام رسالتك. سيتواصل معك أحد أعضاء الفريق قريبًا."
+AGENT_REQUESTED_AR = "⏳ تم تحويلك إلى موظف بشري. سيتواصل معك أحد أعضاء الفريق قريبًا."
+RESOLVED_AR = (
+    "✅ تم إغلاق المحادثة. نشكرك على تواصلك مع {company}!\n\n"
+    "كيف تقيّم تجربتك معنا؟"
+)
+RATING_THANKS_AR = "شكراً على تقييمك {stars}! رأيك يهمنا."
+COMPLAINT_AR = (
+    "لتقديم شكوى أو اقتراح:\n\n"
+    "يمكنك التواصل معنا عبر إحدى الطرق التالية:\n\n"
+    "• الدردشة المباشرة: اضغط على زر «التحدث مع موظف» أدناه.\n"
+    "• الهاتف: تواصل مع خدمة العملاء على الرقم المعتمد.\n"
+    "• مراكز Rcell: قم بزيارة أقرب مركز خدمة.\n\n"
+    "سيتم التعامل مع شكواك أو اقتراحك في أقرب وقت ممكن."
+)
 
 # ── Topic tree (mirrors widget.js TOPIC_TREE, Arabic labels) ──────────────
 
@@ -73,6 +87,10 @@ _TOPIC_TREE: dict = {
             {"id": "hours",    "label": "ساعات العمل",           "article": 17},
             {"id": "coverage", "label": "تغطية الشركة ومراكزها", "article": 26},
             {"id": "business", "label": "إنترنت الأعمال FTTx",   "article": 27},
+        ]},
+        {"id": "other", "label": "🔗 أخرى", "children": [
+            {"id": "other_complaint", "label": "تقديم شكوى أو اقتراح",      "action": "complaint"},
+            {"id": "other_agent",     "label": "🎧 التحدث مع موظف مباشرة", "action": "agent"},
         ]},
     ],
 }
@@ -144,12 +162,53 @@ async def _send(chat_id: int, text: str, **kwargs) -> None:
         logger.warning(f"Telegram sendMessage failed: {e}")
 
 
+def _rating_keyboard() -> dict:
+    return {"inline_keyboard": [[
+        {"text": "⭐ 1", "callback_data": "r:1"},
+        {"text": "⭐⭐ 2", "callback_data": "r:2"},
+        {"text": "⭐⭐⭐ 3", "callback_data": "r:3"},
+        {"text": "⭐⭐⭐⭐ 4", "callback_data": "r:4"},
+        {"text": "⭐⭐⭐⭐⭐ 5", "callback_data": "r:5"},
+    ]]}
+
+
+async def send_resolved_to_telegram(chat_id: int) -> None:
+    """Call this from session/handoff routes when a Telegram session is closed."""
+    await _send(
+        chat_id,
+        RESOLVED_AR.format(company=settings.company_name),
+        reply_markup=_rating_keyboard(),
+    )
+
+
 # ── Callback query handler (inline button taps) ───────────────────────────
 
 async def _handle_callback(cb: dict) -> None:
     await _call("answerCallbackQuery", http_timeout=5.0, callback_query_id=cb["id"])
 
     data: str = cb.get("data", "")
+    chat_id: int = cb["message"]["chat"]["id"]
+    msg_id: int  = cb["message"]["message_id"]
+
+    # Rating callback
+    if data.startswith("r:"):
+        score = int(data[2:])
+        stars = "⭐" * score
+        await _call(
+            "editMessageReplyMarkup",
+            http_timeout=10.0,
+            chat_id=chat_id,
+            message_id=msg_id,
+            reply_markup={"inline_keyboard": []},
+        )
+        await _send(chat_id, RATING_THANKS_AR.format(stars=stars))
+        await _send(
+            chat_id,
+            WELCOME_AR.format(company=settings.company_name),
+            reply_markup=_build_keyboard(_TOPIC_TREE),
+        )
+        return
+
     if not data.startswith("t:"):
         return
 
@@ -157,9 +216,6 @@ async def _handle_callback(cb: dict) -> None:
     node = _find_node(node_id)
     if not node:
         return
-
-    chat_id: int = cb["message"]["chat"]["id"]
-    msg_id: int  = cb["message"]["message_id"]
 
     if node.get("children"):
         await _call(
@@ -182,6 +238,41 @@ async def _handle_callback(cb: dict) -> None:
             message_id=msg_id,
             text=_article_text(node["article"]),
             reply_markup=keyboard,
+        )
+    elif node.get("action") == "complaint":
+        keyboard = {"inline_keyboard": [
+            [{"text": "🎧 التحدث مع موظف مباشرة", "callback_data": "t:other_agent"}],
+            [
+                {"text": "🔙 رجوع",      "callback_data": f"t:{node.get('parent_id', 'root')}"},
+                {"text": "🏠 الرئيسية", "callback_data": "t:root"},
+            ],
+        ]}
+        await _call(
+            "editMessageText",
+            http_timeout=10.0,
+            chat_id=chat_id,
+            message_id=msg_id,
+            text=COMPLAINT_AR,
+            reply_markup=keyboard,
+        )
+    elif node.get("action") == "agent":
+        session_id = f"tg_{chat_id}"
+        session = await get_or_create_session(
+            session_id=session_id,
+            customer_id=str(chat_id),
+            channel="telegram",
+        )
+        if session.status not in (SessionStatus.pending_handoff, SessionStatus.human_active):
+            session.status = SessionStatus.pending_handoff
+            session.metadata["handoff_reason"] = "direct_request"
+            await save_session(session)
+        await _call(
+            "editMessageText",
+            http_timeout=10.0,
+            chat_id=chat_id,
+            message_id=msg_id,
+            text=AGENT_REQUESTED_AR,
+            reply_markup={"inline_keyboard": []},
         )
 
 
@@ -221,7 +312,6 @@ async def _handle_message(msg: dict) -> None:
     if session.status in (SessionStatus.pending_handoff, SessionStatus.human_active):
         await append_turn(session, "customer", text, source="customer")
         await save_session(session)
-        await _send(chat_id, AGENT_WAITING_AR)
         return
 
     result = await process_customer_message(

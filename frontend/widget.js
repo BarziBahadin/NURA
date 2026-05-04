@@ -13,17 +13,17 @@
     '#chat-toggle {',
     '  position: fixed; bottom: 28px; left: 28px;',
     '  width: 60px; height: 60px; border-radius: 50%;',
-    '  background: linear-gradient(135deg, #ea580c, #f97316);',
+    '  background: linear-gradient(135deg, #111827, #f97316);',
     '  border: none; cursor: pointer;',
-    '  box-shadow: 0 4px 18px rgba(234,88,12,0.45);',
+    '  box-shadow: 0 14px 34px rgba(17,24,39,0.28), 0 4px 18px rgba(249,115,22,0.36);',
     '  display: flex; align-items: center; justify-content: center;',
     '  transition: transform 0.2s, box-shadow 0.2s; z-index: 2147483640;',
     '}',
-    '#chat-toggle:hover { transform: scale(1.08); box-shadow: 0 6px 24px rgba(234,88,12,0.55); }',
+    '#chat-toggle:hover { transform: scale(1.08); box-shadow: 0 18px 42px rgba(17,24,39,0.32), 0 6px 24px rgba(249,115,22,0.48); }',
 
     '#nura-badge {',
     '  position: absolute; top: -4px; right: -4px;',
-    '  background: #ef476f; color: #fff; border-radius: 50%;',
+    '  background: #22c55e; color: #fff; border-radius: 50%;',
     '  width: 20px; height: 20px; font-size: 11px; font-weight: 700;',
     '  display: none; align-items: center; justify-content: center;',
     '}',
@@ -31,8 +31,8 @@
     '#chat-window {',
     '  position: fixed; top: 50%; left: 50%;',
     '  width: 430px; max-height: 700px;',
-    '  background: #fff; border-radius: 22px;',
-    '  box-shadow: 0 22px 70px rgba(15,23,42,0.18);',
+    '  background: #fff; border-radius: 22px; border: 1px solid rgba(17,24,39,0.08);',
+    '  box-shadow: 0 26px 78px rgba(15,23,42,0.22);',
     '  display: flex; flex-direction: column; overflow: hidden;',
     '  z-index: 2147483639;',
     '  transform: translate(-50%, -50%) scale(0.85);',
@@ -42,20 +42,26 @@
     '#chat-window.nura-open { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: all; }',
 
     '.nura-chat-header {',
-    '  background: linear-gradient(135deg, #f45d12, #fb7c28);',
+    '  background: linear-gradient(135deg, #101827 0%, #1f2937 58%, #f97316 155%);',
     '  padding: 14px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0;',
-    '  direction: ltr;',
+    '  direction: ltr; position: relative; overflow: hidden;',
+    '}',
+    '.nura-chat-header::after {',
+    '  content: "4G+"; position: absolute; bottom: 8px; left: 58px;',
+    '  font-size: 10px; font-weight: 900; color: rgba(34,197,94,0.9);',
+    '  border: 1px solid rgba(34,197,94,0.38); border-radius: 999px; padding: 1px 6px;',
+    '  background: rgba(16,24,39,0.42);',
     '}',
     '.nura-avatar {',
     '  width: 42px; height: 42px; border-radius: 50%;',
-    '  background: rgba(255,255,255,0.24); border: 1px solid rgba(255,255,255,0.36);',
+    '  background: #fff; border: 1px solid rgba(249,115,22,0.35);',
     '  display: flex; align-items: center; justify-content: center;',
-    '  color: #fff; font-weight: 700; font-size: 13px; flex-shrink: 0; letter-spacing: -0.5px;',
+    '  color: #f97316; font-weight: 900; font-size: 13px; flex-shrink: 0; letter-spacing: -0.5px;',
     '}',
     '.nura-header-info { flex: 1; min-width: 0; text-align: right; }',
     '#chat-window[dir="ltr"] .nura-header-info { text-align: left; }',
-    '.nura-header-info h3 { color: #fff; font-size: 15px; font-weight: 800; line-height: 1.2; }',
-    '.nura-header-info span { color: rgba(255,255,255,0.86); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }',
+    '.nura-header-info h3 { color: #fff; font-size: 15px; font-weight: 900; line-height: 1.2; }',
+    '.nura-header-info span { color: rgba(229,231,235,0.88); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }',
     '.nura-online-dot {',
     '  width: 7px; height: 7px; background: #22c55e; border-radius: 50%;',
     '  display: inline-block; margin: 0; animation: nuraPulse 2s infinite;',
@@ -98,14 +104,14 @@
     '  padding: 10px 14px; border-radius: 16px; font-size: 13.5px;',
     '  line-height: 1.65; word-break: break-word; white-space: pre-wrap; unicode-bidi: plaintext; text-align: start;',
     '}',
-    '.nura-msg.user  .nura-bubble { background: linear-gradient(135deg, #f45d12, #fb7c28); color: #fff; border-bottom-right-radius: 5px; box-shadow: 0 5px 16px rgba(234,88,12,0.18); }',
+    '.nura-msg.user  .nura-bubble { background: linear-gradient(135deg, #1f2937, #334155); color: #fff; border-bottom-right-radius: 5px; box-shadow: 0 5px 16px rgba(15,23,42,0.16); }',
     '.nura-msg.bot   .nura-bubble { background: #fff; color: #1f2937; border: 1px solid #eef0f3; border-bottom-left-radius: 5px; box-shadow: 0 5px 18px rgba(15,23,42,0.05); }',
     '.nura-msg.agent .nura-bubble { background: #ecfdf5; color: #065f46; border: 1px solid #bbf7d0; border-bottom-left-radius: 5px; }',
 
     '.nura-msg.bot .nura-followup-bubble {',
     '  margin-top: 5px; padding: 8px 13px; border-radius: 16px; border-bottom-left-radius: 4px;',
-    '  font-size: 13px; background: rgba(234,88,12,0.08); color: #ea580c;',
-    '  border: 1.5px solid rgba(249,115,22,0.35); animation: nuraFadeUp 0.2s ease;',
+    '  font-size: 13px; background: #fff7ed; color: #c2410c;',
+    '  border: 1px solid #fed7aa; animation: nuraFadeUp 0.2s ease;',
     '}',
     '.nura-followup-btns { margin-top: 7px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-start; }',
     '.nura-followup-btn {',
@@ -129,13 +135,13 @@
     '  font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 20px;',
     '  text-transform: uppercase; letter-spacing: 0.5px;',
     '}',
-    '.nura-source-tag.local  { background: #d4f7e8; color: #1a7a4a; }',
+    '.nura-source-tag.local  { background: #dcfce7; color: #15803d; }',
     '.nura-source-tag.openai { background: #e8d4f7; color: #6b1a99; }',
     '.nura-source-tag.low    { background: #ffecd4; color: #b45309; }',
     '.nura-source-doc-chip {',
     '  display: inline-flex; align-items: center; gap: 3px;',
     '  font-size: 9.5px; color: #888; margin-top: 2px;',
-    '  background: #f5f5f5; border: 1px solid #e5e5e5;',
+    '  background: #f8fafc; border: 1px solid #e2e8f0;',
     '  border-radius: 8px; padding: 1px 7px;',
     '  max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;',
     '}',
@@ -156,8 +162,8 @@
     '@keyframes nuraBounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }',
 
     '#nura-tree-panel {',
-    '  border-top: 1px solid #f0f2f5; padding: 12px 14px 14px;',
-    '  flex-shrink: 0; background: #fff; max-height: 230px; overflow-y: auto;',
+    '  border-top: 1px solid #edf2f7; padding: 12px 14px 14px;',
+    '  flex-shrink: 0; background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); max-height: 230px; overflow-y: auto;',
     '}',
     '#nura-tree-panel::-webkit-scrollbar { width: 3px; }',
     '#nura-tree-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }',
@@ -173,23 +179,23 @@
     '.nura-tree-nav-btn.home { background: none; border-color: #ddd; color: #999; }',
     '.nura-tree-nav-btn.home:hover { background: #f0f2f5; color: #555; border-color: #bbb; }',
 
-    '.nura-tree-level-q { font-size: 12px; color: #374151; font-weight: 800; margin-bottom: 10px; text-align: right; }',
+    '.nura-tree-level-q { font-size: 12px; color: #111827; font-weight: 900; margin-bottom: 10px; text-align: right; }',
     '#chat-window[dir="ltr"] .nura-tree-level-q { text-align: left; }',
     '.nura-agent-bypass-btn {',
     '  margin-top: 12px; width: 100%; padding: 11px 14px;',
-    '  background: #fff7ed; border: 1px solid #fed7aa; border-radius: 14px;',
-    '  color: #ea580c; font-size: 13px; font-weight: 800; cursor: pointer;',
+    '  background: #111827; border: 1px solid #1f2937; border-radius: 14px;',
+    '  color: #fff; font-size: 13px; font-weight: 900; cursor: pointer;',
     '  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;',
     '}',
-    '.nura-agent-bypass-btn:hover { background: #ffedd5; border-color: #fb923c; transform: translateY(-1px); }',
+    '.nura-agent-bypass-btn:hover { background: #0f172a; border-color: #f97316; transform: translateY(-1px); }',
     '.nura-tree-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }',
     '.nura-tree-opt {',
-    '  background: #fff; border: 1px solid #e5e7eb; color: #1f2937;',
+    '  background: #fff; border: 1px solid #e2e8f0; color: #1f2937;',
     '  border-radius: 14px; padding: 9px 12px; min-height: 38px; font-size: 12.5px; cursor: pointer;',
     '  font-family: inherit; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s; white-space: normal;',
     '  display: inline-flex; align-items: center; justify-content: center; gap: 5px; text-align: center; line-height: 1.35;',
     '}',
-    '.nura-tree-opt:hover { background: #fff7ed; border-color: #fb923c; color: #ea580c; box-shadow: 0 5px 14px rgba(234,88,12,0.08); }',
+    '.nura-tree-opt:hover { background: #fff7ed; border-color: #fb923c; color: #c2410c; box-shadow: 0 5px 14px rgba(234,88,12,0.08); }',
     '.nura-tree-opt.has-children::after { content: \' ›\'; font-size: 13px; opacity: 0.6; }',
 
     '.nura-chat-footer {',
@@ -203,13 +209,13 @@
     '  outline: none; resize: none; max-height: 100px; line-height: 1.4;',
     '  transition: border-color 0.2s, box-shadow 0.2s; text-align: right;',
     '}',
-    '#nura-msg-input:focus { border-color: #fb923c; box-shadow: 0 0 0 3px rgba(251,146,60,0.14); }',
+    '#nura-msg-input:focus { border-color: #f97316; box-shadow: 0 0 0 3px rgba(249,115,22,0.14); }',
     '#chat-window[dir="ltr"] #nura-msg-input { text-align: left; }',
     '#nura-msg-input::placeholder { color: #bbb; }',
 
     '#nura-send-btn {',
     '  width: 42px; height: 42px; border-radius: 50%;',
-    '  background: linear-gradient(135deg, #f45d12, #fb7c28);',
+    '  background: linear-gradient(135deg, #f97316, #22c55e);',
     '  border: none; cursor: pointer;',
     '  display: flex; align-items: center; justify-content: center; flex-shrink: 0;',
     '  transition: transform 0.15s, opacity 0.15s;',
@@ -217,6 +223,20 @@
     '#nura-send-btn:hover { transform: scale(1.08); }',
     '#nura-send-btn:disabled { opacity: 0.38; cursor: default; transform: none; filter: grayscale(0.2); }',
     '#nura-send-btn svg { width: 18px; height: 18px; fill: #fff; }',
+
+    '#nura-attach-btn {',
+    '  width: 38px; height: 38px; border-radius: 50%;',
+    '  background: #f0f2f5; border: none; cursor: pointer;',
+    '  display: flex; align-items: center; justify-content: center; flex-shrink: 0;',
+    '  font-size: 17px; transition: background 0.15s, color 0.15s, opacity 0.15s; color: #888;',
+    '}',
+    '#nura-attach-btn:hover { background: #e0e4ea; color: #111827; }',
+    '#nura-attach-btn:disabled { opacity: 0.5; cursor: default; }',
+    '.nura-chat-img {',
+    '  max-width: 230px; max-height: 180px; border-radius: 14px;',
+    '  border: 1px solid rgba(255,255,255,0.4); object-fit: cover; cursor: pointer;',
+    '  box-shadow: 0 5px 16px rgba(15,23,42,0.12);',
+    '}',
 
     '.nura-feedback-btns { display: flex; gap: 4px; margin-top: 4px; justify-content: flex-end; }',
     '.nura-fb-btn {',
@@ -237,7 +257,7 @@
     '  animation: nuraFadeUp 0.2s ease;',
     '}',
     '.nura-error-bubble {',
-    '  background: #fff0f0; color: #c0392b; border: 1px solid #f5c6cb;',
+    '  background: #fff1f2; color: #be123c; border: 1px solid #fecdd3;',
     '  padding: 8px 14px; border-radius: 12px; font-size: 13px; align-self: flex-end;',
     '}',
     '.nura-rating-prompt {',
@@ -281,7 +301,7 @@
     '      <h3 id="nura-header-title">NURA</h3>',
     '      <span id="nura-header-status"><span class="nura-online-dot"></span> متصل الآن</span>',
     '    </div>',
-    '    <div class="nura-avatar">RC</div>',
+    '    <div class="nura-avatar">NU</div>',
     '  </div>',
     '  <div id="nura-messages"></div>',
     '  <div id="nura-typing"><span></span><span></span><span></span></div>',
@@ -291,6 +311,8 @@
     '      <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>',
     '    </button>',
     '    <textarea id="nura-msg-input" rows="1" placeholder="اكتب رسالتك هنا…" maxlength="500"></textarea>',
+    '    <button id="nura-attach-btn" type="button" title="إرفاق صورة أو ملف">📎</button>',
+    '    <input type="file" id="nura-file-input" accept="image/*,.pdf" style="display:none">',
     '  </div>',
     '</div>',
   ].join('\n');
@@ -303,7 +325,7 @@
       headerTitle: 'NURA', headerStatus: 'متصل الآن',
       placeholder: 'اكتب رسالتك هنا…',
       sendAriaLabel: 'إرسال', closeAriaLabel: 'إغلاق',
-      welcome: 'أهلاً بك في دعم Rcell.\nاختر موضوعاً من القائمة أو اكتب سؤالك مباشرة.',
+      welcome: 'أهلاً بك في دعم Rcell الرقمي.\nاختر خدمة من القائمة أو اكتب سؤالك مباشرة.',
       followUpMarker: 'هل يمكنني مساعدتك بشيء آخر؟',
       yesBtn: 'نعم، لدي سؤال آخر', noBtn: 'لا، شكراً',
       yesReply: 'بالتأكيد! اختر موضوعاً أو اكتب سؤالك.',
@@ -322,7 +344,7 @@
       headerTitle: 'NURA', headerStatus: 'Niha ve ye',
       placeholder: 'Peyama xwe binivîse…',
       sendAriaLabel: 'Bişîne', closeAriaLabel: 'Bigire',
-      welcome: 'Xêr hatî bo piştgiriya Rcell.\nMijarekê hilbijêre an pirsa xwe rasterast binivîse.',
+      welcome: 'Xêr hatî bo piştgiriya dijîtal a Rcell.\nXizmetekê hilbijêre an pirsa xwe rasterast binivîse.',
       followUpMarker: 'Dikarim di tiştekî din de jî alîkariya te bikim?',
       yesBtn: 'Erê, pirseke min heye', noBtn: 'Na, spas',
       yesReply: 'Bêguman! Mijarekê hilbijêre an pirsê binivîse.',
@@ -480,6 +502,8 @@
   var closeBtn    = root.querySelector('#nura-close-btn');
   var msgInput    = root.querySelector('#nura-msg-input');
   var sendBtn     = root.querySelector('#nura-send-btn');
+  var attachBtn   = root.querySelector('#nura-attach-btn');
+  var fileInput   = root.querySelector('#nura-file-input');
   var messagesEl  = root.querySelector('#nura-messages');
   var typingEl    = root.querySelector('#nura-typing');
   var badge       = root.querySelector('#nura-badge');
@@ -674,6 +698,77 @@
   });
   sendBtn.addEventListener('click', sendMessage);
 
+  // ── Attachment upload ──────────────────────────────────────────────────────
+  attachBtn.addEventListener('click', function () {
+    if (attachBtn.disabled) return;
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', async function () {
+    var file = fileInput.files[0];
+    if (!file) return;
+    fileInput.value = '';
+
+    if (!sessionId || !sessionToken) {
+      var firstMsgErr = document.createElement('div');
+      firstMsgErr.className = 'nura-error-bubble';
+      firstMsgErr.textContent = currentLang === 'ar'
+        ? '⚠️ اكتب رسالة أولاً قبل إرفاق ملف.'
+        : '⚠️ Ji kerema xwe berî pêvekirina pelê peyamek binivîse.';
+      messagesEl.appendChild(firstMsgErr);
+      scrollBottom();
+      return;
+    }
+
+    attachBtn.disabled = true;
+
+    var form = new FormData();
+    form.append('file', file);
+    form.append('session_id', sessionId);
+
+    try {
+      var uploadRes = await fetch(
+        API_BASE + '/upload?session_token=' + encodeURIComponent(sessionToken),
+        { method: 'POST', body: form }
+      );
+      if (!uploadRes.ok) {
+        var uploadErr = await uploadRes.json().catch(function () { return {}; });
+        throw new Error(uploadErr.detail || ('Upload error ' + uploadRes.status));
+      }
+
+      var uploadData = await uploadRes.json();
+      var url = uploadData.url;
+      var msgType = file.type.indexOf('image/') === 0 ? 'image' : 'file';
+      appendAttachmentPreview(file, url, msgType);
+
+      var messageRes = await fetch(API_BASE + '/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          channel: 'web',
+          customer_id: customerId,
+          message: msgType === 'image' ? '[صورة]' : '[ملف: ' + file.name + ']',
+          attachment_url: url,
+          message_type: msgType,
+        }),
+      });
+      if (messageRes.ok) {
+        var messageData = await messageRes.json().catch(function () { return {}; });
+        sessionId = messageData.session_id || sessionId;
+        sessionToken = messageData.session_token || sessionToken;
+      }
+    } catch (e) {
+      var errDiv = document.createElement('div');
+      errDiv.className = 'nura-error-bubble';
+      errDiv.textContent = '⚠️ ' + (e.message || UI[currentLang].errorPrefix);
+      messagesEl.appendChild(errDiv);
+      scrollBottom();
+    } finally {
+      attachBtn.disabled = false;
+    }
+  });
+
   // ── Render helpers ─────────────────────────────────────────────────────────
   function fmtTime() {
     return new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
@@ -703,6 +798,41 @@
     div.className = 'nura-msg user';
     div.innerHTML = '<div class="nura-bubble">' + escHtml(text) + '</div>' +
       '<div class="nura-meta"><span>' + fmtTime() + '</span></div>';
+    messagesEl.appendChild(div);
+    scrollBottom();
+  }
+
+  function appendAttachmentPreview(file, url, msgType) {
+    var div = document.createElement('div');
+    div.className = 'nura-msg user';
+
+    if (msgType === 'image') {
+      var img = document.createElement('img');
+      img.src = url;
+      img.alt = file.name || 'attachment';
+      img.className = 'nura-chat-img';
+      img.addEventListener('click', function () { window.open(url, '_blank'); });
+      div.appendChild(img);
+    } else {
+      var bubble = document.createElement('div');
+      bubble.className = 'nura-bubble';
+      var link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.style.color = 'inherit';
+      link.style.textDecoration = 'underline';
+      link.textContent = '📄 ' + (file.name || 'attachment.pdf');
+      bubble.appendChild(link);
+      div.appendChild(bubble);
+    }
+
+    var meta = document.createElement('div');
+    meta.className = 'nura-meta';
+    var time = document.createElement('span');
+    time.textContent = fmtTime();
+    meta.appendChild(time);
+    div.appendChild(meta);
     messagesEl.appendChild(div);
     scrollBottom();
   }

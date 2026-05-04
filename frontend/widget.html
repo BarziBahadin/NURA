@@ -21,23 +21,23 @@
       width: 60px;
       height: 60px;
       border-radius: 50%;
-      background: linear-gradient(135deg, #ea580c, #f97316);
+      background: linear-gradient(135deg, #111827, #f97316);
       border: none;
       cursor: pointer;
-      box-shadow: 0 4px 18px rgba(234,88,12,0.45);
+      box-shadow: 0 14px 34px rgba(17,24,39,0.28), 0 4px 18px rgba(249,115,22,0.36);
       display: flex;
       align-items: center;
       justify-content: center;
       transition: transform 0.2s, box-shadow 0.2s;
       z-index: 1000;
     }
-    #chat-toggle:hover { transform: scale(1.08); box-shadow: 0 6px 24px rgba(234,88,12,0.55); }
+    #chat-toggle:hover { transform: scale(1.08); box-shadow: 0 18px 42px rgba(17,24,39,0.32), 0 6px 24px rgba(249,115,22,0.48); }
 
     #badge {
       position: absolute;
       top: -4px;
       right: -4px;
-      background: #ef476f;
+      background: #22c55e;
       color: #fff;
       border-radius: 50%;
       width: 20px;
@@ -59,7 +59,8 @@
       max-height: 700px;
       background: #fff;
       border-radius: 22px;
-      box-shadow: 0 22px 70px rgba(15,23,42,0.18);
+      border: 1px solid rgba(17,24,39,0.08);
+      box-shadow: 0 26px 78px rgba(15,23,42,0.22);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -77,33 +78,48 @@
 
     /* Header */
     .chat-header {
-      background: linear-gradient(135deg, #f45d12, #fb7c28);
+      background: linear-gradient(135deg, #101827 0%, #1f2937 58%, #f97316 155%);
       padding: 14px 16px;
       display: flex;
       align-items: center;
       gap: 10px;
       flex-shrink: 0;
       direction: ltr;
+      position: relative;
+      overflow: hidden;
+    }
+    .chat-header::after {
+      content: "4G+";
+      position: absolute;
+      bottom: 8px;
+      left: 58px;
+      font-size: 10px;
+      font-weight: 900;
+      color: rgba(34,197,94,0.9);
+      border: 1px solid rgba(34,197,94,0.38);
+      border-radius: 999px;
+      padding: 1px 6px;
+      background: rgba(16,24,39,0.42);
     }
     .avatar {
       width: 42px;
       height: 42px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.24);
-      border: 1px solid rgba(255,255,255,0.36);
+      background: #fff;
+      border: 1px solid rgba(249,115,22,0.35);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #fff;
-      font-weight: 700;
+      color: #f97316;
+      font-weight: 900;
       font-size: 13px;
       flex-shrink: 0;
       letter-spacing: -0.5px;
     }
     .header-info { flex: 1; min-width: 0; text-align: right; }
     #chat-window[dir="ltr"] .header-info { text-align: left; }
-    .header-info h3 { color: #fff; font-size: 15px; font-weight: 800; line-height: 1.2; }
-    .header-info span { color: rgba(255,255,255,0.86); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+    .header-info h3 { color: #fff; font-size: 15px; font-weight: 900; line-height: 1.2; }
+    .header-info span { color: rgba(229,231,235,0.88); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
     .online-dot {
       width: 7px; height: 7px;
       background: #22c55e;
@@ -196,7 +212,7 @@
       unicode-bidi: plaintext;
       text-align: start;
     }
-    .msg.user .bubble  { background: linear-gradient(135deg, #f45d12, #fb7c28); color: #fff; border-bottom-right-radius: 5px; box-shadow: 0 5px 16px rgba(234,88,12,0.18); }
+    .msg.user .bubble  { background: linear-gradient(135deg, #1f2937, #334155); color: #fff; border-bottom-right-radius: 5px; box-shadow: 0 5px 16px rgba(15,23,42,0.16); }
     .msg.bot  .bubble  { background: #fff; color: #1f2937; border: 1px solid #eef0f3; border-bottom-left-radius: 5px; box-shadow: 0 5px 18px rgba(15,23,42,0.05); }
     .msg.agent .bubble { background: #ecfdf5; color: #065f46; border: 1px solid #bbf7d0; border-bottom-left-radius: 5px; }
 
@@ -207,16 +223,16 @@
       border-radius: 16px;
       border-bottom-left-radius: 4px;
       font-size: 13px;
-      background: rgba(234, 88, 12, 0.08);
-      color: #ea580c;
-      border: 1.5px solid rgba(249, 115, 22, 0.35);
+      background: #fff7ed;
+      color: #c2410c;
+      border: 1px solid #fed7aa;
       animation: fadeUp 0.2s ease;
     }
     .followup-btns { margin-top: 7px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-start; }
     .followup-btn {
       background: #fff;
       border: 1.5px solid #f97316;
-      color: #ea580c;
+      color: #c2410c;
       border-radius: 20px;
       padding: 4px 11px;
       font-size: 12px;
@@ -250,13 +266,13 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    .source-tag.local  { background: #d4f7e8; color: #1a7a4a; }
+    .source-tag.local  { background: #dcfce7; color: #15803d; }
     .source-tag.openai { background: #e8d4f7; color: #6b1a99; }
     .source-tag.low    { background: #ffecd4; color: #b45309; }
     .source-doc-chip {
       display: inline-flex; align-items: center; gap: 3px;
       font-size: 9.5px; color: #888; margin-top: 2px;
-      background: #f5f5f5; border: 1px solid #e5e5e5;
+      background: #f8fafc; border: 1px solid #e2e8f0;
       border-radius: 8px; padding: 1px 7px;
       max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
@@ -287,10 +303,10 @@
 
     /* ── Tree navigation panel ── */
     #tree-panel {
-      border-top: 1px solid #f0f2f5;
+      border-top: 1px solid #edf2f7;
       padding: 12px 14px 14px;
       flex-shrink: 0;
-      background: #fff;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
       max-height: 230px;
       overflow-y: auto;
     }
@@ -336,8 +352,8 @@
 
     .tree-level-q {
       font-size: 12px;
-      color: #374151;
-      font-weight: 800;
+      color: #111827;
+      font-weight: 900;
       margin-bottom: 10px;
       text-align: right;
     }
@@ -350,7 +366,7 @@
     }
     .tree-opt {
       background: #fff;
-      border: 1px solid #e5e7eb;
+      border: 1px solid #e2e8f0;
       color: #1f2937;
       border-radius: 14px;
       padding: 9px 12px;
@@ -383,17 +399,17 @@
       margin-top: 12px;
       width: 100%;
       padding: 11px 14px;
-      background: #fff7ed;
-      border: 1px solid #fed7aa;
+      background: #111827;
+      border: 1px solid #1f2937;
       border-radius: 14px;
-      color: #ea580c;
+      color: #fff;
       font-size: 13px;
-      font-weight: 800;
+      font-weight: 900;
       cursor: pointer;
       font-family: inherit;
       transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
     }
-    .agent-bypass-btn:hover { background: #ffedd5; border-color: #fb923c; transform: translateY(-1px); }
+    .agent-bypass-btn:hover { background: #0f172a; border-color: #f97316; transform: translateY(-1px); }
 
     /* Input */
     .chat-footer {
@@ -422,14 +438,14 @@
       transition: border-color 0.2s, box-shadow 0.2s;
       text-align: right;
     }
-    #msg-input:focus { border-color: #fb923c; box-shadow: 0 0 0 3px rgba(251,146,60,0.14); }
+    #msg-input:focus { border-color: #f97316; box-shadow: 0 0 0 3px rgba(249,115,22,0.14); }
     #chat-window[dir="ltr"] #msg-input { text-align: left; }
     #msg-input::placeholder { color: #bbb; }
 
     #send-btn {
       width: 42px; height: 42px;
       border-radius: 50%;
-      background: linear-gradient(135deg, #f45d12, #fb7c28);
+      background: linear-gradient(135deg, #f97316, #22c55e);
       border: none;
       cursor: pointer;
       display: flex;
@@ -453,17 +469,21 @@
       justify-content: center;
       flex-shrink: 0;
       font-size: 17px;
-      transition: background 0.15s;
+      transition: background 0.15s, color 0.15s, opacity 0.15s;
       color: #888;
     }
-    #attach-btn:hover { background: #e0e4ea; color: #555; }
+    #attach-btn:hover { background: #e0e4ea; color: #111827; }
+    #attach-btn:disabled { opacity: 0.5; cursor: default; }
 
     .chat-img {
-      max-width: 200px;
-      border-radius: 8px;
-      margin-top: 4px;
+      max-width: 230px;
+      max-height: 180px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.4);
       display: block;
+      object-fit: cover;
       cursor: pointer;
+      box-shadow: 0 5px 16px rgba(15,23,42,0.12);
     }
 
     /* Feedback */
@@ -503,9 +523,9 @@
 
     /* Error bubble */
     .error-bubble {
-      background: #fff0f0;
-      color: #c0392b;
-      border: 1px solid #f5c6cb;
+      background: #fff1f2;
+      color: #be123c;
+      border: 1px solid #fecdd3;
       padding: 8px 14px;
       border-radius: 12px;
       font-size: 13px;
@@ -565,7 +585,7 @@
       <h3 id="header-title">NURA</h3>
       <span id="header-status"><span class="online-dot"></span> متصل الآن</span>
     </div>
-    <div class="avatar">RC</div>
+    <div class="avatar">NU</div>
   </div>
 
   <div id="messages"></div>
@@ -603,7 +623,7 @@
       placeholder: 'اكتب رسالتك هنا…',
       sendAriaLabel: 'إرسال',
       closeAriaLabel: 'إغلاق',
-      welcome: 'أهلاً بك في دعم Rcell.\nاختر موضوعاً من القائمة أو اكتب سؤالك مباشرة.',
+      welcome: 'أهلاً بك في دعم Rcell الرقمي.\nاختر خدمة من القائمة أو اكتب سؤالك مباشرة.',
       followUpMarker: 'هل يمكنني مساعدتك بشيء آخر؟',
       yesBtn: 'نعم، لدي سؤال آخر',
       noBtn: 'لا، شكراً',
@@ -630,7 +650,7 @@
       placeholder: 'Peyama xwe binivîse…',
       sendAriaLabel: 'Bişîne',
       closeAriaLabel: 'Bigire',
-      welcome: 'Xêr hatî bo piştgiriya Rcell.\nMijarekê hilbijêre an pirsa xwe rasterast binivîse.',
+      welcome: 'Xêr hatî bo piştgiriya dijîtal a Rcell.\nXizmetekê hilbijêre an pirsa xwe rasterast binivîse.',
       followUpMarker: 'Dikarim di tiştekî din de jî alîkariya te bikim?',
       yesBtn: 'Erê, pirseke min heye',
       noBtn: 'Na, spas',
@@ -935,6 +955,16 @@ FTTx — الألياف الضوئية للأعمال:
 ٣. سيراجع الفريق التقني البطاقة ويرسل الرمز إن أمكن.
 
 ملاحظة: كلما كانت الصورة أوضح، كانت المعالجة أسرع.`,
+
+    30: `لتقديم شكوى أو اقتراح:
+
+يمكنك التواصل معنا عبر إحدى الطرق التالية:
+
+• الدردشة المباشرة: اضغط على زر "التحدث مع موظف" أدناه.
+• الهاتف: تواصل مع خدمة العملاء على الرقم المعتمد.
+• مراكز Rcell: قم بزيارة أقرب مركز خدمة.
+
+سيتم التعامل مع شكواك أو اقتراحك في أقرب وقت ممكن.`,
   };
 
   // ── Kurdish articles (shown when currentLang === 'ku') ───────────────────
@@ -1214,6 +1244,16 @@ Gavên:
 3. Tîmê teknîkî dê kartê kontrol bike û kodê bişîne ger gengaz be.
 
 Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
+
+    30: `Ji bo pêşkêşkirina gilî an pêşniyar:
+
+Hûn dikarin bi yek ji awayên jêrîn bi me re têkilî bidin:
+
+• Sohbeta rasterast: li ser bişkoka "Bi karmend re biaxive" bikirtînin.
+• Têlefon: bi xizmeta xerîdaran re li ser hejmara fermî têkilî bidin.
+• Navendên Rcell: serî li navendeke xizmetê ya nêzîk bidin.
+
+Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
   };
 
   // ── Topic tree (general → specific) ──────────────────────────────────────
@@ -1304,6 +1344,14 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
           { id: 'hours',    label: { ar: 'ساعات العمل',          ku: 'Demjimêrên xebatê'   }, article: 17 },
           { id: 'coverage', label: { ar: 'تغطية الشركة ومراكزها', ku: 'Nixumandin û navendên pargîdaniyê' }, article: 26 },
           { id: 'business', label: { ar: 'إنترنت الأعمال FTTx',  ku: 'Înterneta karsaziyê FTTx'          }, article: 27 },
+        ],
+      },
+      {
+        id: 'other',
+        label: { ar: '🔗 أخرى', ku: '🔗 Yên Din' },
+        children: [
+          { id: 'other_complaint', label: { ar: 'تقديم شكوى أو اقتراح', ku: 'Pêşkêşkirina gilî an pêşniyar' }, article: 30 },
+          { id: 'other_agent',     label: { ar: '🎧 التحدث مع موظف مباشرة', ku: '🎧 Rasterast bi karmend re biaxive' }, action: 'agent' },
         ],
       },
     ],
@@ -1424,7 +1472,10 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
       btn.textContent = treeLabel(child);
       btn.addEventListener('click', () => {
         track('tree_click', treeLabel(child), child.id, { topic_id: child.id, article_id: child.article ?? null });
-        if (child.article !== undefined) {
+        if (child.action === 'agent') {
+          track('direct_to_agent', 'tree_option', child.id);
+          directToAgent();
+        } else if (child.article !== undefined) {
           handleLeaf(child);
         } else if (child.children) {
           treeStack.push(child);
@@ -1436,16 +1487,6 @@ Nîşe: Her ku wêne zelaltir be, karûbar zûtir tê kirin.`,
 
     treePanel.appendChild(optsDiv);
 
-    if (treeStack.length === 0 && !isEscalated) {
-      const agentBtn = document.createElement('button');
-      agentBtn.className = 'agent-bypass-btn';
-      agentBtn.textContent = UI[currentLang].talkToAgent;
-      agentBtn.addEventListener('click', () => {
-        track('direct_to_agent', 'bypass_btn', '');
-        directToAgent();
-      });
-      treePanel.appendChild(agentBtn);
-    }
   }
 
   function handleLeaf(node) {

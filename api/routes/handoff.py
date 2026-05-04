@@ -1,3 +1,4 @@
+import asyncio
 import hmac
 from typing import Optional
 
@@ -11,6 +12,8 @@ from core.logger import log_session_outcome
 from core.session_manager import get_customer_token, get_or_create_session, get_session, save_session
 from models.session import SessionStatus
 from datetime import datetime, timezone
+
+AGENT_JOINED_AR = "✅ تم التواصل مع أحد أعضاء الفريق. يمكنك الآن الكتابة مباشرة."
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -98,6 +101,13 @@ async def accept_handoff(
         accepted_at=now,
         time_to_accept_seconds=max(0, (now - datetime.fromisoformat(session.created_at)).total_seconds()),
     )
+    if session.channel == "telegram" and session_id.startswith("tg_"):
+        try:
+            chat_id = int(session_id[3:])
+            from routes.telegram import _send
+            asyncio.create_task(_send(chat_id, AGENT_JOINED_AR))
+        except Exception:
+            pass
     return {
         "message": "Session accepted by human agent",
         "session_id": session_id,
@@ -114,4 +124,10 @@ async def resolve_session(
         raise HTTPException(status_code=404, detail="Session not found")
     session.status = SessionStatus.resolved
     await save_session(session)
+    if session.channel == "telegram" and session_id.startswith("tg_"):
+        try:
+            from routes.telegram import send_resolved_to_telegram
+            asyncio.create_task(send_resolved_to_telegram(int(session_id[3:])))
+        except Exception:
+            pass
     return {"message": "Session resolved", "session_id": session_id}

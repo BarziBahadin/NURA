@@ -50,6 +50,12 @@ async def close_session(session_id: str, _: None = Depends(verify_api_key)):
     session.status = SessionStatus.resolved
     await save_session(session)
     await publish_session_event(session_id, {"type": "status", "status": "RESOLVED"})
+    if session.channel == "telegram" and session_id.startswith("tg_"):
+        try:
+            from routes.telegram import send_resolved_to_telegram
+            asyncio.create_task(send_resolved_to_telegram(int(session_id[3:])))
+        except Exception:
+            pass
     return {"message": "Session closed", "session_id": session_id}
 
 
@@ -96,6 +102,12 @@ async def resolve_session(
         time_to_resolution_seconds=max(0, (resolved_at - created_at).total_seconds()),
     )
     await publish_session_event(session_id, {"type": "status", "status": "RESOLVED"})
+    if session.channel == "telegram" and session_id.startswith("tg_"):
+        try:
+            from routes.telegram import send_resolved_to_telegram
+            asyncio.create_task(send_resolved_to_telegram(int(session_id[3:])))
+        except Exception:
+            pass
     return {"ok": True, "session_id": session_id}
 
 
@@ -144,6 +156,13 @@ async def send_agent_message(
     if session.status != SessionStatus.human_active:
         raise HTTPException(status_code=409, detail="Session is not in HUMAN_ACTIVE state")
     await append_turn(session, role="agent", message=body.message, source="human")
+    if session.channel == "telegram" and session_id.startswith("tg_"):
+        try:
+            chat_id = int(session_id[3:])
+            from routes.telegram import _send
+            asyncio.create_task(_send(chat_id, body.message))
+        except Exception:
+            pass
     return {"ok": True}
 
 
