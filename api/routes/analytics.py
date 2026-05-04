@@ -263,6 +263,33 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
         )
         handoff_reasons = [{"reason": r["reason"], "count": r["count"]} for r in handoff_rows]
 
+        case_row = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE status NOT IN ('resolved','closed')) AS open_cases,
+                COUNT(*) FILTER (WHERE status = 'escalated') AS escalated_cases,
+                COUNT(*) FILTER (WHERE status IN ('resolved','closed')) AS resolved_cases,
+                COUNT(*) FILTER (WHERE status NOT IN ('resolved','closed') AND sla_status = 'at_risk') AS cases_at_risk,
+                COUNT(*) FILTER (WHERE status NOT IN ('resolved','closed') AND sla_status = 'breached') AS cases_breached,
+                COUNT(*) FILTER (WHERE status NOT IN ('resolved','closed') AND sla_due_at < NOW()) AS cases_overdue,
+                ROUND(AVG(EXTRACT(EPOCH FROM (resolved_at - created_at))) FILTER (WHERE resolved_at IS NOT NULL)::numeric, 1) AS avg_case_resolution
+            FROM support_cases
+            WHERE created_at >= $1 OR updated_at >= $1 OR resolved_at >= $1
+            """,
+            since,
+        )
+        case_dept_rows = await conn.fetch(
+            """
+            SELECT department, COUNT(*) AS count
+            FROM support_cases
+            WHERE created_at >= $1 OR updated_at >= $1
+            GROUP BY department
+            ORDER BY count DESC
+            LIMIT 8
+            """,
+            since,
+        )
+
         # ── recent conversations ──────────────────────────────────────────
         recent_rows = await conn.fetch(
             """
@@ -312,6 +339,14 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
         "llm_total_tokens":     llm_total_tokens,
         "top_intents":          top_intents,
         "handoff_reasons":      handoff_reasons,
+        "case_open":            case_row["open_cases"] or 0,
+        "case_escalated":       case_row["escalated_cases"] or 0,
+        "case_resolved":        case_row["resolved_cases"] or 0,
+        "case_at_risk":         case_row["cases_at_risk"] or 0,
+        "case_breached":        case_row["cases_breached"] or 0,
+        "case_overdue":         case_row["cases_overdue"] or 0,
+        "avg_case_resolution_seconds": float(case_row["avg_case_resolution"] or 0),
+        "case_department_breakdown": [dict(r) for r in case_dept_rows],
         "recent_conversations": recent,
     }
 

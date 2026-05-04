@@ -11,6 +11,7 @@ from core.auth import has_admin_access, is_valid_api_key, verify_api_key
 from core.logger import log_session_outcome
 from core.session_manager import get_customer_token, get_or_create_session, get_session, save_session
 from models.session import SessionStatus
+from routes.cases import ensure_case_for_session
 from datetime import datetime, timezone
 
 AGENT_JOINED_AR = "✅ تم التواصل مع أحد أعضاء الفريق. يمكنك الآن الكتابة مباشرة."
@@ -35,6 +36,17 @@ class DirectHandoffBody(BaseModel):
     reason: str = Field(default="direct_request", max_length=128)
 
 
+def case_defaults_for_handoff(reason: str) -> tuple[str, str]:
+    reason_lower = (reason or "").lower()
+    if "feedback" in reason_lower or "complaint" in reason_lower:
+        return "complaints", "high"
+    if "billing" in reason_lower or "payment" in reason_lower:
+        return "billing", "normal"
+    if "technical" in reason_lower or "internet" in reason_lower or "network" in reason_lower:
+        return "technical", "normal"
+    return "general", "normal"
+
+
 @router.post("/handoff/direct")
 @limiter.limit("20/minute")
 async def direct_handoff(body: DirectHandoffBody, request: Request):
@@ -52,11 +64,20 @@ async def direct_handoff(body: DirectHandoffBody, request: Request):
         status="pending_handoff",
         handoff_reason=body.reason,
     )
+    department, priority = case_defaults_for_handoff(body.reason)
+    case = await ensure_case_for_session(
+        session,
+        reason=body.reason,
+        department=department,
+        priority=priority,
+        actor="system",
+    )
     return {
         "ok": True,
         "session_id": session.session_id,
         "session_token": session_token,
         "escalated": True,
+        "case_number": case.get("case_number") if case else None,
     }
 
 
@@ -76,7 +97,20 @@ async def escalate_to_human(
         status="pending_handoff",
         handoff_reason=session.metadata.get("handoff_reason", "manual"),
     )
-    return {"message": "Escalated to human queue", "session_id": session_id}
+    reason = session.metadata.get("handoff_reason", "manual")
+    department, priority = case_defaults_for_handoff(reason)
+    case = await ensure_case_for_session(
+        session,
+        reason=reason,
+        department=department,
+        priority=priority,
+        actor="system",
+    )
+    return {
+        "message": "Escalated to human queue",
+        "session_id": session_id,
+        "case_number": case.get("case_number") if case else None,
+    }
 
 
 @router.post("/handoff/{session_id}/accept")

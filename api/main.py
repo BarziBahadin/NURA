@@ -12,8 +12,9 @@ from slowapi.util import get_remote_address
 from config import settings
 from core.job_queue import run_job_worker
 from core.observability import ObservabilityMiddleware
+from core.sla_monitor import run_sla_monitor
 from db.postgres import init_db
-from routes import ai_control, analytics, auth, handoff, health, knowledge, knowledge_gaps, message, monitor, session, upload, users
+from routes import ai_control, analytics, auth, cases, handoff, health, knowledge, knowledge_gaps, message, monitor, session, upload, users
 from routes.auth import seed_admin_user
 from routes.telegram import run_telegram_poller
 
@@ -29,7 +30,10 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
     await seed_admin_user()
-    background_tasks = [asyncio.create_task(run_job_worker())]
+    background_tasks = [
+        asyncio.create_task(run_job_worker()),
+        asyncio.create_task(run_sla_monitor()),
+    ]
     if settings.telegram_poller_enabled:
         background_tasks.append(asyncio.create_task(run_telegram_poller()))
     yield
@@ -69,6 +73,7 @@ app.include_router(session.router,    prefix="/v1")
 app.include_router(handoff.router,    prefix="/v1")
 app.include_router(knowledge.router,  prefix="/v1")
 app.include_router(knowledge_gaps.router, prefix="/v1")
+app.include_router(cases.router,      prefix="/v1")
 app.include_router(analytics.router,  prefix="/v1")
 app.include_router(users.router,      prefix="/v1")
 app.include_router(upload.router,     prefix="/v1")

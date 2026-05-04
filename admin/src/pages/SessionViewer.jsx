@@ -71,6 +71,7 @@ export default function SessionViewer() {
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(null)
   const [resolving, setResolving] = useState({})
+  const [creatingCase, setCreatingCase] = useState({})
   const [search, setSearch] = useState('')
 
   const fetchSessions = useCallback(async () => {
@@ -109,6 +110,22 @@ export default function SessionViewer() {
       console.error(e)
     } finally {
       setResolving(r => ({ ...r, [sessionId]: false }))
+    }
+  }
+
+  async function createCaseFromSession(sessionId) {
+    setCreatingCase(c => ({ ...c, [sessionId]: true }))
+    try {
+      const res = await fetch(`${api.base}/cases/from-session/${sessionId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${api.key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priority: 'normal', department: 'general' }),
+      })
+      if (res.ok) window.location.assign('/cases')
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setCreatingCase(c => ({ ...c, [sessionId]: false }))
     }
   }
 
@@ -225,6 +242,14 @@ export default function SessionViewer() {
                       {resolving[s.session_id] ? '...' : 'Resolve'}
                     </button>
                   )}
+
+                  <button
+                    onClick={e => { e.stopPropagation(); createCaseFromSession(s.session_id) }}
+                    disabled={creatingCase[s.session_id]}
+                    className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg transition disabled:opacity-50 flex-shrink-0"
+                  >
+                    {creatingCase[s.session_id] ? '...' : 'Create Case'}
+                  </button>
                 </div>
 
                 {/* Expanded history */}

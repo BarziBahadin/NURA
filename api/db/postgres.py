@@ -218,6 +218,80 @@ async def init_db() -> None:
             )
         """)
 
+        # support_departments / support_cases — back-office ticket workflow
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS support_departments (
+                id          SERIAL PRIMARY KEY,
+                code        TEXT UNIQUE NOT NULL,
+                name        TEXT NOT NULL,
+                description TEXT,
+                is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at  TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        await conn.execute("""
+            INSERT INTO support_departments (code, name, description)
+            VALUES
+                ('general', 'General Support', 'Default queue for uncategorized customer issues'),
+                ('technical', 'Technical Support', 'Connectivity, coverage, device and service issues'),
+                ('billing', 'Billing', 'Invoices, payments, packages and account balance'),
+                ('complaints', 'Complaints', 'Formal complaints, escalations and service quality'),
+                ('sales', 'Sales', 'New subscriptions, upgrades and offers')
+            ON CONFLICT (code) DO NOTHING
+        """)
+        await conn.execute("CREATE SEQUENCE IF NOT EXISTS support_case_number_seq")
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS support_cases (
+                id             SERIAL PRIMARY KEY,
+                case_number    TEXT UNIQUE NOT NULL,
+                session_id     TEXT,
+                customer_id    TEXT,
+                channel        TEXT,
+                title          TEXT NOT NULL,
+                description    TEXT NOT NULL DEFAULT '',
+                department     TEXT NOT NULL DEFAULT 'general',
+                status         TEXT NOT NULL DEFAULT 'open'
+                               CHECK (status IN ('open','pending','in_progress','waiting_customer','escalated','resolved','closed')),
+                priority       TEXT NOT NULL DEFAULT 'normal'
+                               CHECK (priority IN ('low','normal','high','urgent')),
+                owner          TEXT,
+                tags           TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+                internal_notes TEXT NOT NULL DEFAULT '',
+                source         TEXT NOT NULL DEFAULT 'manual',
+                sla_due_at     TIMESTAMPTZ,
+                first_response_due_at TIMESTAMPTZ,
+                sla_status     TEXT NOT NULL DEFAULT 'ok'
+                               CHECK (sla_status IN ('ok','at_risk','breached')),
+                sla_warned_at   TIMESTAMPTZ,
+                sla_breached_at TIMESTAMPTZ,
+                resolved_at    TIMESTAMPTZ,
+                created_by     TEXT,
+                updated_by     TEXT,
+                created_at     TIMESTAMPTZ DEFAULT NOW(),
+                updated_at     TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        await conn.execute("""
+            ALTER TABLE support_cases
+            ADD COLUMN IF NOT EXISTS sla_status TEXT NOT NULL DEFAULT 'ok'
+                CHECK (sla_status IN ('ok','at_risk','breached'))
+        """)
+        await conn.execute("ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS sla_warned_at TIMESTAMPTZ")
+        await conn.execute("ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS sla_breached_at TIMESTAMPTZ")
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS support_case_activity (
+                id          SERIAL PRIMARY KEY,
+                case_id     INT NOT NULL REFERENCES support_cases(id) ON DELETE CASCADE,
+                actor       TEXT,
+                action      TEXT NOT NULL,
+                field_name  TEXT,
+                old_value   TEXT,
+                new_value   TEXT,
+                note        TEXT,
+                created_at  TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
         # llm_usage_logs — token and cost tracking per OpenAI call
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS llm_usage_logs (
@@ -282,6 +356,13 @@ async def init_db() -> None:
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_mi_created_intent ON message_insights(created_at, intent)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_kgr_status_created ON knowledge_gap_reviews(status, created_at DESC)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_kgr_intent ON knowledge_gap_reviews(intent)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_cases_status_priority ON support_cases(status, priority)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_cases_owner ON support_cases(owner)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_cases_department ON support_cases(department)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_cases_session ON support_cases(session_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_cases_sla_due ON support_cases(sla_due_at)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_cases_sla_status ON support_cases(sla_status)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_case_activity_case_created ON support_case_activity(case_id, created_at DESC)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_lu_session  ON llm_usage_logs(session_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_lu_created  ON llm_usage_logs(created_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_lu_created_operation ON llm_usage_logs(created_at, operation)")

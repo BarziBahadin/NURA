@@ -247,6 +247,19 @@ export default function Dashboard() {
               sub={`${(data.llm_total_tokens || 0).toLocaleString()} tokens`}
               color="text-purple-600"
             />
+            <KpiCard
+              label="Open Cases"
+              value={(data.case_open || 0).toLocaleString()}
+              sub={`${data.case_escalated || 0} escalated`}
+              color={(data.case_open || 0) ? 'text-blue-600' : 'text-gray-500'}
+            />
+            <KpiCard
+              label="SLA Risk"
+              value={(data.case_at_risk || 0).toLocaleString()}
+              sub={`${data.case_breached || data.case_overdue || 0} breached`}
+              color={(data.case_breached || data.case_overdue) ? 'text-red-600' : (data.case_at_risk ? 'text-orange-500' : 'text-green-600')}
+              alert={!!(data.case_breached || data.case_overdue)}
+            />
           </div>
 
           {/* Daily traffic + Source donut */}
@@ -340,6 +353,20 @@ export default function Dashboard() {
               ))}
             </SectionCard>
           </div>
+
+          {data.case_department_breakdown?.length > 0 && (
+            <div className="mb-6">
+              <SectionCard title="Cases By Department">
+                {data.case_department_breakdown.map(row => (
+                  <HorizBar key={row.department}
+                    label={row.department}
+                    count={row.count}
+                    max={data.case_department_breakdown[0]?.count || 1}
+                    color="#0f172a" />
+                ))}
+              </SectionCard>
+            </div>
+          )}
 
           {/* Recent conversations */}
           <SectionCard title="Recent Conversations"

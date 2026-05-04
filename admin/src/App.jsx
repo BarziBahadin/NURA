@@ -5,6 +5,7 @@ import LiveQueue from './pages/LiveQueue.jsx'
 import SessionViewer from './pages/SessionViewer.jsx'
 import KnowledgeBase from './pages/KnowledgeBase.jsx'
 import Reports from './pages/Reports.jsx'
+import Cases from './pages/Cases.jsx'
 import Login from './pages/Login.jsx'
 import UserManagement from './pages/UserManagement.jsx'
 import SystemMonitor from './pages/SystemMonitor.jsx'
@@ -22,6 +23,7 @@ export const api = {
 const ALL_NAV_ITEMS = [
   { path: '/',          label: 'Dashboard',      icon: '📊', roles: ['admin', 'viewer'] },
   { path: '/queue',     label: 'Live Queue',      icon: '🔔', roles: ['admin', 'agent'] },
+  { path: '/cases',     label: 'Cases',           icon: '📁', roles: ['admin', 'agent', 'viewer'] },
   { path: '/sessions',  label: 'Sessions',        icon: '💬', roles: ['admin', 'agent', 'viewer'] },
   { path: '/reports',   label: 'Reports',         icon: '📈', roles: ['admin', 'viewer'] },
   { path: '/gaps',      label: 'Knowledge Gaps',  icon: '🧩', roles: ['admin'] },
@@ -174,6 +176,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/queue" element={<LiveQueue />} />
+          <Route path="/cases" element={<Cases />} />
           <Route path="/sessions" element={<SessionViewer />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/gaps" element={<KnowledgeGapQueue />} />
