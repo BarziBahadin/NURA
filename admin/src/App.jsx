@@ -42,7 +42,7 @@ function AiToggle({ role }) {
           headers: { Authorization: `Bearer ${getToken()}` },
         })
         const data = await res.json()
-        setEnabled(data.ai_enabled)
+        setEnabled(data.openai_enabled ?? data.ai_enabled)
       } catch {}
     }
     fetchStatus()
@@ -61,7 +61,7 @@ function AiToggle({ role }) {
         headers: { Authorization: `Bearer ${getToken()}` },
       })
       const data = await res.json()
-      setEnabled(data.ai_enabled)
+      setEnabled(data.openai_enabled ?? data.ai_enabled)
     } catch {}
   }
 
@@ -75,10 +75,10 @@ function AiToggle({ role }) {
             ? 'bg-green-900/60 text-green-300 hover:bg-green-900'
             : 'bg-red-900/60 text-red-300 hover:bg-red-900'
         } disabled:cursor-default`}
-        title={role !== 'admin' ? 'Admin only' : (enabled ? 'Click to disable AI' : 'Click to enable AI')}
+        title={role !== 'admin' ? 'Admin only' : (enabled ? 'Stop sending customer text to OpenAI' : 'Allow OpenAI replies')}
       >
         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${enabled ? 'bg-green-400' : 'bg-red-400'}`} />
-        AI {enabled === null ? '…' : enabled ? 'Enabled' : 'Disabled'}
+        OpenAI {enabled === null ? '…' : enabled ? 'Replies On' : 'Replies Off'}
         {role === 'admin' && <span className="ml-auto opacity-60 text-xs">{enabled ? 'ON' : 'OFF'}</span>}
       </button>
     </div>

@@ -170,7 +170,17 @@ async def retrieve_curated_gap_answers(message: str) -> str:
     return "\n\n".join(snippets)
 
 
-async def generate_response(session: Session, message: str) -> Tuple[str, float, str, Optional[str]]:
+OPENAI_DISABLED_FALLBACK_AR = (
+    "لم أجد إجابة مؤكدة من القواعد أو النموذج المحلي لهذا السؤال. "
+    "يمكنني تحويلك إلى أحد موظفي الدعم إذا رغبت."
+)
+
+
+async def generate_response(
+    session: Session,
+    message: str,
+    allow_openai: bool = True,
+) -> Tuple[str, float, str, Optional[str]]:
     # 0. Rules engine — exact article match, zero cost
     if _rules_engine is not None:
         rules_result = _rules_engine.match(message)
@@ -184,6 +194,9 @@ async def generate_response(session: Session, message: str) -> Tuple[str, float,
         if ml_result["response"] and ml_result["confidence"] >= settings.ml_confidence_threshold:
             logger.info(f"ML answered (conf={ml_result['confidence']:.2f}, cat={ml_result['category']})")
             return ml_result["response"], ml_result["confidence"], "local_model", None
+
+    if not allow_openai:
+        return OPENAI_DISABLED_FALLBACK_AR, 0.0, "openai_disabled", None
 
     # 2. Fall through to curated gap answers + RAG + OpenAI (run in parallel)
     curated_gap_answers, (rag_context, confidence, source_doc) = await asyncio.gather(

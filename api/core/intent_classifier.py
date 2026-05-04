@@ -55,7 +55,9 @@ async def classify_and_log_message(
         "gap_reason": "low_confidence" if confidence < 0.45 else "",
     }
 
-    if not settings.openai_api_key:
+    from routes.ai_control import is_openai_enabled
+
+    if not settings.openai_api_key or not await is_openai_enabled():
         await log_message_insight(session_id, customer_id, channel, message_text, **base)
         return
 
