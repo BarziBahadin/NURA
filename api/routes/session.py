@@ -1,5 +1,4 @@
 import asyncio
-import hmac
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -7,9 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
-from core.auth import has_admin_access, is_valid_api_key, verify_api_key
+from core.auth import has_admin_access, verify_api_key, verify_session_access
 from core.logger import log_session_outcome
 from core.session_manager import append_turn, get_all_sessions, get_session, publish_session_event, save_session
+from core.utils import fire_task
 from models.session import SessionStatus
 
 router = APIRouter()
@@ -23,14 +23,13 @@ class ResolveBody(BaseModel):
     resolved_by: str = Field(default="Agent", max_length=128)
 
 
-def verify_session_access(request: Request, session) -> None:
-    if has_admin_access(request):
-        return
-    supplied = request.query_params.get("session_token") or request.headers.get("X-Session-Token", "")
-    expected = session.metadata.get("customer_token", "")
-    if not expected or not hmac.compare_digest(supplied, expected):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
+def _telegram_chat_id(session, session_id: str) -> int | None:
+    if session.channel != "telegram":
+        return None
+    try:
+        return int(session.customer_id or session_id[3:])
+    except Exception:
+        return None
 
 @router.get("/session/{session_id}")
 async def get_session_route(
@@ -50,10 +49,11 @@ async def close_session(session_id: str, _: None = Depends(verify_api_key)):
     session.status = SessionStatus.resolved
     await save_session(session)
     await publish_session_event(session_id, {"type": "status", "status": "RESOLVED"})
-    if session.channel == "telegram" and session_id.startswith("tg_"):
+    chat_id = _telegram_chat_id(session, session_id)
+    if chat_id is not None:
         try:
             from routes.telegram import send_resolved_to_telegram
-            asyncio.create_task(send_resolved_to_telegram(int(session_id[3:])))
+            fire_task(send_resolved_to_telegram(chat_id), label="tg:resolved")
         except Exception:
             pass
     return {"message": "Session closed", "session_id": session_id}
@@ -102,10 +102,11 @@ async def resolve_session(
         time_to_resolution_seconds=max(0, (resolved_at - created_at).total_seconds()),
     )
     await publish_session_event(session_id, {"type": "status", "status": "RESOLVED"})
-    if session.channel == "telegram" and session_id.startswith("tg_"):
+    chat_id = _telegram_chat_id(session, session_id)
+    if chat_id is not None:
         try:
             from routes.telegram import send_resolved_to_telegram
-            asyncio.create_task(send_resolved_to_telegram(int(session_id[3:])))
+            fire_task(send_resolved_to_telegram(chat_id), label="tg:resolved")
         except Exception:
             pass
     return {"ok": True, "session_id": session_id}
@@ -156,11 +157,11 @@ async def send_agent_message(
     if session.status != SessionStatus.human_active:
         raise HTTPException(status_code=409, detail="Session is not in HUMAN_ACTIVE state")
     await append_turn(session, role="agent", message=body.message, source="human")
-    if session.channel == "telegram" and session_id.startswith("tg_"):
+    chat_id = _telegram_chat_id(session, session_id)
+    if chat_id is not None:
         try:
-            chat_id = int(session_id[3:])
             from routes.telegram import _send
-            asyncio.create_task(_send(chat_id, body.message))
+            fire_task(_send(chat_id, body.message), label="tg:agent_message")
         except Exception:
             pass
     return {"ok": True}
@@ -172,10 +173,10 @@ async def session_typing(session_id: str, request: Request, sender: str = "agent
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if sender == "agent":
-        if not has_admin_access(request):
+        if not await has_admin_access(request):
             raise HTTPException(status_code=401, detail="Unauthorized")
     else:
-        verify_session_access(request, session)
+        await verify_session_access(request, session)
     await publish_session_event(session_id, {"type": "typing", "sender": sender})
     return {"ok": True}
 
@@ -185,7 +186,7 @@ async def rate_session(session_id: str, body: RatingBody, request: Request):
     session = await get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    verify_session_access(request, session)
+    await verify_session_access(request, session)
     if not 1 <= body.score <= 5:
         raise HTTPException(status_code=400, detail="Score must be between 1 and 5")
     session.metadata["rating"] = body.score
@@ -198,7 +199,7 @@ async def get_session_messages(session_id: str, request: Request, since: str = "
     session = await get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    verify_session_access(request, session)
+    await verify_session_access(request, session)
     turns = session.history
     if since:
         turns = [t for t in turns if t.timestamp > since]
@@ -213,7 +214,7 @@ async def session_stream(session_id: str, request: Request):
     session = await get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    verify_session_access(request, session)
+    await verify_session_access(request, session)
 
     from core.session_manager import get_redis
 

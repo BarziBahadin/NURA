@@ -25,7 +25,7 @@ async def ai_status(_: None = Depends(require_roles("admin", "agent"))):
 async def enable_ai(request: Request):
     r = get_redis()
     await r.set(AI_FLAG_KEY, "1")
-    actor = (get_admin_identity(request) or {}).get("sub", "unknown")
+    actor = ((await get_admin_identity(request)) or {}).get("sub", "unknown")
     ip = request.client.host if request.client else ""
     pool = await get_db_pool()
     async with pool.acquire() as conn:
@@ -40,7 +40,7 @@ async def enable_ai(request: Request):
 async def disable_ai(request: Request):
     r = get_redis()
     await r.set(AI_FLAG_KEY, "0")
-    actor = (get_admin_identity(request) or {}).get("sub", "unknown")
+    actor = ((await get_admin_identity(request)) or {}).get("sub", "unknown")
     ip = request.client.host if request.client else ""
     pool = await get_db_pool()
     async with pool.acquire() as conn:

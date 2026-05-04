@@ -5,7 +5,8 @@
 
 # Project intelligence & AI config
 .claude/
-.manafest/
+.manafest/*
+!.manafest/topic_tree.json
 
 # Python
 __pycache__/

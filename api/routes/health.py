@@ -1,4 +1,5 @@
 import time
+import json
 import httpx
 import redis.asyncio as aioredis
 from openai import AsyncOpenAI
@@ -84,3 +85,9 @@ async def health_check(_: None = Depends(verify_api_key)):
 @router.get("/metrics")
 async def metrics(_: None = Depends(verify_api_key)):
     return metrics_snapshot()
+
+
+@router.get("/topic-tree")
+async def get_topic_tree():
+    with open("/app/manafest/topic_tree.json", "r", encoding="utf-8") as f:
+        return json.load(f)

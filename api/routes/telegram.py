@@ -7,7 +7,8 @@ import httpx
 
 from config import settings
 from core.message_pipeline import process_customer_message
-from core.session_manager import append_turn, get_or_create_session, save_session
+from core.session_manager import SESSION_TTL, append_turn, get_or_create_session, get_redis, save_session
+from core.utils import fire_task
 from models.session import SessionStatus
 
 logger = logging.getLogger(__name__)
@@ -34,66 +35,16 @@ COMPLAINT_AR = (
     "سيتم التعامل مع شكواك أو اقتراحك في أقرب وقت ممكن."
 )
 
-# ── Topic tree (mirrors widget.js TOPIC_TREE, Arabic labels) ──────────────
+# ── Topic tree ─────────────────────────────────────────────────────────────
 
-_TOPIC_TREE: dict = {
-    "id": "root",
-    "label": "كيف يمكنني مساعدتك؟",
-    "children": [
-        {"id": "apps", "label": "📱 التطبيقات", "children": [
-            {"id": "selfcare", "label": "تطبيق Self-Care", "children": [
-                {"id": "sc_dl",     "label": "تحميل التطبيق",            "article": 0},
-                {"id": "sc_login",  "label": "مشكلة في تسجيل الدخول",    "article": 13},
-                {"id": "sc_access", "label": "لا أستطيع الوصول للموقع",  "article": 1},
-            ]},
-            {"id": "hakki", "label": "تطبيق حكي", "children": [
-                {"id": "hk_dl",  "label": "تحميل التطبيق",                "article": 5},
-                {"id": "hk_sos", "label": "الاستخدام المجاني في الطوارئ", "article": 28},
-            ]},
-            {"id": "ana", "label": "منصة آنا (Ana)", "article": 20},
-        ]},
-        {"id": "internet", "label": "🌐 الإنترنت والاتصال", "children": [
-            {"id": "slow",   "label": "الإنترنت بطيء",   "article": 6},
-            {"id": "noconn", "label": "لا يوجد اتصال",   "article": 3},
-            {"id": "apn",    "label": "إعدادات APN",      "article": 21},
-            {"id": "fiveg",  "label": "5G — قريباً",      "article": 25},
-            {"id": "hdcall", "label": "HD Call (VoLTE)", "children": [
-                {"id": "hd_what", "label": "ما هو HD Call؟",   "article": 7},
-                {"id": "hd_why",  "label": "مميزاته",           "article": 8},
-                {"id": "hd_sup",  "label": "هل هاتفي يدعمه؟",  "article": 9},
-                {"id": "hd_act",  "label": "كيف أفعّله؟",       "article": 10},
-                {"id": "hd_use",  "label": "كيف أستخدمه؟",     "article": 11},
-                {"id": "hd_fix",  "label": "مشكلة في HD Call",  "article": 12},
-            ]},
-        ]},
-        {"id": "account", "label": "🔐 الحساب والأمان", "children": [
-            {"id": "password", "label": "كلمة المرور", "children": [
-                {"id": "pw_change",  "label": "تغيير كلمة المرور",  "article": 14},
-                {"id": "pw_recover", "label": "نسيت كلمة المرور",   "article": 19},
-            ]},
-            {"id": "pin",        "label": "الرمز السري PIN",         "article": 2},
-            {"id": "login_prob", "label": "مشكلة في تسجيل الدخول",  "article": 13},
-            {"id": "puk",        "label": "SIM مقفلة / رمز PUK",    "article": 23},
-        ]},
-        {"id": "packages", "label": "📦 الباقات والخدمات", "children": [
-            {"id": "pkg_prices",  "label": "أسعار الباقات",        "article": 16},
-            {"id": "sim",         "label": "شريحة SIM",            "article": 18},
-            {"id": "esim",        "label": "eSIM الرقمية",         "article": 24},
-            {"id": "points",      "label": "إرسال النقاط",         "article": 4},
-            {"id": "fastdata",    "label": "الرصيد ينتهي بسرعة",   "article": 22},
-            {"id": "scratchcard", "label": "بطاقة شحن محكوكة",     "article": 29},
-        ]},
-        {"id": "info", "label": "ℹ️ معلومات عامة", "children": [
-            {"id": "hours",    "label": "ساعات العمل",           "article": 17},
-            {"id": "coverage", "label": "تغطية الشركة ومراكزها", "article": 26},
-            {"id": "business", "label": "إنترنت الأعمال FTTx",   "article": 27},
-        ]},
-        {"id": "other", "label": "🔗 أخرى", "children": [
-            {"id": "other_complaint", "label": "تقديم شكوى أو اقتراح",      "action": "complaint"},
-            {"id": "other_agent",     "label": "🎧 التحدث مع موظف مباشرة", "action": "agent"},
-        ]},
-    ],
-}
+_TOPIC_TREE: dict = {"id": "root", "label": "القائمة", "children": []}
+
+try:
+    with open("/app/manafest/topic_tree.json", "r", encoding="utf-8") as f:
+        _TOPIC_TREE = json.load(f)
+    logger.info("Telegram: loaded shared topic tree")
+except Exception as e:
+    logger.error(f"Could not load topic tree: {e}")
 
 
 def _index_tree(node: dict, parent_id: str = "root", idx: dict = None) -> dict:
@@ -111,6 +62,22 @@ _TREE_INDEX: dict = _index_tree(_TOPIC_TREE)
 
 def _find_node(node_id: str) -> Optional[dict]:
     return _TREE_INDEX.get(node_id)
+
+
+async def _get_chat_session(chat_id: int):
+    r = get_redis()
+    mapped_id = await r.get(f"tg:session:{chat_id}")
+    session_id = mapped_id or f"tg_{chat_id}"
+    session = await get_or_create_session(
+        session_id=session_id,
+        customer_id=str(chat_id),
+        channel="telegram",
+    )
+    if session.session_id != session_id:
+        await r.set(f"tg:session:{chat_id}", session.session_id, ex=SESSION_TTL)
+    elif not mapped_id:
+        await r.set(f"tg:session:{chat_id}", session.session_id, ex=SESSION_TTL)
+    return session
 
 
 # ── Articles ──────────────────────────────────────────────────────────────
@@ -256,12 +223,7 @@ async def _handle_callback(cb: dict) -> None:
             reply_markup=keyboard,
         )
     elif node.get("action") == "agent":
-        session_id = f"tg_{chat_id}"
-        session = await get_or_create_session(
-            session_id=session_id,
-            customer_id=str(chat_id),
-            channel="telegram",
-        )
+        session = await _get_chat_session(chat_id)
         if session.status not in (SessionStatus.pending_handoff, SessionStatus.human_active):
             session.status = SessionStatus.pending_handoff
             session.metadata["handoff_reason"] = "direct_request"
@@ -300,14 +262,8 @@ async def _handle_message(msg: dict) -> None:
         )
         return
 
-    session_id = f"tg_{chat_id}"
     customer_id = str(chat_id)
-
-    session = await get_or_create_session(
-        session_id=session_id,
-        customer_id=customer_id,
-        channel="telegram",
-    )
+    session = await _get_chat_session(chat_id)
 
     if session.status in (SessionStatus.pending_handoff, SessionStatus.human_active):
         await append_turn(session, "customer", text, source="customer")
@@ -315,7 +271,7 @@ async def _handle_message(msg: dict) -> None:
         return
 
     result = await process_customer_message(
-        session_id=session_id,
+        session_id=session.session_id,
         customer_id=customer_id,
         channel="telegram",
         message=text,
@@ -363,7 +319,7 @@ async def run_telegram_poller() -> None:
             if data.get("ok"):
                 for update in data.get("result", []):
                     offset = update["update_id"] + 1
-                    asyncio.create_task(_handle_update(update))
+                    fire_task(_handle_update(update), label="tg:handle_update")
         except asyncio.CancelledError:
             logger.info("Telegram poller cancelled")
             break

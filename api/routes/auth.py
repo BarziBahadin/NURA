@@ -44,7 +44,7 @@ async def login(body: LoginBody, request: Request):
 async def me(request: Request):
     if is_valid_api_key(request):
         return {"type": "api_key", "role": "admin"}
-    identity = get_admin_identity(request)
+    identity = await get_admin_identity(request)
     if not identity:
         raise HTTPException(status_code=401, detail="Unauthorized")
     return {

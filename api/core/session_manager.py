@@ -2,6 +2,7 @@ import json
 import uuid
 import secrets
 import logging
+import asyncio
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -31,26 +32,53 @@ def get_redis() -> aioredis.Redis:
     return _redis_client
 
 
+async def close_redis() -> None:
+    global _redis_client
+    if _redis_client is not None:
+        await _redis_client.aclose()
+        _redis_client = None
+
+
 async def get_or_create_session(
     session_id: Optional[str], customer_id: str, channel: str
 ) -> Session:
+    resolved_existing = False
     if session_id:
         session = await get_session(session_id)
+        if session and session.status != SessionStatus.resolved:
+            return session
+        resolved_existing = bool(session and session.status == SessionStatus.resolved)
+
+    new_id = str(uuid.uuid4()) if resolved_existing else (session_id or str(uuid.uuid4()))
+    r = get_redis()
+    lock_key = f"session:lock:{new_id}"
+    acquired = await r.set(lock_key, "1", nx=True, ex=5)
+    if not acquired:
+        await asyncio.sleep(0.15)
+        session = await get_session(new_id)
         if session:
             return session
+    else:
+        session = await get_session(new_id)
+        if session:
+            await r.delete(lock_key)
+            return session
 
-    new_id = session_id or str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
-    session = Session(
-        session_id=new_id,
-        customer_id=customer_id,
-        channel=channel,
-        created_at=now,
-        updated_at=now,
-    )
-    session.metadata[CUSTOMER_TOKEN_KEY] = secrets.token_urlsafe(32)
-    await save_session(session)
-    return session
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        session = Session(
+            session_id=new_id,
+            customer_id=customer_id,
+            channel=channel,
+            created_at=now,
+            updated_at=now,
+        )
+        session.metadata[CUSTOMER_TOKEN_KEY] = secrets.token_urlsafe(32)
+        await save_session(session)
+        return session
+    finally:
+        if acquired:
+            await r.delete(lock_key)
 
 
 def get_customer_token(session: Session) -> str:
@@ -217,46 +245,11 @@ async def append_turn(
 
 
 async def get_pending_handoff_sessions() -> List[Session]:
-    r = get_redis()
-    pending: list[Session] = []
-    seen: set[str] = set()
-    try:
-        async for key in r.scan_iter("session:*"):
-            data = await r.get(key)
-            if data:
-                try:
-                    s = Session(**json.loads(data))
-                    if s.status == SessionStatus.pending_handoff:
-                        pending.append(s)
-                        seen.add(s.session_id)
-                except Exception as e:
-                    logger.warning(f"Skipping corrupt session at key {key}: {e}")
-    except Exception as e:
-        logger.error(f"Failed to scan pending sessions from Redis: {e}")
-    pending.extend(await get_sessions_from_db(SessionStatus.pending_handoff, exclude=seen))
-    return pending
+    return await get_sessions_from_db(SessionStatus.pending_handoff)
 
 
 async def get_all_sessions(status_filter: Optional[str] = None) -> List[Session]:
-    r = get_redis()
-    sessions: list[Session] = []
-    seen: set[str] = set()
-    try:
-        async for key in r.scan_iter("session:*"):
-            data = await r.get(key)
-            if data:
-                try:
-                    s = Session(**json.loads(data))
-                    if status_filter is None or s.status.value == status_filter:
-                        sessions.append(s)
-                        seen.add(s.session_id)
-                except Exception as e:
-                    logger.warning(f"Skipping corrupt session at key {key}: {e}")
-    except Exception as e:
-        logger.error(f"Failed to scan sessions from Redis: {e}")
-    sessions.extend(await get_sessions_from_db(status_filter, exclude=seen))
-    sessions.sort(key=lambda s: s.updated_at, reverse=True)
-    return sessions
+    return await get_sessions_from_db(status_filter)
 
 
 async def get_sessions_from_db(
@@ -270,7 +263,7 @@ async def get_sessions_from_db(
             if status_filter is None:
                 rows = await conn.fetch(
                     """
-                    SELECT session_id
+                    SELECT *
                     FROM sessions
                     ORDER BY updated_at DESC
                     LIMIT 500
@@ -280,7 +273,7 @@ async def get_sessions_from_db(
                 status = status_filter.value if isinstance(status_filter, SessionStatus) else status_filter
                 rows = await conn.fetch(
                     """
-                    SELECT session_id
+                    SELECT *
                     FROM sessions
                     WHERE status = $1
                     ORDER BY updated_at DESC
@@ -294,10 +287,27 @@ async def get_sessions_from_db(
 
     sessions: list[Session] = []
     for row in rows:
-        session_id = row["session_id"]
-        if session_id in exclude:
+        if row["session_id"] in exclude:
             continue
-        session = await load_session_from_db(session_id)
-        if session:
-            sessions.append(session)
+        try:
+            history = row["history"]
+            metadata = row["metadata"]
+            if isinstance(history, str):
+                history = json.loads(history)
+            if isinstance(metadata, str):
+                metadata = json.loads(metadata)
+            sessions.append(Session(
+                session_id=row["session_id"],
+                customer_id=row["customer_id"],
+                channel=row["channel"],
+                status=SessionStatus(row["status"]),
+                history=[ConversationTurn(**turn) for turn in history],
+                failure_count=row["failure_count"],
+                negative_score=row["negative_score"],
+                metadata=metadata,
+                created_at=row["created_at"].isoformat(),
+                updated_at=row["updated_at"].isoformat(),
+            ))
+        except Exception as e:
+            logger.warning(f"Skipping corrupt session {row['session_id']}: {e}")
     return sessions

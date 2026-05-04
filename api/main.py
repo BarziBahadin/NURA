@@ -12,10 +12,12 @@ from slowapi.util import get_remote_address
 from config import settings
 from core.job_queue import run_job_worker
 from core.observability import ObservabilityMiddleware
+from core.session_manager import close_redis
 from core.sla_monitor import run_sla_monitor
-from db.postgres import init_db
+from db.postgres import close_db_pool, init_db
 from routes import ai_control, analytics, auth, cases, handoff, health, knowledge, knowledge_gaps, message, monitor, session, upload, users
 from routes.auth import seed_admin_user
+from routes.cases import refresh_department_cache
 from routes.telegram import run_telegram_poller
 
 logging.basicConfig(level=logging.INFO)
@@ -29,6 +31,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting NURA API...")
     await init_db()
     logger.info("Database initialized")
+    await refresh_department_cache()
     await seed_admin_user()
     background_tasks = [
         asyncio.create_task(run_job_worker()),
@@ -44,6 +47,8 @@ async def lifespan(app: FastAPI):
             await task
         except asyncio.CancelledError:
             pass
+    await close_redis()
+    await close_db_pool()
     logger.info("Shutting down NURA API...")
 
 

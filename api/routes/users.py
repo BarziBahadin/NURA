@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from core.auth import get_admin_identity, hash_password, require_roles
+from core.session_manager import get_redis
+from config import settings
 from db.postgres import get_db_pool
 
 router = APIRouter()
@@ -48,7 +50,7 @@ async def list_users():
 async def create_user(body: CreateUserBody, request: Request):
     if body.role not in ("admin", "agent", "viewer"):
         raise HTTPException(status_code=400, detail="Role must be admin, agent, or viewer")
-    actor = (get_admin_identity(request) or {}).get("sub", "unknown")
+    actor = ((await get_admin_identity(request)) or {}).get("sub", "unknown")
     ip = request.client.host if request.client else ""
     pool = await get_db_pool()
     async with pool.acquire() as conn:
@@ -67,7 +69,7 @@ async def create_user(body: CreateUserBody, request: Request):
 
 @router.patch("/users/{username}", dependencies=[Depends(require_roles("admin"))])
 async def update_user(username: str, body: UpdateUserBody, request: Request):
-    actor = (get_admin_identity(request) or {}).get("sub", "unknown")
+    actor = ((await get_admin_identity(request)) or {}).get("sub", "unknown")
     ip = request.client.host if request.client else ""
     pool = await get_db_pool()
     async with pool.acquire() as conn:
@@ -82,6 +84,12 @@ async def update_user(username: str, body: UpdateUserBody, request: Request):
             await conn.execute("UPDATE admin_users SET display_name = $1 WHERE username = $2", body.display_name, username)
         if body.is_active is not None:
             await conn.execute("UPDATE admin_users SET is_active = $1 WHERE username = $2", body.is_active, username)
+            r = get_redis()
+            if body.is_active is False:
+                await r.sadd("auth:revoked", username)
+                await r.expire("auth:revoked", settings.admin_token_ttl_seconds)
+            else:
+                await r.srem("auth:revoked", username)
         detail = f"role={body.role},active={body.is_active}"
         await _audit(conn, actor, "user_updated", username, detail, ip)
     return {"ok": True}
@@ -89,7 +97,7 @@ async def update_user(username: str, body: UpdateUserBody, request: Request):
 
 @router.post("/users/{username}/password", dependencies=[Depends(require_roles("admin"))])
 async def reset_password(username: str, body: ResetPasswordBody, request: Request):
-    actor = (get_admin_identity(request) or {}).get("sub", "unknown")
+    actor = ((await get_admin_identity(request)) or {}).get("sub", "unknown")
     ip = request.client.host if request.client else ""
     pool = await get_db_pool()
     async with pool.acquire() as conn:
@@ -106,7 +114,7 @@ async def reset_password(username: str, body: ResetPasswordBody, request: Reques
 
 @router.delete("/users/{username}", dependencies=[Depends(require_roles("admin"))])
 async def deactivate_user(username: str, request: Request):
-    actor = (get_admin_identity(request) or {}).get("sub", "unknown")
+    actor = ((await get_admin_identity(request)) or {}).get("sub", "unknown")
     ip = request.client.host if request.client else ""
     if actor == username:
         raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
@@ -116,5 +124,8 @@ async def deactivate_user(username: str, request: Request):
         if not row:
             raise HTTPException(status_code=404, detail="User not found")
         await conn.execute("UPDATE admin_users SET is_active = FALSE WHERE username = $1", username)
+        r = get_redis()
+        await r.sadd("auth:revoked", username)
+        await r.expire("auth:revoked", settings.admin_token_ttl_seconds)
         await _audit(conn, actor, "user_deactivated", username, "", ip)
     return {"ok": True}

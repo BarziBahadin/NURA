@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from core.auth import get_admin_identity, require_roles
+from core.orchestrator import invalidate_gap_cache
 from db.postgres import get_db_pool
 
 router = APIRouter()
@@ -24,7 +25,7 @@ class ReviewActionBody(BaseModel):
 
 
 async def _audit(conn, request: Request, action: str, target: str, detail: str = "") -> None:
-    actor = (get_admin_identity(request) or {}).get("sub", "unknown")
+    actor = ((await get_admin_identity(request)) or {}).get("sub", "unknown")
     ip = request.client.host if request.client else ""
     await conn.execute(
         "INSERT INTO admin_audit_logs (actor, action, target, detail, ip) VALUES ($1,$2,$3,$4,$5)",
@@ -141,7 +142,7 @@ async def update_gap_review(review_id: int, body: ReviewUpdateBody, request: Req
     if body.status is not None and body.status not in VALID_STATUSES:
         raise HTTPException(status_code=400, detail="Invalid status")
 
-    actor = (get_admin_identity(request) or {}).get("sub", "unknown")
+    actor = ((await get_admin_identity(request)) or {}).get("sub", "unknown")
     updates = []
     params = []
     for field in ("proposed_answer", "approved_answer", "notes", "status"):
@@ -172,7 +173,7 @@ async def update_gap_review(review_id: int, body: ReviewUpdateBody, request: Req
 
 @router.post("/knowledge-gaps/{review_id}/approve", dependencies=[Depends(require_roles("admin"))])
 async def approve_gap_review(review_id: int, body: ReviewActionBody, request: Request):
-    actor = (get_admin_identity(request) or {}).get("sub", "unknown")
+    actor = ((await get_admin_identity(request)) or {}).get("sub", "unknown")
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         current = await conn.fetchrow("SELECT * FROM knowledge_gap_reviews WHERE id = $1", review_id)
@@ -197,12 +198,13 @@ async def approve_gap_review(review_id: int, body: ReviewActionBody, request: Re
             answer, body.notes, actor, review_id,
         )
         await _audit(conn, request, "knowledge_gap_approved", str(review_id), current["intent"] or "")
+    invalidate_gap_cache()
     return {"review": _row_to_review(row)}
 
 
 @router.post("/knowledge-gaps/{review_id}/resolve", dependencies=[Depends(require_roles("admin"))])
 async def resolve_gap_review(review_id: int, body: ReviewActionBody, request: Request):
-    actor = (get_admin_identity(request) or {}).get("sub", "unknown")
+    actor = ((await get_admin_identity(request)) or {}).get("sub", "unknown")
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -221,12 +223,13 @@ async def resolve_gap_review(review_id: int, body: ReviewActionBody, request: Re
         if not row:
             raise HTTPException(status_code=404, detail="Review not found")
         await _audit(conn, request, "knowledge_gap_resolved", str(review_id), row["intent"] or "")
+    invalidate_gap_cache()
     return {"review": _row_to_review(row)}
 
 
 @router.post("/knowledge-gaps/{review_id}/reject", dependencies=[Depends(require_roles("admin"))])
 async def reject_gap_review(review_id: int, body: ReviewActionBody, request: Request):
-    actor = (get_admin_identity(request) or {}).get("sub", "unknown")
+    actor = ((await get_admin_identity(request)) or {}).get("sub", "unknown")
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(

@@ -4,7 +4,7 @@ from core.handoff_controller import HANDOFF_MESSAGE_AR, check_handoff_triggers, 
 from core.job_queue import JOB_ESCALATION_WEBHOOK, JOB_INTENT_CLASSIFICATION, enqueue_job
 from core.logger import log_conversation, log_session_outcome
 from core.orchestrator import generate_response
-from core.session_manager import append_turn, get_customer_token, get_or_create_session, save_session
+from core.session_manager import append_turn, get_customer_token, get_or_create_session
 from models.session import Session, SessionStatus
 
 AI_MAINTENANCE_MESSAGE = "عذراً، الخدمة في وضع الصيانة حالياً. يُرجى المحاولة لاحقاً أو التواصل معنا مباشرةً."
@@ -71,7 +71,6 @@ async def process_customer_message(
     await append_turn(session, "customer", clean_message, source="customer",
                       attachment_url=attachment_url, message_type=message_type)
     await append_turn(session, "agent", response_text, confidence)
-    await save_session(session)
 
     logged_source = source if not should_escalate else "escalated"
     await log_conversation(

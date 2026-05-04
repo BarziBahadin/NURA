@@ -14,6 +14,7 @@ CASE_STATUSES = {"open", "pending", "in_progress", "waiting_customer", "escalate
 CASE_PRIORITIES = {"low", "normal", "high", "urgent"}
 SLA_HOURS = {"low": 72, "normal": 24, "high": 8, "urgent": 2}
 FIRST_RESPONSE_HOURS = {"low": 24, "normal": 8, "high": 2, "urgent": 0.5}
+_valid_departments: set[str] = {"general", "billing", "technical", "complaints", "sales"}
 
 
 class CaseCreateBody(BaseModel):
@@ -52,8 +53,8 @@ class CaseNoteBody(BaseModel):
     note: str = Field(..., min_length=1, max_length=5000)
 
 
-def _actor(request: Request) -> str:
-    identity = get_admin_identity(request) or {}
+async def _actor(request: Request) -> str:
+    identity = await get_admin_identity(request) or {}
     return identity.get("sub", "api_key")
 
 
@@ -72,18 +73,29 @@ def _validate_priority(priority: str) -> None:
 
 
 async def _validate_department(conn, department: str) -> None:
-    exists = await conn.fetchval(
-        "SELECT 1 FROM support_departments WHERE code = $1 AND is_active = TRUE",
-        department,
-    )
-    if not exists:
+    if department not in _valid_departments:
         raise HTTPException(status_code=400, detail="Invalid department")
+
+
+def is_valid_department_code(department: str) -> bool:
+    return department in _valid_departments
+
+
+async def refresh_department_cache() -> None:
+    global _valid_departments
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT code FROM support_departments WHERE is_active = TRUE")
+    loaded = {r["code"] for r in rows}
+    if loaded:
+        _valid_departments.clear()
+        _valid_departments.update(loaded)
 
 
 async def _audit(conn, request: Request, action: str, target: str, detail: str = "") -> None:
     await conn.execute(
         "INSERT INTO admin_audit_logs (actor, action, target, detail, ip) VALUES ($1,$2,$3,$4,$5)",
-        _actor(request), action, target, detail, _ip(request),
+        await _actor(request), action, target, detail, _ip(request),
     )
 
 
@@ -299,11 +311,11 @@ async def create_case(body: CaseCreateBody, request: Request):
             """,
             case_number, body.session_id, body.customer_id, body.channel, body.title,
             body.description, body.department, body.priority, body.owner, tags,
-            body.internal_notes, first_response_due_at, sla_due_at, _actor(request),
+            body.internal_notes, first_response_due_at, sla_due_at, await _actor(request),
         )
-        await _log_case_activity(conn, row["id"], _actor(request), "created", note="Manual case created")
+        await _log_case_activity(conn, row["id"], await _actor(request), "created", note="Manual case created")
         if body.internal_notes:
-            await _log_case_activity(conn, row["id"], _actor(request), "note_added", note=body.internal_notes)
+            await _log_case_activity(conn, row["id"], await _actor(request), "note_added", note=body.internal_notes)
         await _audit(conn, request, "case_created", case_number, body.priority)
     return _row_to_case(row)
 
@@ -327,7 +339,7 @@ async def create_case_from_session(session_id: str, body: CaseFromSessionBody, r
             session_id,
         )
         if existing:
-            await _log_case_activity(conn, existing["id"], _actor(request), "session_case_reused", note=session_id)
+            await _log_case_activity(conn, existing["id"], await _actor(request), "session_case_reused", note=session_id)
             return _row_to_case(existing)
         case_number = await _next_case_number(conn)
         row = await conn.fetchrow(
@@ -343,11 +355,11 @@ async def create_case_from_session(session_id: str, body: CaseFromSessionBody, r
             case_number, session.session_id, session.customer_id, session.channel, title,
             description, body.department, body.priority, body.owner,
             [session.status.value], body.internal_notes, first_response_due_at, sla_due_at,
-            _actor(request),
+            await _actor(request),
         )
-        await _log_case_activity(conn, row["id"], _actor(request), "created", note=f"Created from session {session_id}")
+        await _log_case_activity(conn, row["id"], await _actor(request), "created", note=f"Created from session {session_id}")
         if body.internal_notes:
-            await _log_case_activity(conn, row["id"], _actor(request), "note_added", note=body.internal_notes)
+            await _log_case_activity(conn, row["id"], await _actor(request), "note_added", note=body.internal_notes)
         await _audit(conn, request, "case_created_from_session", case_number, session_id)
     return _row_to_case(row)
 
@@ -407,7 +419,7 @@ async def case_activity(case_id: int):
 
 @router.post("/cases/{case_id}/notes", dependencies=[Depends(require_roles("admin", "agent"))])
 async def add_case_note(case_id: int, body: CaseNoteBody, request: Request):
-    actor = _actor(request)
+    actor = await _actor(request)
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -477,14 +489,14 @@ async def update_case(case_id: int, body: CaseUpdateBody, request: Request):
         before = await conn.fetchrow("SELECT * FROM support_cases WHERE id = $1", case_id)
         if not before:
             raise HTTPException(status_code=404, detail="Case not found")
-        set_field("updated_by", _actor(request))
+        set_field("updated_by", await _actor(request))
         updates.append("updated_at = NOW()")
         params.append(case_id)
         row = await conn.fetchrow(
             f"UPDATE support_cases SET {', '.join(updates)} WHERE id = ${len(params)} RETURNING *",
             *params,
         )
-        actor = _actor(request)
+        actor = await _actor(request)
         tracked_fields = ("title", "description", "department", "status", "priority", "owner", "internal_notes")
         for field in tracked_fields:
             old = before[field]

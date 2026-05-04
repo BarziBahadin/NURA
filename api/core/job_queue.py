@@ -9,6 +9,7 @@ import httpx
 
 from config import settings
 from core.session_manager import get_redis
+from core.utils import fire_task
 
 logger = logging.getLogger(__name__)
 
@@ -31,14 +32,14 @@ async def enqueue_job(job_type: str, **payload: Any) -> str:
     }
 
     if not settings.background_jobs_enabled:
-        asyncio.create_task(process_job(job))
+        fire_task(process_job(job), label=f"job:{job_type}")
         return job["id"]
 
     try:
         await get_redis().lpush(JOB_QUEUE_KEY, json.dumps(job))
     except Exception as e:
         logger.error(f"Failed to enqueue job {job_type}: {e}")
-        asyncio.create_task(process_job(job))
+        fire_task(process_job(job), label=f"job:{job_type}")
     return job["id"]
 
 

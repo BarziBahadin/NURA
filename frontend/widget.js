@@ -427,60 +427,52 @@
   };
 
   // ── Topic tree ─────────────────────────────────────────────────────────────
-  var TOPIC_TREE = {
-    id: 'root',
-    label: { ar: 'كيف يمكنني مساعدتك؟', ku: 'Çawa dikarim alîkariya te bikim?' },
-    children: [
-      { id: 'apps', label: { ar: '📱 التطبيقات', ku: '📱 Aplikasyon' }, children: [
-        { id: 'selfcare', label: { ar: 'تطبيق Self-Care', ku: 'Apî Self-Care' }, children: [
-          { id: 'sc_dl',     label: { ar: 'تحميل التطبيق',           ku: 'Daxistina aplikasyonê'   }, article: 0  },
-          { id: 'sc_login',  label: { ar: 'مشكلة في تسجيل الدخول',   ku: 'Pirsgirêka têketinê'    }, article: 13 },
-          { id: 'sc_access', label: { ar: 'لا أستطيع الوصول للموقع', ku: 'Nikarin gihîjin malperê' }, article: 1  },
-        ]},
-        { id: 'hakki', label: { ar: 'تطبيق حكي', ku: 'Apî Hakki' }, children: [
-          { id: 'hk_dl',  label: { ar: 'تحميل التطبيق',                ku: 'Daxistina aplikasyonê'   }, article: 5  },
-          { id: 'hk_sos', label: { ar: 'الاستخدام المجاني في الطوارئ', ku: 'Bikaranîna belaş a acil' }, article: 28 },
-        ]},
-        { id: 'ana', label: { ar: 'منصة آنا (Ana)', ku: 'Platforma Ana' }, article: 20 },
-      ]},
-      { id: 'internet', label: { ar: '🌐 الإنترنت والاتصال', ku: '🌐 Înternetê û Pêwendî' }, children: [
-        { id: 'slow',   label: { ar: 'الإنترنت بطيء', ku: 'Înternetê hêdî ye' }, article: 6  },
-        { id: 'noconn', label: { ar: 'لا يوجد اتصال', ku: 'Pêwendî tune'       }, article: 3  },
-        { id: 'apn',    label: { ar: 'إعدادات APN',   ku: 'Mîhengên APN'       }, article: 21 },
-        { id: 'fiveg',  label: { ar: '5G — قريباً',   ku: '5G — nêzîk e'       }, article: 25 },
-        { id: 'hdcall', label: { ar: 'HD Call (VoLTE)', ku: 'HD Call (VoLTE)' }, children: [
-          { id: 'hd_what', label: { ar: 'ما هو HD Call؟',  ku: 'HD Call çi ye?'              }, article: 7  },
-          { id: 'hd_why',  label: { ar: 'مميزاته',          ku: 'Taybetmendiyên wê'           }, article: 8  },
-          { id: 'hd_sup',  label: { ar: 'هل هاتفي يدعمه؟', ku: 'Têlefona min piştgirî dide?' }, article: 9  },
-          { id: 'hd_act',  label: { ar: 'كيف أفعّله؟',      ku: 'Çawa çalak bikim?'           }, article: 10 },
-          { id: 'hd_use',  label: { ar: 'كيف أستخدمه؟',    ku: 'Çawa bikar bînim?'           }, article: 11 },
-          { id: 'hd_fix',  label: { ar: 'مشكلة في HD Call', ku: 'Pirsgirêka HD Call'          }, article: 12 },
-        ]},
-      ]},
-      { id: 'account', label: { ar: '🔐 الحساب والأمان', ku: '🔐 Hesab û Ewlekarî' }, children: [
-        { id: 'password', label: { ar: 'كلمة المرور', ku: 'Şîfre' }, children: [
-          { id: 'pw_change',  label: { ar: 'تغيير كلمة المرور', ku: 'Guherandina şîfreyê'        }, article: 14 },
-          { id: 'pw_recover', label: { ar: 'نسيت كلمة المرور',  ku: 'Şîfreya min ji bîra min çû' }, article: 19 },
-        ]},
-        { id: 'pin',        label: { ar: 'الرمز السري PIN',        ku: 'Koda PIN'            }, article: 2  },
-        { id: 'login_prob', label: { ar: 'مشكلة في تسجيل الدخول', ku: 'Pirsgirêka têketinê'  }, article: 13 },
-        { id: 'puk',        label: { ar: 'SIM مقفلة / رمز PUK',   ku: 'SIM kilêrkirî / PUK'  }, article: 23 },
-      ]},
-      { id: 'packages', label: { ar: '📦 الباقات والخدمات', ku: '📦 Pakêt û Xizmetguzarî' }, children: [
-        { id: 'pkg_prices', label: { ar: 'أسعار الباقات',       ku: 'Bihayên pakêtan'     }, article: 16 },
-        { id: 'sim',        label: { ar: 'شريحة SIM',           ku: 'Karta SIM'           }, article: 18 },
-        { id: 'esim',       label: { ar: 'eSIM الرقمية',        ku: 'eSIM Dijîtal'        }, article: 24 },
-        { id: 'points',     label: { ar: 'إرسال النقاط',        ku: 'Şandina xalan'       }, article: 4  },
-        { id: 'fastdata',   label: { ar: 'الرصيد ينتهي بسرعة', ku: 'Balans zû diqede'    }, article: 22 },
-        { id: 'scratchcard',label: { ar: 'بطاقة شحن محكوكة',    ku: 'Karta şarjê xerabûye'}, article: 29 },
-      ]},
-      { id: 'info', label: { ar: 'ℹ️ معلومات عامة', ku: 'ℹ️ Agahiyên Giştî' }, children: [
-        { id: 'hours',    label: { ar: 'ساعات العمل',          ku: 'Demjimêrên xebatê'                }, article: 17 },
-        { id: 'coverage', label: { ar: 'تغطية الشركة ومراكزها', ku: 'Nixumandin û navendên pargîdaniyê'}, article: 26 },
-        { id: 'business', label: { ar: 'إنترنت الأعمال FTTx',  ku: 'Înterneta karsaziyê FTTx'         }, article: 27 },
-      ]},
-    ],
+  var TOPIC_LABELS_KU = {
+    root: 'Çawa dikarim alîkariya te bikim?',
+    apps: '📱 Aplikasyon',
+    selfcare: 'Apî Self-Care',
+    sc_dl: 'Daxistina aplikasyonê',
+    sc_login: 'Pirsgirêka têketinê',
+    sc_access: 'Nikarin gihîjin malperê',
+    hakki: 'Apî Hakki',
+    hk_dl: 'Daxistina aplikasyonê',
+    hk_sos: 'Bikaranîna belaş a acil',
+    ana: 'Platforma Ana',
+    internet: '🌐 Înternetê û Pêwendî',
+    slow: 'Înternetê hêdî ye',
+    noconn: 'Pêwendî tune',
+    apn: 'Mîhengên APN',
+    fiveg: '5G - nêzîk e',
+    hdcall: 'HD Call (VoLTE)',
+    hd_what: 'HD Call çi ye?',
+    hd_why: 'Taybetmendiyên wê',
+    hd_sup: 'Têlefona min piştgirî dide?',
+    hd_act: 'Çawa çalak bikim?',
+    hd_use: 'Çawa bikar bînim?',
+    hd_fix: 'Pirsgirêka HD Call',
+    account: '🔐 Hesab û Ewlekarî',
+    password: 'Şîfre',
+    pw_change: 'Guherandina şîfreyê',
+    pw_recover: 'Şîfreya min ji bîra min çû',
+    pin: 'Koda PIN',
+    login_prob: 'Pirsgirêka têketinê',
+    puk: 'SIM kilêrkirî / PUK',
+    packages: '📦 Pakêt û Xizmetguzarî',
+    pkg_prices: 'Bihayên pakêtan',
+    sim: 'Karta SIM',
+    esim: 'eSIM Dijîtal',
+    points: 'Şandina xalan',
+    fastdata: 'Balans zû diqede',
+    scratchcard: 'Karta şarjê xerabûye',
+    info: 'ℹ️ Agahiyên Giştî',
+    hours: 'Demjimêrên xebatê',
+    coverage: 'Nixumandin û navendên pargîdaniyê',
+    business: 'Înterneta karsaziyê FTTx',
+    other: '🔗 Yên Din',
+    other_complaint: 'Pêşkêşkirina gilî an pêşniyar',
+    other_agent: '🎧 Rasterast bi karmend re biaxive',
   };
+  var TOPIC_TREE = { id: 'root', label: { ar: 'كيف يمكنني مساعدتك؟', ku: TOPIC_LABELS_KU.root }, children: [] };
 
   // ── State ──────────────────────────────────────────────────────────────────
   var currentLang        = 'ar';
@@ -513,8 +505,43 @@
   var langBtns    = root.querySelectorAll('.nura-lang-btn');
 
   // ── Tree helpers ───────────────────────────────────────────────────────────
-  function treeLabel(node) { return node.label[currentLang] || node.label.ar; }
+  function treeLabel(node) {
+    if (typeof node.label === 'string') return node.label;
+    return node.label[currentLang] || node.label.ar;
+  }
   function currentTreeNode() { return treeStack.length > 0 ? treeStack[treeStack.length - 1] : TOPIC_TREE; }
+
+  function mergeSharedTopicLabels(sharedNode, localNode) {
+    if (!sharedNode) return localNode;
+    var merged = Object.assign({}, sharedNode);
+    if (typeof sharedNode.label === 'string') {
+      merged.label = {
+        ar: sharedNode.label,
+        ku: TOPIC_LABELS_KU[sharedNode.id] || (localNode && localNode.label && localNode.label.ku) || sharedNode.label,
+      };
+    }
+    var localChildrenById = {};
+    ((localNode && localNode.children) || []).forEach(function (child) { localChildrenById[child.id] = child; });
+    if (sharedNode.children) {
+      merged.children = sharedNode.children.map(function (child) {
+        return mergeSharedTopicLabels(child, localChildrenById[child.id]);
+      });
+    }
+    return merged;
+  }
+
+  async function loadSharedTopicTree() {
+    try {
+      var res = await fetch(API_BASE + '/topic-tree');
+      if (!res.ok) return;
+      var shared = await res.json();
+      TOPIC_TREE = mergeSharedTopicLabels(shared, TOPIC_TREE);
+      treeStack = [];
+      renderTree();
+    } catch (e) {
+      console.warn('topic tree load failed:', e);
+    }
+  }
 
   async function directToAgent() {
     if (isEscalated || isSessionClosed) return;
@@ -1092,6 +1119,7 @@
 
   // ── Init ───────────────────────────────────────────────────────────────────
   applyLang('ar');
+  loadSharedTopicTree();
   setTimeout(function () { if (!isOpen) badge.style.display = 'flex'; }, 2000);
 
 })();

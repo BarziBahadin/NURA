@@ -1,7 +1,9 @@
+import asyncio
 import json
 import logging
 from pathlib import Path
 import re
+import time
 from typing import Optional, Tuple
 
 from openai import AsyncOpenAI
@@ -46,24 +48,14 @@ except FileNotFoundError:
 except Exception as e:
     logger.warning(f"ML model could not be loaded: {e}")
 
-# Load articles knowledge base at startup
-_ARTICLES_KB = ""
+# Load articles for rules engine at startup. RAG provides prompt context for OpenAI.
 _articles = []
 _rules_engine = None
 _articles_path = "/app/manafest/articals.json"
 try:
     with open(_articles_path, "r", encoding="utf-8") as f:
         _articles = json.load(f)
-    raw_kb = "\n\n".join(
-        f"[{a['title']}]\n{a['content_ar']}" for a in _articles
-    )
-    _ARTICLES_KB = _preprocessor.compress_whitespace(
-        _preprocessor.remove_duplicates(raw_kb, by="sentence")
-    )
-    logger.info(
-        f"Loaded {len(_articles)} articles from knowledge base "
-        f"({len(raw_kb)} chars → {len(_ARTICLES_KB)} chars after preprocessing)"
-    )
+    logger.info(f"Loaded {len(_articles)} articles for rules engine")
 except Exception as e:
     logger.warning(f"Could not load articles knowledge base: {e}")
 
@@ -80,11 +72,6 @@ SYSTEM_PROMPT_TEMPLATE = """أنت وكيل خدمة عملاء محترف في 
 إجابات معتمدة من مراجعة فجوات المعرفة:
 ---
 {curated_gap_answers}
----
-
-قاعدة المعرفة المعتمدة لخدمات الشركة:
----
-{articles_kb}
 ---
 
 معلومات إضافية من دليل الشركة:
@@ -110,7 +97,16 @@ def _tokens(text: str) -> set[str]:
     return {t for t in re.findall(r"\w+", text.lower()) if len(t) > 2}
 
 
-async def retrieve_curated_gap_answers(message: str) -> str:
+_gap_cache: list[dict] | None = None
+_gap_cache_at: float = 0.0
+_GAP_CACHE_TTL = 3600  # 1 hour
+
+
+async def _load_gap_rows() -> list[dict]:
+    global _gap_cache, _gap_cache_at
+    now = time.monotonic()
+    if _gap_cache is not None and now - _gap_cache_at < _GAP_CACHE_TTL:
+        return _gap_cache
     try:
         pool = await get_db_pool()
         async with pool.acquire() as conn:
@@ -125,8 +121,23 @@ async def retrieve_curated_gap_answers(message: str) -> str:
                 LIMIT 200
                 """
             )
+        _gap_cache = [dict(r) for r in rows]
+        _gap_cache_at = now
     except Exception as e:
         logger.warning(f"Curated gap lookup failed: {e}")
+        if _gap_cache is None:
+            _gap_cache = []
+    return _gap_cache
+
+
+def invalidate_gap_cache() -> None:
+    global _gap_cache
+    _gap_cache = None
+
+
+async def retrieve_curated_gap_answers(message: str) -> str:
+    rows = await _load_gap_rows()
+    if not rows:
         return "غير متاح."
 
     query_tokens = _tokens(message)
@@ -137,9 +148,9 @@ async def retrieve_curated_gap_answers(message: str) -> str:
     for row in rows:
         haystack = " ".join(
             [
-                row["customer_message"] or "",
-                row["intent"] or "",
-                row["sub_intent"] or "",
+                row.get("customer_message") or "",
+                row.get("intent") or "",
+                row.get("sub_intent") or "",
             ]
         )
         overlap = len(query_tokens & _tokens(haystack))
@@ -174,9 +185,11 @@ async def generate_response(session: Session, message: str) -> Tuple[str, float,
             logger.info(f"ML answered (conf={ml_result['confidence']:.2f}, cat={ml_result['category']})")
             return ml_result["response"], ml_result["confidence"], "local_model", None
 
-    # 2. Fall through to curated gap answers + RAG + OpenAI
-    curated_gap_answers = await retrieve_curated_gap_answers(message)
-    rag_context, confidence, source_doc = await retrieve_context(message)
+    # 2. Fall through to curated gap answers + RAG + OpenAI (run in parallel)
+    curated_gap_answers, (rag_context, confidence, source_doc) = await asyncio.gather(
+        retrieve_curated_gap_answers(message),
+        retrieve_context(message),
+    )
 
     if not rag_context:
         rag_context = "لا يوجد سياق متاح من الدليل."
@@ -196,7 +209,6 @@ async def generate_response(session: Session, message: str) -> Tuple[str, float,
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         company_name=settings.company_name,
         curated_gap_answers=curated_gap_answers,
-        articles_kb=_ARTICLES_KB if _ARTICLES_KB else "غير متاح.",
         rag_context=rag_context,
         conversation_history=history_text,
     )

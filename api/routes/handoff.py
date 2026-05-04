@@ -1,5 +1,4 @@
 import asyncio
-import hmac
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -7,11 +6,13 @@ from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from core.auth import has_admin_access, is_valid_api_key, verify_api_key
+from core.auth import verify_api_key, verify_session_access
 from core.logger import log_session_outcome
 from core.session_manager import get_customer_token, get_or_create_session, get_session, save_session
+from core.utils import fire_task
 from models.session import SessionStatus
 from routes.cases import ensure_case_for_session
+from routes import cases as case_routes
 from datetime import datetime, timezone
 
 AGENT_JOINED_AR = "✅ تم التواصل مع أحد أعضاء الفريق. يمكنك الآن الكتابة مباشرة."
@@ -20,14 +21,13 @@ router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
 
-def verify_handoff_access(request: Request, session) -> None:
-    if has_admin_access(request):
-        return
-    supplied = request.query_params.get("session_token") or request.headers.get("X-Session-Token", "")
-    expected = session.metadata.get("customer_token", "")
-    if not expected or not hmac.compare_digest(supplied, expected):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
+def _telegram_chat_id(session, session_id: str) -> int | None:
+    if session.channel != "telegram":
+        return None
+    try:
+        return int(session.customer_id or session_id[3:])
+    except Exception:
+        return None
 
 class DirectHandoffBody(BaseModel):
     session_id: Optional[str] = None
@@ -38,13 +38,17 @@ class DirectHandoffBody(BaseModel):
 
 def case_defaults_for_handoff(reason: str) -> tuple[str, str]:
     reason_lower = (reason or "").lower()
+    dept = "general"
+    priority = "normal"
     if "feedback" in reason_lower or "complaint" in reason_lower:
-        return "complaints", "high"
-    if "billing" in reason_lower or "payment" in reason_lower:
-        return "billing", "normal"
-    if "technical" in reason_lower or "internet" in reason_lower or "network" in reason_lower:
-        return "technical", "normal"
-    return "general", "normal"
+        dept, priority = "complaints", "high"
+    elif "billing" in reason_lower or "payment" in reason_lower:
+        dept, priority = "billing", "normal"
+    elif "technical" in reason_lower or "internet" in reason_lower or "network" in reason_lower:
+        dept, priority = "technical", "normal"
+    if not case_routes.is_valid_department_code(dept):
+        dept = "general"
+    return dept, priority
 
 
 @router.post("/handoff/direct")
@@ -88,7 +92,7 @@ async def escalate_to_human(
     session = await get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    verify_handoff_access(request, session)
+    await verify_session_access(request, session)
     session.status = SessionStatus.pending_handoff
     session.metadata["handoff_reason"] = "bad_feedback"
     await save_session(session)
@@ -135,11 +139,11 @@ async def accept_handoff(
         accepted_at=now,
         time_to_accept_seconds=max(0, (now - datetime.fromisoformat(session.created_at)).total_seconds()),
     )
-    if session.channel == "telegram" and session_id.startswith("tg_"):
+    chat_id = _telegram_chat_id(session, session_id)
+    if chat_id is not None:
         try:
-            chat_id = int(session_id[3:])
             from routes.telegram import _send
-            asyncio.create_task(_send(chat_id, AGENT_JOINED_AR))
+            fire_task(_send(chat_id, AGENT_JOINED_AR), label="tg:agent_joined")
         except Exception:
             pass
     return {
@@ -158,10 +162,11 @@ async def resolve_session(
         raise HTTPException(status_code=404, detail="Session not found")
     session.status = SessionStatus.resolved
     await save_session(session)
-    if session.channel == "telegram" and session_id.startswith("tg_"):
+    chat_id = _telegram_chat_id(session, session_id)
+    if chat_id is not None:
         try:
             from routes.telegram import send_resolved_to_telegram
-            asyncio.create_task(send_resolved_to_telegram(int(session_id[3:])))
+            fire_task(send_resolved_to_telegram(chat_id), label="tg:resolved")
         except Exception:
             pass
     return {"message": "Session resolved", "session_id": session_id}

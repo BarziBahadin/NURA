@@ -1,0 +1,98 @@
+{
+  "id": "root",
+  "label": "كيف يمكنني مساعدتك؟",
+  "children": [
+    {
+      "id": "apps",
+      "label": "📱 التطبيقات",
+      "children": [
+        {
+          "id": "selfcare",
+          "label": "تطبيق Self-Care",
+          "children": [
+            { "id": "sc_dl", "label": "تحميل التطبيق", "article": 0 },
+            { "id": "sc_login", "label": "مشكلة في تسجيل الدخول", "article": 13 },
+            { "id": "sc_access", "label": "لا أستطيع الوصول للموقع", "article": 1 }
+          ]
+        },
+        {
+          "id": "hakki",
+          "label": "تطبيق حكي",
+          "children": [
+            { "id": "hk_dl", "label": "تحميل التطبيق", "article": 5 },
+            { "id": "hk_sos", "label": "الاستخدام المجاني في الطوارئ", "article": 28 }
+          ]
+        },
+        { "id": "ana", "label": "منصة آنا (Ana)", "article": 20 }
+      ]
+    },
+    {
+      "id": "internet",
+      "label": "🌐 الإنترنت والاتصال",
+      "children": [
+        { "id": "slow", "label": "الإنترنت بطيء", "article": 6 },
+        { "id": "noconn", "label": "لا يوجد اتصال", "article": 3 },
+        { "id": "apn", "label": "إعدادات APN", "article": 21 },
+        { "id": "fiveg", "label": "5G — قريباً", "article": 25 },
+        {
+          "id": "hdcall",
+          "label": "HD Call (VoLTE)",
+          "children": [
+            { "id": "hd_what", "label": "ما هو HD Call؟", "article": 7 },
+            { "id": "hd_why", "label": "مميزاته", "article": 8 },
+            { "id": "hd_sup", "label": "هل هاتفي يدعمه؟", "article": 9 },
+            { "id": "hd_act", "label": "كيف أفعّله؟", "article": 10 },
+            { "id": "hd_use", "label": "كيف أستخدمه؟", "article": 11 },
+            { "id": "hd_fix", "label": "مشكلة في HD Call", "article": 12 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "account",
+      "label": "🔐 الحساب والأمان",
+      "children": [
+        {
+          "id": "password",
+          "label": "كلمة المرور",
+          "children": [
+            { "id": "pw_change", "label": "تغيير كلمة المرور", "article": 14 },
+            { "id": "pw_recover", "label": "نسيت كلمة المرور", "article": 19 }
+          ]
+        },
+        { "id": "pin", "label": "الرمز السري PIN", "article": 2 },
+        { "id": "login_prob", "label": "مشكلة في تسجيل الدخول", "article": 13 },
+        { "id": "puk", "label": "SIM مقفلة / رمز PUK", "article": 23 }
+      ]
+    },
+    {
+      "id": "packages",
+      "label": "📦 الباقات والخدمات",
+      "children": [
+        { "id": "pkg_prices", "label": "أسعار الباقات", "article": 16 },
+        { "id": "sim", "label": "شريحة SIM", "article": 18 },
+        { "id": "esim", "label": "eSIM الرقمية", "article": 24 },
+        { "id": "points", "label": "إرسال النقاط", "article": 4 },
+        { "id": "fastdata", "label": "الرصيد ينتهي بسرعة", "article": 22 },
+        { "id": "scratchcard", "label": "بطاقة شحن محكوكة", "article": 29 }
+      ]
+    },
+    {
+      "id": "info",
+      "label": "ℹ️ معلومات عامة",
+      "children": [
+        { "id": "hours", "label": "ساعات العمل", "article": 17 },
+        { "id": "coverage", "label": "تغطية الشركة ومراكزها", "article": 26 },
+        { "id": "business", "label": "إنترنت الأعمال FTTx", "article": 27 }
+      ]
+    },
+    {
+      "id": "other",
+      "label": "🔗 أخرى",
+      "children": [
+        { "id": "other_complaint", "label": "تقديم شكوى أو اقتراح", "action": "complaint" },
+        { "id": "other_agent", "label": "🎧 التحدث مع موظف مباشرة", "action": "agent" }
+      ]
+    }
+  ]
+}
