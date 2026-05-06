@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { ArrowClockwise, DownloadSimple } from '@phosphor-icons/react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie, Legend,
@@ -55,9 +56,9 @@ function Section({ title, children, onExport }) {
         {onExport && (
           <button
             onClick={onExport}
-            className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg transition"
+            className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5"
           >
-            Export CSV ↓
+            <DownloadSimple size={28} />Export CSV
           </button>
         )}
       </div>
@@ -410,9 +411,9 @@ export default function Reports() {
           ))}
           <button
             onClick={fetchReports}
-            className="px-3 py-1.5 rounded-lg text-sm bg-white border border-gray-200 hover:bg-gray-50 text-gray-500"
+            className="px-3 py-1.5 rounded-lg text-sm bg-white border border-gray-200 hover:bg-gray-50 text-gray-500 flex items-center gap-1.5"
           >
-            ↻ Refresh
+            <ArrowClockwise size={28} />Refresh
           </button>
         </div>
       </div>

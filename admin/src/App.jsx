@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
+import {
+  ChartBar, Bell, Folder, Lightbulb, ChatCircle, TrendUp,
+  PuzzlePiece, ChatCenteredText, Books, Users, Monitor,
+} from '@phosphor-icons/react'
 import Dashboard from './pages/Dashboard.jsx'
 import LiveQueue from './pages/LiveQueue.jsx'
 import SessionViewer from './pages/SessionViewer.jsx'
@@ -22,17 +26,17 @@ export const api = {
 }
 
 const ALL_NAV_ITEMS = [
-  { path: '/',          label: 'Dashboard',      icon: '📊', roles: ['admin', 'viewer'] },
-  { path: '/queue',     label: 'Live Queue',      icon: '🔔', roles: ['admin', 'agent'] },
-  { path: '/cases',     label: 'Cases',           icon: '📁', roles: ['admin', 'agent', 'viewer'] },
-  { path: '/suggestions', label: 'Suggestions',   icon: '💡', roles: ['admin', 'agent', 'viewer'] },
-  { path: '/sessions',  label: 'Sessions',        icon: '💬', roles: ['admin', 'agent', 'viewer'] },
-  { path: '/reports',   label: 'Reports',         icon: '📈', roles: ['admin', 'viewer'] },
-  { path: '/gaps',           label: 'Knowledge Gaps',  icon: '🧩', roles: ['admin'] },
-  { path: '/canned-replies', label: 'Canned Replies',  icon: '💬', roles: ['admin'] },
-  { path: '/knowledge',      label: 'Knowledge Base',  icon: '📚', roles: ['admin'] },
-  { path: '/users',     label: 'Team',            icon: '👥', roles: ['admin'] },
-  { path: '/monitor',   label: 'System Monitor',  icon: '🖥️', roles: ['admin'] },
+  { path: '/',               label: 'Dashboard',      Icon: ChartBar,         roles: ['admin', 'viewer'] },
+  { path: '/queue',          label: 'Live Queue',      Icon: Bell,             roles: ['admin', 'agent'] },
+  { path: '/cases',          label: 'Cases',           Icon: Folder,           roles: ['admin', 'agent', 'viewer'] },
+  { path: '/suggestions',    label: 'Suggestions',     Icon: Lightbulb,        roles: ['admin', 'agent', 'viewer'] },
+  { path: '/sessions',       label: 'Sessions',        Icon: ChatCircle,       roles: ['admin', 'agent', 'viewer'] },
+  { path: '/reports',        label: 'Reports',         Icon: TrendUp,          roles: ['admin', 'viewer'] },
+  { path: '/gaps',           label: 'Knowledge Gaps',  Icon: PuzzlePiece,      roles: ['admin'] },
+  { path: '/canned-replies', label: 'Canned Replies',  Icon: ChatCenteredText, roles: ['admin'] },
+  { path: '/knowledge',      label: 'Knowledge Base',  Icon: Books,            roles: ['admin'] },
+  { path: '/users',          label: 'Team',            Icon: Users,            roles: ['admin'] },
+  { path: '/monitor',        label: 'System Monitor',  Icon: Monitor,          roles: ['admin'] },
 ]
 
 function AiToggle({ role }) {
@@ -98,7 +102,7 @@ function Sidebar({ pendingCount, onLogout, role }) {
         <div className="text-xs text-gray-400 mt-1">Customer Support</div>
       </div>
       <nav className="flex-1 p-3">
-        {navItems.map(({ path, label, icon }) => (
+        {navItems.map(({ path, label, Icon }) => (
           <Link
             key={path}
             to={path}
@@ -108,7 +112,7 @@ function Sidebar({ pendingCount, onLogout, role }) {
                 : 'text-gray-300 hover:bg-gray-700'
             }`}
           >
-            <span>{icon}</span>
+            <Icon size={28} />
             <span className="flex-1">{label}</span>
             {path === '/queue' && pendingCount > 0 && (
               <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">

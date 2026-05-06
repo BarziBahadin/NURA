@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { FloppyDisk, CheckCircle, CheckSquare, XCircle } from '@phosphor-icons/react'
 import { api } from '../App.jsx'
 
 const STATUSES = [
@@ -146,30 +147,30 @@ function GapCard({ review, onChanged }) {
         <button
           onClick={saveDraft}
           disabled={disabled || !answer.trim()}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-xl transition disabled:opacity-50"
+          className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-xl transition disabled:opacity-50 flex items-center gap-1.5"
         >
-          {busy === `/knowledge-gaps/${review.id}` ? 'Saving...' : 'Save Draft'}
+          <FloppyDisk size={28} />{busy === `/knowledge-gaps/${review.id}` ? 'Saving...' : 'Save Draft'}
         </button>
         <button
           onClick={approve}
           disabled={disabled || !answer.trim()}
-          className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-xl transition disabled:opacity-50"
+          className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-xl transition disabled:opacity-50 flex items-center gap-1.5"
         >
-          Approve
+          <CheckCircle size={28} />Approve
         </button>
         <button
           onClick={resolve}
           disabled={disabled}
-          className="bg-gray-800 hover:bg-gray-900 text-white text-sm px-4 py-2 rounded-xl transition disabled:opacity-50"
+          className="bg-gray-800 hover:bg-gray-900 text-white text-sm px-4 py-2 rounded-xl transition disabled:opacity-50 flex items-center gap-1.5"
         >
-          Resolve
+          <CheckSquare size={28} />Resolve
         </button>
         <button
           onClick={reject}
           disabled={disabled}
-          className="bg-red-50 hover:bg-red-100 text-red-600 text-sm px-4 py-2 rounded-xl transition disabled:opacity-50"
+          className="bg-red-50 hover:bg-red-100 text-red-600 text-sm px-4 py-2 rounded-xl transition disabled:opacity-50 flex items-center gap-1.5"
         >
-          Reject
+          <XCircle size={28} />Reject
         </button>
       </div>
     </div>

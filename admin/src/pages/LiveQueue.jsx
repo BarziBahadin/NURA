@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { X, Timer, File, CaretRight, CheckCircle } from '@phosphor-icons/react'
 import { api } from '../App.jsx'
 
 function playBeep() {
@@ -127,7 +128,7 @@ function ChatHistory({ turns }) {
               )}
               {t.attachment_url && t.message_type === 'file' && (
                 <a href={t.attachment_url} target="_blank" rel="noreferrer"
-                  className="block mt-1 text-blue-300 underline text-xs">📄 View attachment</a>
+                  className="block mt-1 text-blue-300 underline text-xs"><File size={28} className="inline mr-1" />View attachment</a>
               )}
             </div>
             <div className="text-xs text-gray-400 mt-0.5">
@@ -162,7 +163,7 @@ function PreviewModal({ session, onClose, onAccept, accepting }) {
                   {session.channel}
                 </span>
                 <span className="bg-orange-100 text-orange-600 text-xs px-2 py-0.5 rounded-full font-medium">
-                  ⏱ {waitingTime(session.updated_at)}
+                  <Timer size={28} className="inline mr-0.5" />{waitingTime(session.updated_at)}
                 </span>
               </div>
               <h2 className="text-lg font-bold text-gray-800">Review Before Accepting</h2>
@@ -251,7 +252,7 @@ function PendingHandoffCard({ s, onPreview, onResolve, resolving }) {
               {s.channel}
             </span>
             <span className="bg-orange-100 text-orange-600 text-xs px-2 py-0.5 rounded-full font-medium">
-              ⏱ {waitingTime(s.updated_at)}
+              <Timer size={28} className="inline mr-0.5" />{waitingTime(s.updated_at)}
             </span>
             <span className="bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full">
               {reason}
@@ -431,7 +432,7 @@ function ActiveChatCard({ s, onResolved }) {
           <span className="ml-2 text-xs text-gray-600">{s.customer_id}</span>
         </div>
         <span className="bg-orange-100 text-orange-600 text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0">
-          ⏱ {waitingTime(s.updated_at)}
+          <Timer size={28} className="inline mr-0.5" />{waitingTime(s.updated_at)}
         </span>
         <button
           onClick={() => setShowResolve(true)}
@@ -623,7 +624,7 @@ export default function LiveQueue() {
         <div className="text-center text-gray-400 py-12">Loading...</div>
       ) : sessions.length === 0 ? (
         <div className="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
-          <div className="text-4xl mb-3">✅</div>
+          <CheckCircle size={28} className="mx-auto mb-3 text-green-500" weight="fill" />
           <div>No sessions in queue</div>
         </div>
       ) : (

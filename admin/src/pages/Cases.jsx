@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { X } from '@phosphor-icons/react'
 import { api } from '../App.jsx'
 import { getUsername } from '../lib/api.js'
 
@@ -143,7 +144,7 @@ function CreateCaseModal({ departments, onClose, onCreated }) {
             <h2 className="text-lg font-bold text-gray-800">Create Case</h2>
             <div className="text-xs text-gray-400 mt-1">Manual support case without customer profile dependency</div>
           </div>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl">×</button>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl"><X size={28} /></button>
         </div>
 
         <div className="p-5 space-y-4">

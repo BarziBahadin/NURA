@@ -4,6 +4,7 @@ import {
   PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
+import { ArrowClockwise, Warning, Star, DownloadSimple } from '@phosphor-icons/react'
 import { api } from '../App.jsx'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -25,7 +26,7 @@ const EVENT_LABELS = {
   send_message: 'Message Sent', lang_switch: 'Language Switch',
   tree_click: 'Tree Topic', tree_back: 'Tree Back',
   tree_home: 'Tree Home', followup_yes: 'Follow-up: Yes',
-  followup_no: 'Follow-up: No', feedback_good: 'Feedback ✓', feedback_bad: 'Feedback ✗',
+  followup_no: 'Follow-up: No', feedback_good: 'Feedback: Good', feedback_bad: 'Feedback: Bad',
 }
 
 function srcColor(key) { return SOURCE_COLORS[key] || '#6b7280' }
@@ -177,8 +178,8 @@ export default function Dashboard() {
             </button>
           ))}
           <button onClick={fetchData}
-            className="px-3 py-1.5 rounded-lg text-sm bg-white border border-gray-200 hover:bg-gray-50 text-gray-500">
-            ↻ Refresh
+            className="px-3 py-1.5 rounded-lg text-sm bg-white border border-gray-200 hover:bg-gray-50 text-gray-500 flex items-center gap-1.5">
+            <ArrowClockwise size={28} />Refresh
           </button>
         </div>
       </div>
@@ -186,7 +187,7 @@ export default function Dashboard() {
       {/* Alert */}
       {escalationAlert && (
         <div className="mb-5 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
-          ⚠️ Escalation rate is high ({Math.round(data.escalation_rate * 100)}%) — exceeds 20%
+          <Warning size={28} weight="fill" className="inline mr-1.5 flex-shrink-0" />Escalation rate is high ({Math.round(data.escalation_rate * 100)}%) — exceeds 20%
         </div>
       )}
 
@@ -213,7 +214,7 @@ export default function Dashboard() {
             <KpiCard label="Tree Clicks" value={totalClicks.toLocaleString()} sub="total guided interactions" />
             <KpiCard
               label="Avg Rating"
-              value={ratings?.avg_rating != null ? `★ ${ratings.avg_rating.toFixed(1)}` : '—'}
+              value={ratings?.avg_rating != null ? <span className="flex items-center gap-1"><Star size={28} weight="fill" className="text-yellow-400" />{ratings.avg_rating.toFixed(1)}</span> : '—'}
               sub={ratings?.total_rated ? `${ratings.total_rated} ratings` : 'no ratings yet'}
               color={ratings?.avg_rating >= 4 ? 'text-yellow-500' : ratings?.avg_rating >= 3 ? 'text-orange-500' : 'text-gray-500'}
             />
@@ -372,8 +373,8 @@ export default function Dashboard() {
           <SectionCard title="Recent Conversations"
             action={
               <button onClick={() => exportCSV(data.recent_conversations)}
-                className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg transition">
-                Export CSV ↓
+                className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
+                <DownloadSimple size={28} />Export CSV
               </button>
             }>
             <div className="overflow-x-auto">

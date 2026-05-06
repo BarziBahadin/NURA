@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { ArrowClockwise, CaretUp, CaretDown, User, Robot, EnvelopeOpen, File } from '@phosphor-icons/react'
 import { api } from '../App.jsx'
 
 const TABS = [
@@ -50,7 +51,7 @@ function HistoryPanel({ history }) {
               )}
               {turn.attachment_url && turn.message_type === 'file' && (
                 <a href={turn.attachment_url} target="_blank" rel="noreferrer"
-                  className="block mt-1 text-blue-400 underline text-xs">📄 View attachment</a>
+                  className="block mt-1 text-blue-400 underline text-xs"><File size={28} className="inline mr-1" />View attachment</a>
               )}
             </div>
             <div className="text-xs text-gray-400 mt-0.5 flex gap-1">
@@ -141,9 +142,9 @@ export default function SessionViewer() {
         <h1 className="text-2xl font-bold text-gray-800">Sessions</h1>
         <button
           onClick={fetchSessions}
-          className="text-sm bg-white border border-gray-200 hover:bg-gray-50 text-gray-500 px-3 py-1.5 rounded-lg transition"
+          className="text-sm bg-white border border-gray-200 hover:bg-gray-50 text-gray-500 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5"
         >
-          ↻ Refresh
+          <ArrowClockwise size={28} />Refresh
         </button>
       </div>
 
@@ -185,7 +186,7 @@ export default function SessionViewer() {
         <div className="text-center text-gray-400 py-20 text-sm">Loading...</div>
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-2xl shadow p-12 text-center text-gray-400">
-          <div className="text-4xl mb-3">📭</div>
+          <EnvelopeOpen size={28} className="mx-auto mb-3 text-gray-300" />
           <div>No sessions found</div>
         </div>
       ) : (
@@ -203,7 +204,7 @@ export default function SessionViewer() {
                   className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition"
                   onClick={() => setExpanded(isExpanded ? null : s.session_id)}
                 >
-                  <span className="text-gray-300 text-xs">{isExpanded ? '▲' : '▼'}</span>
+                  <span className="text-gray-300">{isExpanded ? <CaretUp size={28} /> : <CaretDown size={28} />}</span>
 
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${st.color}`}>
                     {st.label}
@@ -216,7 +217,7 @@ export default function SessionViewer() {
                     </div>
                     {lastMsg && (
                       <div className="text-sm text-gray-600 truncate">
-                        {lastMsg.role === 'customer' ? '👤 ' : '🤖 '}{lastMsg.message}
+                        {lastMsg.role === 'customer' ? <User size={28} className="inline mr-1 text-gray-400" /> : <Robot size={28} className="inline mr-1 text-blue-400" />}{lastMsg.message}
                       </div>
                     )}
                   </div>

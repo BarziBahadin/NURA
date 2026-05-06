@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { X } from '@phosphor-icons/react'
 import { api } from '../App.jsx'
 
 const ROLE_COLORS = {
@@ -22,7 +23,7 @@ function Modal({ title, children, onClose }) {
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-800">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={28} /></button>
         </div>
         {children}
       </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { X } from '@phosphor-icons/react'
 import { api } from '../App.jsx'
 
 const EMPTY_FORM = { title: '', body: '', category: '', language: 'ar', sort_order: 0 }
@@ -15,7 +16,7 @@ function ReplyModal({ initial, onSave, onClose, saving }) {
           <h2 className="text-base font-bold text-gray-800">
             {isNew ? 'New Canned Reply' : 'Edit Canned Reply'}
           </h2>
-          <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition text-lg leading-none">✕</button>
+          <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition text-lg leading-none"><X size={28} /></button>
         </div>
         <div className="p-5 space-y-3">
           <label className="block text-xs font-medium text-gray-500">

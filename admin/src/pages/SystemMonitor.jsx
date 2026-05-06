@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { Pause, Play, ArrowLeft, ArrowRight } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../App.jsx'
 
@@ -78,7 +79,7 @@ function LiveFeedTab() {
         ))}
         <button onClick={() => setPaused(p => !p)}
           className={`ml-auto text-xs px-3 py-1 rounded-full transition ${paused ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-          {paused ? '▶ Resume' : '⏸ Pause'}
+          {paused ? <><Play size={28} className="inline mr-1" />Resume</> : <><Pause size={28} className="inline mr-1" />Pause</>}
         </button>
       </div>
       <div className="bg-white rounded-2xl shadow overflow-hidden">
@@ -253,9 +254,9 @@ function AuditLogTab() {
           <span>{offset + 1}–{Math.min(offset + LIMIT, total)} of {total}</span>
           <div className="flex gap-2">
             <button disabled={offset === 0} onClick={() => fetchLog(offset - LIMIT)}
-              className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-40">← Prev</button>
+              className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-40 flex items-center gap-1"><ArrowLeft size={28} />Prev</button>
             <button disabled={offset + LIMIT >= total} onClick={() => fetchLog(offset + LIMIT)}
-              className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-40">Next →</button>
+              className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-40 flex items-center gap-1">Next<ArrowRight size={28} /></button>
           </div>
         </div>
       )}
