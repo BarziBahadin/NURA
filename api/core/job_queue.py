@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 
 from config import settings
+from core.observability import record_event, record_failure
 from core.session_manager import get_redis
 from core.utils import fire_task
 
@@ -54,6 +55,7 @@ async def run_job_worker(worker_name: str = "api-worker") -> None:
     while True:
         raw = None
         try:
+            await r.setex(f"health:job_worker:{worker_name}", 90, datetime.now(timezone.utc).isoformat())
             raw = await r.blmove(JOB_QUEUE_KEY, JOB_PROCESSING_KEY, timeout=1, src="RIGHT", dest="LEFT")
             if not raw:
                 await asyncio.sleep(0)
@@ -61,12 +63,14 @@ async def run_job_worker(worker_name: str = "api-worker") -> None:
 
             job = json.loads(raw)
             await process_job(job)
+            record_event("jobs.completed", type=job.get("type"))
             await r.lrem(JOB_PROCESSING_KEY, 1, raw)
         except asyncio.CancelledError:
             logger.info(f"Background job worker cancelled: {worker_name}")
             raise
         except Exception as e:
             logger.exception(f"Background job worker error: {e}")
+            record_failure("jobs")
             if raw:
                 await _handle_failed_raw_job(raw)
             await asyncio.sleep(1)

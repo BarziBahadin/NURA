@@ -264,10 +264,71 @@ function AuditLogTab() {
   )
 }
 
+function MetricsTab() {
+  const [metrics, setMetrics] = useState(null)
+  const [health, setHealth] = useState(null)
+
+  useEffect(() => {
+    async function fetchMetrics() {
+      try {
+        const [metricsRes, healthRes] = await Promise.all([
+          fetch(`${api.base}/metrics`, { headers: { Authorization: `Bearer ${api.key}` } }),
+          fetch(`${api.base}/health`, { headers: { Authorization: `Bearer ${api.key}` } }),
+        ])
+        setMetrics(await metricsRes.json())
+        setHealth(await healthRes.json())
+      } catch {}
+    }
+    fetchMetrics()
+    const t = setInterval(fetchMetrics, 5000)
+    return () => clearInterval(t)
+  }, [])
+
+  const eventEntries = Object.entries(metrics?.events || {}).sort(([a], [b]) => a.localeCompare(b))
+  const services = Object.entries(health?.services || {})
+
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="bg-white rounded-2xl shadow p-4">
+        <div className="text-xs text-gray-400 uppercase tracking-wide mb-3">Runtime Health</div>
+        <div className="space-y-2">
+          {services.map(([name, status]) => (
+            <div key={name} className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">{name.replace('_', ' ')}</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                status === 'ok' ? 'bg-green-50 text-green-700' :
+                status === 'inactive' || status === 'missing' ? 'bg-gray-100 text-gray-500' :
+                'bg-red-50 text-red-700'
+              }`}>
+                {status}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow p-4">
+        <div className="text-xs text-gray-400 uppercase tracking-wide mb-3">Operational Counters</div>
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {eventEntries.length === 0 ? (
+            <div className="text-sm text-gray-400">No counters yet</div>
+          ) : eventEntries.map(([name, count]) => (
+            <div key={name} className="flex items-center justify-between gap-3 text-sm border-b border-gray-50 pb-2">
+              <span className="text-gray-600 break-all">{name}</span>
+              <span className="font-semibold text-gray-800">{count}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const TABS = [
   { key: 'feed', label: 'Live Feed' },
   { key: 'sessions', label: 'Live Sessions' },
   { key: 'audit', label: 'Audit Log' },
+  { key: 'metrics', label: 'Health & Metrics' },
 ]
 
 export default function SystemMonitor() {
@@ -308,6 +369,7 @@ export default function SystemMonitor() {
       {tab === 'feed' && <LiveFeedTab />}
       {tab === 'sessions' && <LiveSessionsTab />}
       {tab === 'audit' && <AuditLogTab />}
+      {tab === 'metrics' && <MetricsTab />}
     </div>
   )
 }

@@ -7,6 +7,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from core.auth import get_admin_identity, require_roles, verify_api_key, verify_session_access
+from core.observability import record_event
 from core.session_manager import get_session
 from db.postgres import get_db_pool
 
@@ -263,6 +264,7 @@ async def create_suggestion_case(
         await _log_case_activity(
             conn, row["id"], actor, "created", note=f"Public {kind} submitted from {origin}"
         )
+    record_event("suggestions.submitted", channel=channel, kind=kind, department=department)
     return _row_to_case(row)
 
 
@@ -478,6 +480,55 @@ async def case_stats():
         "at_risk": at_risk or 0,
         "breached": breached or 0,
         "avg_resolution_seconds": float(avg_resolution or 0),
+    }
+
+
+@router.get("/suggestions/stats", dependencies=[Depends(verify_api_key)])
+async def suggestion_stats():
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        status_rows = await conn.fetch(
+            """
+            SELECT status, COUNT(*) AS count
+            FROM support_cases
+            WHERE department = 'suggestions'
+            GROUP BY status
+            """
+        )
+        channel_rows = await conn.fetch(
+            """
+            SELECT COALESCE(channel, 'unknown') AS channel, COUNT(*) AS count
+            FROM support_cases
+            WHERE department = 'suggestions'
+            GROUP BY COALESCE(channel, 'unknown')
+            ORDER BY count DESC
+            """
+        )
+        recent_rows = await conn.fetch(
+            """
+            SELECT date_trunc('day', created_at)::date AS day, COUNT(*) AS count
+            FROM support_cases
+            WHERE department = 'suggestions'
+              AND created_at >= NOW() - INTERVAL '14 days'
+            GROUP BY day
+            ORDER BY day
+            """
+        )
+        unassigned = await conn.fetchval(
+            "SELECT COUNT(*) FROM support_cases WHERE department = 'suggestions' AND owner IS NULL"
+        )
+        total = await conn.fetchval("SELECT COUNT(*) FROM support_cases WHERE department = 'suggestions'")
+    by_status = {r["status"]: r["count"] for r in status_rows}
+    return {
+        "total": total or 0,
+        "new": by_status.get("open", 0) + by_status.get("pending", 0),
+        "reviewed": by_status.get("in_progress", 0) + by_status.get("waiting_customer", 0),
+        "converted": by_status.get("escalated", 0),
+        "closed": by_status.get("resolved", 0) + by_status.get("closed", 0),
+        "unassigned": unassigned or 0,
+        "by_status": by_status,
+        "by_channel": [dict(r) for r in channel_rows],
+        "daily": [{"day": r["day"].isoformat(), "count": r["count"]} for r in recent_rows],
     }
 
 

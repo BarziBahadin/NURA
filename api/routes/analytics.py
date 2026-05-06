@@ -23,6 +23,27 @@ ALLOWED_EVENT_TYPES = {
 }
 
 
+ACTIVE_CASE_STATUSES = ("open", "pending", "in_progress", "waiting_customer", "escalated")
+
+
+def _pct_delta(current: float, previous: float) -> dict:
+    current = float(current or 0)
+    previous = float(previous or 0)
+    absolute = current - previous
+    if previous == 0:
+        percent = 100.0 if current > 0 else 0.0
+    else:
+        percent = round((absolute / previous) * 100, 1)
+    return {"current": current, "previous": previous, "absolute": round(absolute, 4), "percent": percent}
+
+
+def _attention_item(title: str, value: int | float, severity: str, path: str, detail: str = "") -> dict | None:
+    if not value:
+        return None
+    rank = {"critical": 0, "high": 1, "medium": 2, "info": 3}.get(severity, 3)
+    return {"title": title, "value": value, "severity": severity, "path": path, "detail": detail, "rank": rank}
+
+
 class EventPayload(BaseModel):
     session_id:  Optional[str] = Field(default=None, max_length=128)
     customer_id: Optional[str] = Field(default=None, max_length=128)
@@ -71,7 +92,11 @@ async def track_event(request: Request, payload: EventPayload):
 @router.get("/analytics/dashboard")
 async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = Depends(verify_api_key)):
     pool = await get_db_pool()
+    now = datetime.now(timezone.utc)
     since = datetime.now(timezone.utc) - timedelta(days=days)
+    previous_since = since - timedelta(days=days)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday_start = today_start - timedelta(days=1)
 
     async with pool.acquire() as conn:
         # ── totals ────────────────────────────────────────────────────────
@@ -316,6 +341,210 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
             for r in recent_rows
         ]
 
+        period_row = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(DISTINCT session_id) AS sessions,
+                COUNT(*) AS messages,
+                SUM(CASE WHEN escalated THEN 1 ELSE 0 END) AS escalations
+            FROM conversation_logs
+            WHERE created_at >= $1 AND created_at < $2
+            """,
+            previous_since, since,
+        )
+        previous_sessions = period_row["sessions"] or 0
+        previous_messages = period_row["messages"] or 0
+        previous_escalations = period_row["escalations"] or 0
+        previous_escalation_rate = previous_escalations / previous_messages if previous_messages else 0
+        previous_deflection_rate = (previous_sessions - previous_escalations) / previous_sessions if previous_sessions else 0
+
+        previous_feedback = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN score = 'good' THEN 1 ELSE 0 END) AS good
+            FROM message_feedback
+            WHERE created_at >= $1 AND created_at < $2
+            """,
+            previous_since, since,
+        )
+        previous_feedback_total = previous_feedback["total"] or 0
+        previous_feedback_good = previous_feedback["good"] or 0
+        previous_feedback_rate = previous_feedback_good / previous_feedback_total if previous_feedback_total else 0
+
+        today_row = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(DISTINCT session_id) AS sessions,
+                COUNT(*) AS messages,
+                SUM(CASE WHEN escalated THEN 1 ELSE 0 END) AS escalations
+            FROM conversation_logs
+            WHERE created_at >= $1
+            """,
+            today_start,
+        )
+        yesterday_row = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(DISTINCT session_id) AS sessions,
+                COUNT(*) AS messages,
+                SUM(CASE WHEN escalated THEN 1 ELSE 0 END) AS escalations
+            FROM conversation_logs
+            WHERE created_at >= $1 AND created_at < $2
+            """,
+            yesterday_start, today_start,
+        )
+        today_cases = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE status = ANY($1::text[])) AS open_cases,
+                COUNT(*) FILTER (WHERE department = 'suggestions' AND created_at >= $2) AS new_suggestions
+            FROM support_cases
+            """,
+            list(ACTIVE_CASE_STATUSES), today_start,
+        )
+        yesterday_cases = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE status = ANY($1::text[])) AS open_cases,
+                COUNT(*) FILTER (
+                    WHERE department = 'suggestions'
+                      AND created_at >= $2
+                      AND created_at < $3
+                ) AS new_suggestions
+            FROM support_cases
+            """,
+            list(ACTIVE_CASE_STATUSES), yesterday_start, today_start,
+        )
+
+        queue_row = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'PENDING_HANDOFF') AS pending_handoffs,
+                COUNT(*) FILTER (WHERE status = 'HUMAN_ACTIVE') AS human_active,
+                COALESCE(MAX(EXTRACT(EPOCH FROM (NOW() - updated_at))) FILTER (WHERE status = 'PENDING_HANDOFF'), 0) AS oldest_wait_seconds,
+                COALESCE(AVG(EXTRACT(EPOCH FROM (NOW() - updated_at))) FILTER (WHERE status = 'PENDING_HANDOFF'), 0) AS avg_wait_seconds
+            FROM sessions
+            WHERE status IN ('ACTIVE', 'PENDING_HANDOFF', 'HUMAN_ACTIVE')
+            """
+        )
+
+        ops_case_row = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE status = ANY($1::text[])) AS open,
+                COUNT(*) FILTER (WHERE status = ANY($1::text[]) AND owner IS NULL) AS unassigned,
+                COUNT(*) FILTER (WHERE status = ANY($1::text[]) AND sla_status = 'breached') AS breached,
+                COUNT(*) FILTER (WHERE status = ANY($1::text[]) AND sla_status = 'at_risk') AS at_risk
+            FROM support_cases
+            """,
+            list(ACTIVE_CASE_STATUSES),
+        )
+        case_owner_rows = await conn.fetch(
+            """
+            SELECT COALESCE(owner, 'Unassigned') AS owner, COUNT(*) AS count
+            FROM support_cases
+            WHERE status = ANY($1::text[])
+            GROUP BY COALESCE(owner, 'Unassigned')
+            ORDER BY count DESC
+            LIMIT 8
+            """,
+            list(ACTIVE_CASE_STATUSES),
+        )
+        ops_case_dept_rows = await conn.fetch(
+            """
+            SELECT department, COUNT(*) AS count
+            FROM support_cases
+            WHERE status = ANY($1::text[])
+            GROUP BY department
+            ORDER BY count DESC
+            LIMIT 8
+            """,
+            list(ACTIVE_CASE_STATUSES),
+        )
+
+        suggestion_row = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE status IN ('open','pending')) AS new,
+                COUNT(*) FILTER (WHERE status = ANY($1::text[]) AND owner IS NULL) AS unassigned
+            FROM support_cases
+            WHERE department = 'suggestions'
+            """,
+            list(ACTIVE_CASE_STATUSES),
+        )
+        suggestion_channel_rows = await conn.fetch(
+            """
+            SELECT COALESCE(channel, 'unknown') AS channel, COUNT(*) AS count
+            FROM support_cases
+            WHERE department = 'suggestions'
+            GROUP BY COALESCE(channel, 'unknown')
+            ORDER BY count DESC
+            LIMIT 8
+            """
+        )
+
+    today = {
+        "messages": today_row["messages"] or 0,
+        "sessions": today_row["sessions"] or 0,
+        "escalations": today_row["escalations"] or 0,
+        "open_cases": today_cases["open_cases"] or 0,
+        "new_suggestions": today_cases["new_suggestions"] or 0,
+    }
+    previous_period = {
+        "messages": previous_messages,
+        "sessions": previous_sessions,
+        "escalations": previous_escalations,
+        "escalation_rate": round(previous_escalation_rate, 4),
+        "deflection_rate": round(previous_deflection_rate, 4),
+        "feedback_positive_rate": round(previous_feedback_rate, 4),
+        "today_messages": yesterday_row["messages"] or 0,
+        "today_sessions": yesterday_row["sessions"] or 0,
+        "today_escalations": yesterday_row["escalations"] or 0,
+        "open_cases": yesterday_cases["open_cases"] or 0,
+        "new_suggestions": yesterday_cases["new_suggestions"] or 0,
+    }
+    queue = {
+        "pending_handoffs": queue_row["pending_handoffs"] or 0,
+        "human_active": queue_row["human_active"] or 0,
+        "oldest_wait_seconds": float(queue_row["oldest_wait_seconds"] or 0),
+        "avg_wait_seconds": float(queue_row["avg_wait_seconds"] or 0),
+    }
+    cases = {
+        "open": ops_case_row["open"] or 0,
+        "unassigned": ops_case_row["unassigned"] or 0,
+        "breached": ops_case_row["breached"] or 0,
+        "at_risk": ops_case_row["at_risk"] or 0,
+        "by_owner": [dict(r) for r in case_owner_rows],
+        "by_department": [dict(r) for r in ops_case_dept_rows],
+    }
+    suggestions = {
+        "new": suggestion_row["new"] or 0,
+        "unassigned": suggestion_row["unassigned"] or 0,
+        "by_channel": [dict(r) for r in suggestion_channel_rows],
+    }
+    feedback_positive_rate = round(feedback_good / feedback_total, 4) if feedback_total else 0
+    deflection_rate = round((total_sessions - escalations) / total_sessions, 4) if total_sessions else 0
+    deltas = {
+        "messages": _pct_delta(total_messages, previous_messages),
+        "sessions": _pct_delta(total_sessions, previous_sessions),
+        "escalation_rate": _pct_delta(escalation_rate, previous_escalation_rate),
+        "deflection_rate": _pct_delta(deflection_rate, previous_deflection_rate),
+        "feedback_positive_rate": _pct_delta(feedback_positive_rate, previous_feedback_rate),
+        "today_messages": _pct_delta(today["messages"], previous_period["today_messages"]),
+        "today_sessions": _pct_delta(today["sessions"], previous_period["today_sessions"]),
+    }
+    attention_items = [
+        _attention_item("SLA breached", cases["breached"], "critical", "/cases", "Cases are past due"),
+        _attention_item("SLA at risk", cases["at_risk"], "high", "/cases", "Cases are close to deadline"),
+        _attention_item("Pending handoffs", queue["pending_handoffs"], "high", "/queue", "Customers are waiting for agents"),
+        _attention_item("Unassigned cases", cases["unassigned"], "medium", "/cases", "Cases need an owner"),
+        _attention_item("Unassigned suggestions", suggestions["unassigned"], "medium", "/suggestions", "Feedback needs review"),
+        _attention_item("Knowledge gaps", knowledge_gaps, "medium", "/gaps", "Questions need better answers"),
+        _attention_item("Bad feedback", feedback_bad, "medium", "/reports", "Customers marked answers as bad"),
+    ]
+    attention_items = sorted([item for item in attention_items if item], key=lambda item: item["rank"])[:6]
+
     return {
         "period_days":          days,
         "total_sessions":       total_sessions,
@@ -331,11 +560,11 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
         "feedback_total":       feedback_total,
         "feedback_good":        feedback_good,
         "feedback_bad":         feedback_bad,
-        "feedback_positive_rate": round(feedback_good / feedback_total, 4) if feedback_total else 0,
+        "feedback_positive_rate": feedback_positive_rate,
         "resolved_sessions":    resolved_sessions,
         "avg_time_to_accept_seconds": avg_time_to_accept_seconds,
         "avg_time_to_resolution_seconds": avg_time_to_resolution_seconds,
-        "deflection_rate":      round((total_sessions - escalations) / total_sessions, 4) if total_sessions else 0,
+        "deflection_rate":      deflection_rate,
         "knowledge_gaps":       knowledge_gaps,
         "estimated_ai_cost":    round(estimated_ai_cost, 6),
         "llm_total_tokens":     llm_total_tokens,
@@ -350,6 +579,13 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
         "avg_case_resolution_seconds": float(case_row["avg_case_resolution"] or 0),
         "case_department_breakdown": [dict(r) for r in case_dept_rows],
         "recent_conversations": recent,
+        "today": today,
+        "previous_period": previous_period,
+        "deltas": deltas,
+        "queue": queue,
+        "cases": cases,
+        "suggestions": suggestions,
+        "attention_items": attention_items,
     }
 
 

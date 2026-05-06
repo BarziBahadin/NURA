@@ -8,6 +8,7 @@ from slowapi.util import get_remote_address
 
 from core.auth import verify_api_key, verify_session_access
 from core.logger import log_session_outcome
+from core.observability import record_event
 from core.session_manager import get_customer_token, get_or_create_session, get_session, save_session
 from core.utils import fire_task
 from models.session import SessionStatus
@@ -146,6 +147,11 @@ async def accept_handoff(
         handoff_reason=session.metadata.get("handoff_reason", ""),
         accepted_at=now,
         time_to_accept_seconds=max(0, (now - datetime.fromisoformat(session.created_at)).total_seconds()),
+    )
+    record_event(
+        "handoff.accepted",
+        value=int(max(0, (now - datetime.fromisoformat(session.created_at)).total_seconds())),
+        channel=session.channel,
     )
     chat_id = _telegram_chat_id(session, session_id)
     if chat_id is not None:

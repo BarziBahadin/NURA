@@ -11,6 +11,7 @@ from openai import AsyncOpenAI
 from config import settings
 from core.intent_classifier import estimate_chat_cost
 from core.logger import log_llm_usage
+from core.observability import record_event, record_failure
 from core.rag_engine import retrieve_context
 from core.text_preprocessor import TextPreprocessor
 from db.postgres import get_db_pool
@@ -254,12 +255,19 @@ async def generate_response(
             completion_tokens=completion_tokens,
             estimated_cost=estimate_chat_cost(prompt_tokens, completion_tokens),
         )
+        record_event(
+            "openai.chat.completed",
+            value=prompt_tokens + completion_tokens,
+            model=settings.openai_model,
+            source="openai",
+        )
         reply = resp.choices[0].message.content.strip()
         if not reply:
             reply = "عذرًا، لم أتمكن من معالجة طلبك. سأقوم بتحويلك إلى أحد أعضاء فريقنا."
         return reply, confidence, "openai", source_doc
     except Exception as e:
         logger.error(f"OpenAI error: {e}")
+        record_failure("openai.chat", model=settings.openai_model)
         return (
             "عذرًا، يواجه النظام مشكلة مؤقتة. سيتم تحويلك إلى أحد أعضاء فريقنا.",
             0.0,

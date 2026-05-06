@@ -1,6 +1,8 @@
 import asyncio
 import logging
 
+from core.observability import record_event, record_failure
+from core.session_manager import get_redis
 from db.postgres import get_db_pool
 
 logger = logging.getLogger(__name__)
@@ -12,12 +14,14 @@ async def run_sla_monitor(interval_seconds: int = 60) -> None:
     logger.info("SLA monitor started")
     while True:
         try:
+            await get_redis().setex("health:sla_monitor", 90, "ok")
             await check_case_slas()
         except asyncio.CancelledError:
             logger.info("SLA monitor cancelled")
             raise
         except Exception as exc:
             logger.exception(f"SLA monitor error: {exc}")
+            record_failure("sla.monitor")
         await asyncio.sleep(interval_seconds)
 
 
@@ -75,4 +79,8 @@ async def check_case_slas() -> dict:
                 row["id"], f"SLA approaching for {row['case_number']}",
             )
 
+    if breached:
+        record_event("sla.breached", value=len(breached))
+    if at_risk:
+        record_event("sla.at_risk", value=len(at_risk))
     return {"breached": len(breached), "at_risk": len(at_risk)}

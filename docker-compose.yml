@@ -21,6 +21,11 @@ services:
       - ./uploads:/app/uploads
     networks:
       - nura_network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3).read()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   nura-worker:
@@ -45,6 +50,11 @@ services:
       - ./frontend:/app/frontend
     networks:
       - nura_network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import redis, os; r=redis.Redis(host=os.environ.get('REDIS_HOST','redis'), port=int(os.environ.get('REDIS_PORT','6379'))); raise SystemExit(0 if r.exists('health:job_worker:api-worker') else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     profiles:
       - workers
     restart: unless-stopped
@@ -72,6 +82,11 @@ services:
       - ./frontend:/app/frontend
     networks:
       - nura_network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import redis, os; r=redis.Redis(host=os.environ.get('REDIS_HOST','redis'), port=int(os.environ.get('REDIS_PORT','6379'))); raise SystemExit(0 if r.exists('health:telegram_worker') else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     profiles:
       - telegram
     restart: unless-stopped
@@ -132,6 +147,11 @@ services:
       - "127.0.0.1:3004:80"
     networks:
       - nura_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
 networks:

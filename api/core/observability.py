@@ -2,6 +2,8 @@ import logging
 import time
 import uuid
 from collections import Counter
+from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -10,6 +12,9 @@ logger = logging.getLogger("nura.requests")
 
 REQUEST_COUNTER: Counter[str] = Counter()
 REQUEST_LATENCY_MS: Counter[str] = Counter()
+EVENT_COUNTER: Counter[str] = Counter()
+EVENT_VALUES: Counter[str] = Counter()
+LAST_EVENTS: dict[str, str] = {}
 
 
 class ObservabilityMiddleware(BaseHTTPMiddleware):
@@ -60,4 +65,26 @@ def metrics_snapshot() -> dict:
     return {
         "requests": dict(REQUEST_COUNTER),
         "total_latency_ms": dict(REQUEST_LATENCY_MS),
+        "events": dict(EVENT_COUNTER),
+        "event_values": dict(EVENT_VALUES),
+        "last_events": dict(LAST_EVENTS),
     }
+
+
+def record_event(name: str, value: int = 1, **labels: Any) -> None:
+    label = _metric_key(name, labels)
+    EVENT_COUNTER[label] += 1
+    EVENT_VALUES[label] += int(value or 0)
+    LAST_EVENTS[label] = datetime.now(timezone.utc).isoformat()
+
+
+def record_failure(name: str, **labels: Any) -> None:
+    record_event(f"{name}.failed", **labels)
+
+
+def _metric_key(name: str, labels: dict[str, Any]) -> str:
+    clean = {k: str(v) for k, v in labels.items() if v is not None and v != ""}
+    if not clean:
+        return name
+    suffix = ",".join(f"{k}={clean[k]}" for k in sorted(clean))
+    return f"{name}|{suffix}"

@@ -14,6 +14,7 @@ from slowapi.util import get_remote_address
 
 from config import settings
 from core.auth import has_admin_access, verify_session_access
+from core.observability import record_event, record_failure
 from core.session_manager import get_session
 
 router = APIRouter()
@@ -100,10 +101,12 @@ async def upload_file(
         await verify_session_access(request, session)
 
     if file.content_type not in ALLOWED_TYPES:
+        record_failure("uploads", reason="content_type", content_type=file.content_type)
         raise HTTPException(status_code=415, detail="File type not allowed")
 
     contents = await file.read(MAX_SIZE + 1)
     if len(contents) > MAX_SIZE:
+        record_failure("uploads", reason="size")
         raise HTTPException(status_code=413, detail="File too large (max 5 MB)")
 
     safe_name = os.path.basename(file.filename or "upload")
@@ -118,6 +121,7 @@ async def upload_file(
     url = str(request.base_url).rstrip("/") + path_url
     if session_id:
         url += "?" + urlencode({"file_token": _sign_file_token(session_id, filename)})
+    record_event("uploads.completed", channel=session.channel if session else "admin", content_type=file.content_type)
     return {"url": url, "filename": filename, "content_type": file.content_type}
 
 

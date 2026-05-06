@@ -598,7 +598,7 @@ export default function LiveQueue() {
   const active = sessions.filter(s => s.status === 'HUMAN_ACTIVE')
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-6 max-w-7xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Live Queue</h1>
         <div className="flex gap-2">
@@ -628,22 +628,38 @@ export default function LiveQueue() {
           <div>No sessions in queue</div>
         </div>
       ) : (
-        <div className="space-y-3">
-          {/* HUMAN_ACTIVE — full chat cards */}
-          {active.map(s => (
-            <ActiveChatCard key={s.session_id} s={s} onResolved={fetchQueue} />
-          ))}
+        <div className="space-y-6">
+          {active.length > 0 && (
+            <section>
+              <div className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-2">
+                Active Chats
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+                {active.map(s => (
+                  <ActiveChatCard key={s.session_id} s={s} onResolved={fetchQueue} />
+                ))}
+              </div>
+            </section>
+          )}
 
-          {/* PENDING_HANDOFF — preview before accepting */}
-          {pending.map(s => (
-            <PendingHandoffCard
-              key={s.session_id}
-              s={s}
-              onPreview={setPreviewTarget}
-              onResolve={setResolveTarget}
-              resolving={!!resolving[s.session_id]}
-            />
-          ))}
+          {pending.length > 0 && (
+            <section>
+              <div className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-2">
+                Waiting For Agent
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+                {pending.map(s => (
+                  <PendingHandoffCard
+                    key={s.session_id}
+                    s={s}
+                    onPreview={setPreviewTarget}
+                    onResolve={setResolveTarget}
+                    resolving={!!resolving[s.session_id]}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       )}
       {previewTarget && (

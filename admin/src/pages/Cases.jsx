@@ -424,6 +424,9 @@ export default function Cases({
   initialDepartment = 'all',
   title = 'Cases',
   subtitle = 'Ticket workflow, ownership, departments and SLA tracking',
+  createLabel = 'New Case',
+  hideDepartmentFilter = false,
+  embeddedHeader = false,
 }) {
   const [cases, setCases] = useState([])
   const [departments, setDepartments] = useState([])
@@ -498,9 +501,9 @@ export default function Cases({
   const openCount = (stats.open || 0) + (stats.in_progress || 0) + (stats.waiting_customer || 0) + (stats.escalated || 0) + (stats.pending || 0)
 
   return (
-    <div className="p-6 max-w-7xl">
+    <div className={`${embeddedHeader ? 'px-6 pb-6 pt-2' : 'p-6'} max-w-7xl`}>
       <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
-        <div>
+        <div className={embeddedHeader ? 'sr-only' : ''}>
           <h1 className="text-2xl font-bold text-gray-800">{title}</h1>
           <div className="text-xs text-gray-400 mt-1">{subtitle}</div>
         </div>
@@ -509,7 +512,7 @@ export default function Cases({
             Refresh
           </button>
           <button onClick={() => setCreateOpen(true)} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">
-            New Case
+            {createLabel}
           </button>
         </div>
       </div>
@@ -522,7 +525,7 @@ export default function Cases({
       </div>
 
       <div className="bg-white rounded-2xl shadow p-4 mb-5">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className={`grid grid-cols-1 ${hideDepartmentFilter ? 'md:grid-cols-3' : 'md:grid-cols-4'} gap-3`}>
           <input value={filters.q} onChange={e => setFilters(f => ({ ...f, q: e.target.value }))}
             placeholder="Search case, session, customer..."
             className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100" />
@@ -534,11 +537,13 @@ export default function Cases({
             className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
             {PRIORITIES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
           </select>
-          <select value={filters.department} onChange={e => setFilters(f => ({ ...f, department: e.target.value }))}
-            className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
-            <option value="all">All Departments</option>
-            {departments.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
-          </select>
+          {!hideDepartmentFilter && (
+            <select value={filters.department} onChange={e => setFilters(f => ({ ...f, department: e.target.value }))}
+              className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
+              <option value="all">All Departments</option>
+              {departments.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
+            </select>
+          )}
         </div>
       </div>
 

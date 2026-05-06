@@ -190,7 +190,19 @@ def test_customer_session_token_allows_message_access(monkeypatch, build_app):
 
 def test_admin_login_and_me(monkeypatch, build_app):
     from routes import auth as auth_route
+    from core import session_manager
 
+    monkeypatch.setattr(
+        auth_route,
+        "verify_db_password",
+        lambda username, password: _async_value({
+            "username": username,
+            "role": "admin",
+            "display_name": "Admin",
+            "is_active": True,
+        }),
+    )
+    monkeypatch.setattr(session_manager, "get_redis", lambda: FakeAuthRedis())
     monkeypatch.setattr(auth_route, "log_security_event", lambda *_, **__: _async_none())
     client = TestClient(build_app(auth_route.router))
     login = client.post("/v1/auth/login", json={"username": "admin", "password": "password"})
@@ -201,6 +213,91 @@ def test_admin_login_and_me(monkeypatch, build_app):
     me = client.get("/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert me.status_code == 200
     assert me.json()["role"] == "admin"
+
+
+def test_public_suggestion_endpoint_creates_case(monkeypatch, build_app):
+    from routes import cases as cases_route
+
+    created = {}
+
+    async def fake_create_suggestion_case(**kwargs):
+        created.update(kwargs)
+        return {"case_number": "NURA-TEST-00001", "id": 10}
+
+    monkeypatch.setattr(cases_route, "create_suggestion_case", fake_create_suggestion_case)
+    monkeypatch.setattr(cases_route, "get_session", lambda *_: _async_value(None))
+
+    client = TestClient(build_app(cases_route.router))
+    response = client.post(
+        "/v1/suggestions",
+        json={
+            "message": "اقتراح لتحسين سرعة الرد داخل التطبيق",
+            "customer_id": "cust-suggest",
+            "channel": "web",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["case_number"] == "NURA-TEST-00001"
+    assert created["message"] == "اقتراح لتحسين سرعة الرد داخل التطبيق"
+    assert created["customer_id"] == "cust-suggest"
+    assert created["channel"] == "web"
+
+
+@pytest.mark.asyncio
+async def test_create_suggestion_case_uses_suggestions_department(monkeypatch):
+    from routes import cases as cases_route
+
+    pool = FakeSuggestionPool()
+    monkeypatch.setattr(cases_route, "get_db_pool", lambda: _async_value(pool))
+    monkeypatch.setattr(cases_route, "is_valid_department_code", lambda code: code == "suggestions")
+
+    result = await cases_route.create_suggestion_case(
+        message="اقتراح تيليجرام مهم",
+        customer_id="tg-1",
+        channel="telegram",
+        actor="telegram",
+        origin="Telegram bot",
+    )
+
+    assert result["case_number"].endswith("-00002")
+    assert pool.conn.insert_args["department"] == "suggestions"
+    assert pool.conn.insert_args["channel"] == "telegram"
+    assert pool.conn.insert_args["source"] == "suggestion"
+    assert "telegram" in pool.conn.insert_args["tags"]
+
+
+@pytest.mark.asyncio
+async def test_telegram_pending_suggestion_creates_case(monkeypatch):
+    from routes import telegram as telegram_route
+
+    session = make_session(session_id="tg-session", customer_id="123", channel="telegram")
+    redis = FakeTelegramRedis({"tg:suggestion:123": json.dumps({"session_id": "tg-session"})})
+    sent = []
+    created = {}
+    appended = []
+
+    async def fake_create_suggestion_case(**kwargs):
+        created.update(kwargs)
+        return {"case_number": "NURA-TEST-00003"}
+
+    async def fake_append_turn(*args, **kwargs):
+        appended.append((args, kwargs))
+
+    monkeypatch.setattr(telegram_route, "get_redis", lambda: redis)
+    monkeypatch.setattr(telegram_route, "_get_chat_session", lambda *_: _async_value(session))
+    monkeypatch.setattr(telegram_route, "create_suggestion_case", fake_create_suggestion_case)
+    monkeypatch.setattr(telegram_route, "append_turn", fake_append_turn)
+    monkeypatch.setattr(telegram_route, "_send", lambda chat_id, text, **kwargs: _async_append(sent, {"chat_id": chat_id, "text": text, "kwargs": kwargs}))
+
+    await telegram_route._handle_message({"chat": {"id": 123}, "text": "أقترح إضافة متابعة لحالة الطلب من داخل تيليجرام"})
+
+    assert created["channel"] == "telegram"
+    assert created["customer_id"] == "123"
+    assert created["session_id"] == "tg-session"
+    assert appended
+    assert "tg:suggestion:123" in redis.deleted
+    assert "NURA-TEST-00003" in sent[-1]["text"]
 
 
 @pytest.mark.asyncio
@@ -303,6 +400,26 @@ async def test_dashboard_returns_expected_kpis(monkeypatch):
     assert result["knowledge_gaps"] == 2
     assert result["llm_total_tokens"] == 1234
     assert result["top_intents"][0]["intent"] == "connectivity"
+    assert result["today"]["messages"] == 5
+    assert result["previous_period"]["messages"] == 5
+    assert result["deltas"]["messages"]["percent"] == 0.0
+    assert result["queue"]["pending_handoffs"] == 2
+    assert result["queue"]["oldest_wait_seconds"] == 300.0
+    assert result["cases"]["unassigned"] == 1
+    assert result["cases"]["by_owner"][0]["owner"] == "Unassigned"
+    assert result["suggestions"]["unassigned"] == 1
+    assert result["attention_items"][0]["severity"] == "critical"
+
+
+def test_dashboard_delta_handles_zero_previous_period():
+    from routes.analytics import _pct_delta
+
+    increased = _pct_delta(10, 0)
+    flat = _pct_delta(0, 0)
+
+    assert increased["percent"] == 100.0
+    assert increased["absolute"] == 10.0
+    assert flat["percent"] == 0.0
 
 
 @pytest.mark.asyncio
@@ -345,6 +462,8 @@ class FakeDashboardPool(FakePool):
 
 class FakeDashboardConn:
     async def fetchrow(self, query, *args):
+        if "COUNT(DISTINCT session_id) AS sessions" in query:
+            return {"sessions": 3, "messages": 5, "escalations": 1}
         if "FROM conversation_logs" in query:
             return {"total_sessions": 3, "total_messages": 5, "avg_confidence": 0.8, "escalations": 1}
         if "FROM message_feedback" in query:
@@ -355,6 +474,29 @@ class FakeDashboardConn:
             return {"gaps": 2}
         if "FROM llm_usage_logs" in query:
             return {"cost": 0.001, "tokens": 1234}
+        if "FROM sessions" in query:
+            return {
+                "pending_handoffs": 2,
+                "human_active": 1,
+                "oldest_wait_seconds": 300.0,
+                "avg_wait_seconds": 90.0,
+            }
+        if "FROM support_cases" in query:
+            return {
+                "open_cases": 2,
+                "escalated_cases": 1,
+                "resolved_cases": 3,
+                "cases_at_risk": 1,
+                "cases_breached": 0,
+                "cases_overdue": 0,
+                "avg_case_resolution": 120.0,
+                "new_suggestions": 1,
+                "open": 2,
+                "unassigned": 1,
+                "breached": 1,
+                "at_risk": 1,
+                "new": 1,
+            }
         return {}
 
     async def fetch(self, query, *args):
@@ -373,6 +515,12 @@ class FakeDashboardConn:
             return [{"intent": "connectivity", "count": 2}]
         if "handoff_reason" in query:
             return [{"reason": "explicit_request", "count": 1}]
+        if "COALESCE(owner" in query:
+            return [{"owner": "Unassigned", "count": 1}, {"owner": "agent-a", "count": 1}]
+        if "COALESCE(channel" in query:
+            return [{"channel": "web", "count": 1}, {"channel": "telegram", "count": 1}]
+        if "FROM support_cases" in query:
+            return [{"department": "suggestions", "count": 2}]
         if "ORDER BY created_at DESC" in query:
             return [{
                 "session_id": "s1",
@@ -425,6 +573,66 @@ class FakeReportsConn:
         return []
 
 
+class FakeSuggestionPool(FakePool):
+    def __init__(self):
+        self.conn = FakeSuggestionConn()
+
+
+class FakeSuggestionConn:
+    def __init__(self):
+        self.insert_args = {}
+
+    async def fetchval(self, query, *args):
+        if "nextval" in query:
+            return 2
+        return 0
+
+    async def fetchrow(self, query, *args):
+        now = datetime.now(timezone.utc)
+        self.insert_args = {
+            "case_number": args[0],
+            "session_id": args[1],
+            "customer_id": args[2],
+            "channel": args[3],
+            "title": args[4],
+            "description": args[5],
+            "department": args[6],
+            "tags": args[7],
+            "internal_notes": args[8],
+            "source": "suggestion",
+            "created_by": args[11],
+        }
+        return {
+            "id": 2,
+            "case_number": args[0],
+            "session_id": args[1],
+            "customer_id": args[2],
+            "channel": args[3],
+            "title": args[4],
+            "description": args[5],
+            "department": args[6],
+            "priority": "normal",
+            "owner": None,
+            "tags": args[7],
+            "internal_notes": args[8],
+            "source": "suggestion",
+            "status": "open",
+            "sla_status": "ok",
+            "first_response_due_at": args[9],
+            "sla_due_at": args[10],
+            "sla_warned_at": None,
+            "sla_breached_at": None,
+            "resolved_at": None,
+            "created_at": now,
+            "updated_at": now,
+            "created_by": args[11],
+            "updated_by": args[11],
+        }
+
+    async def execute(self, query, *args):
+        return "INSERT 0 1"
+
+
 class FakeRedis:
     def __init__(self):
         self.storage = {}
@@ -468,6 +676,33 @@ class FakeRedis:
         for key in list(self.storage):
             if key.startswith("session:"):
                 yield key
+
+
+class FakeTelegramRedis:
+    def __init__(self, storage=None):
+        self.storage = storage or {}
+        self.deleted = []
+
+    async def get(self, key):
+        return self.storage.get(key)
+
+    async def set(self, key, value, ex=None):
+        self.storage[key] = value
+        return True
+
+    async def setex(self, key, ttl, value):
+        self.storage[key] = value
+        return True
+
+    async def delete(self, key):
+        self.deleted.append(key)
+        self.storage.pop(key, None)
+        return 1
+
+
+class FakeAuthRedis:
+    async def exists(self, key):
+        return 0
 
 
 class FakeSessionPool(FakePool):

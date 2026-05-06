@@ -179,6 +179,8 @@ Request observability includes:
 - `X-Request-ID` response header
 - slow request logging
 - protected `GET /v1/metrics`
+- counters for uploads, OpenAI calls, Telegram sends, suggestions, handoff accept time, and SLA transitions
+- `/v1/health` checks for API, Redis, PostgreSQL, ChromaDB, uploads, ML artifacts, SLA monitor, job worker, and Telegram worker heartbeat
 
 ---
 
@@ -233,6 +235,74 @@ docker compose exec nura-api python /app/ingestion/ingest.py
 | Redis | `localhost:6379` | Session cache |
 | Worker | optional Compose profile | Redis-backed background jobs |
 | Telegram Worker | optional Compose profile | Standalone Telegram polling |
+
+---
+
+## Health, Metrics, And Runtime Checks
+
+Protected checks:
+
+```bash
+curl -H "Authorization: Bearer <access_token>" \
+  http://localhost:8080/v1/health
+
+curl -H "Authorization: Bearer <access_token>" \
+  http://localhost:8080/v1/metrics
+```
+
+The health endpoint reports:
+
+- `postgres`, `redis`, and `chromadb`
+- `uploads` directory write readiness
+- `ml_model` artifact presence
+- `sla_monitor` heartbeat
+- `job_worker` heartbeat when background jobs are enabled
+- `telegram_worker` heartbeat when Telegram polling is enabled
+
+Docker Compose also has container health checks for the API, admin UI, standalone worker, and Telegram worker. If the Telegram worker is intentionally disabled, keep `TELEGRAM_POLLER_ENABLED=false` for the API process and do not start the `telegram` profile.
+
+## Backup And Restore
+
+Create a PostgreSQL backup:
+
+```bash
+mkdir -p backups
+docker compose exec postgres pg_dump -U nura_user -d nura_db -Fc \
+  > backups/nura_$(date +%Y%m%d_%H%M%S).dump
+```
+
+Restore PostgreSQL into the running database:
+
+```bash
+docker compose exec -T postgres pg_restore -U nura_user -d nura_db --clean --if-exists \
+  < backups/nura_YYYYMMDD_HHMMSS.dump
+```
+
+Back up uploaded files:
+
+```bash
+tar -czf backups/uploads_$(date +%Y%m%d_%H%M%S).tar.gz uploads
+```
+
+Restore uploaded files:
+
+```bash
+tar -xzf backups/uploads_YYYYMMDD_HHMMSS.tar.gz
+```
+
+Back up ChromaDB data if you rely on persisted embeddings:
+
+```bash
+docker run --rm -v nura_nura_chroma_data:/data -v "$PWD/backups:/backup" alpine \
+  tar -czf /backup/chroma_$(date +%Y%m%d_%H%M%S).tar.gz -C /data .
+```
+
+After a restore, restart the stack and verify:
+
+```bash
+docker compose up -d
+curl -H "Authorization: Bearer <access_token>" http://localhost:8080/v1/health
+```
 
 ---
 

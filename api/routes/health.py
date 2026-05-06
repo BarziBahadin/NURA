@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import time
 from typing import Optional
 
@@ -69,17 +70,58 @@ async def _check_postgres() -> str:
         return "error"
 
 
+async def _check_uploads() -> str:
+    try:
+        return "ok" if os.path.isdir("/app/uploads") and os.access("/app/uploads", os.W_OK) else "error"
+    except Exception:
+        return "error"
+
+
+async def _check_ml_model() -> str:
+    required = [settings.ml_model_path, settings.ml_vectorizer_path]
+    if not settings.ml_require_artifact_hashes:
+        return "ok" if all(os.path.exists(path) for path in required) else "missing"
+    metadata = "/app/ml_models/metadata.json"
+    return "ok" if all(os.path.exists(path) for path in [*required, metadata]) else "missing"
+
+
+async def _check_redis_heartbeat(key: str, required: bool = False) -> str:
+    try:
+        from core.session_manager import get_redis
+        exists = await get_redis().exists(key)
+        if exists:
+            return "ok"
+        return "error" if required else "inactive"
+    except Exception:
+        return "error"
+
+
 @router.get("/health")
 async def health_check(_: None = Depends(verify_api_key)):
     now = time.monotonic()
     if _health_cache.get("at", 0) and (now - _health_cache["at"]) < _HEALTH_TTL:
         return _health_cache["result"]
 
-    openai_status, redis_status, chroma_status, pg_status = await asyncio.gather(
+    (
+        openai_status,
+        redis_status,
+        chroma_status,
+        pg_status,
+        uploads_status,
+        ml_status,
+        job_worker_status,
+        sla_monitor_status,
+        telegram_worker_status,
+    ) = await asyncio.gather(
         _check_openai(),
         _check_redis(),
         _check_chromadb(),
         _check_postgres(),
+        _check_uploads(),
+        _check_ml_model(),
+        _check_redis_heartbeat("health:job_worker:api-worker", required=settings.background_jobs_enabled and settings.job_worker_enabled),
+        _check_redis_heartbeat("health:sla_monitor", required=True),
+        _check_redis_heartbeat("health:telegram_worker", required=settings.telegram_poller_enabled),
     )
 
     services = {
@@ -88,8 +130,13 @@ async def health_check(_: None = Depends(verify_api_key)):
         "redis":    redis_status,
         "chromadb": chroma_status,
         "postgres": pg_status,
+        "uploads": uploads_status,
+        "ml_model": ml_status,
+        "job_worker": job_worker_status,
+        "sla_monitor": sla_monitor_status,
+        "telegram_worker": telegram_worker_status,
     }
-    overall = "ok" if all(v == "ok" for v in services.values()) else "degraded"
+    overall = "ok" if all(v in ("ok", "inactive", "missing") for v in services.values()) else "degraded"
     result = {"status": overall, "services": services}
     _health_cache["result"] = result
     _health_cache["at"] = now

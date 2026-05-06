@@ -1,12 +1,14 @@
 import asyncio
 import json
 import logging
+import time
 from typing import Optional
 
 import httpx
 
 from config import settings
 from core.message_pipeline import process_customer_message
+from core.observability import record_event, record_failure
 from core.session_manager import SESSION_TTL, append_turn, get_or_create_session, get_redis, save_session
 from core.utils import fire_task
 from models.session import SessionStatus
@@ -135,7 +137,9 @@ async def _call(method: str, http_timeout: float = 10.0, **kwargs) -> dict:
 async def _send(chat_id: int, text: str, **kwargs) -> None:
     try:
         await _call("sendMessage", http_timeout=10.0, chat_id=chat_id, text=text, **kwargs)
+        record_event("telegram.send.completed")
     except Exception as e:
+        record_failure("telegram.send")
         logger.warning(f"Telegram sendMessage failed: {e}")
 
 
@@ -380,9 +384,11 @@ async def run_telegram_poller() -> None:
 
     logger.info("Telegram long-polling started")
     offset = 0
+    r = get_redis()
 
     while True:
         try:
+            await r.setex("health:telegram_worker", 90, str(int(time.time())))
             data = await _call(
                 "getUpdates",
                 http_timeout=35.0,
