@@ -86,10 +86,9 @@ async def update_user(username: str, body: UpdateUserBody, request: Request):
             await conn.execute("UPDATE admin_users SET is_active = $1 WHERE username = $2", body.is_active, username)
             r = get_redis()
             if body.is_active is False:
-                await r.sadd("auth:revoked", username)
-                await r.expire("auth:revoked", settings.admin_token_ttl_seconds)
+                await r.setex(f"auth:revoked:{username}", settings.admin_token_ttl_seconds, "1")
             else:
-                await r.srem("auth:revoked", username)
+                await r.delete(f"auth:revoked:{username}")
         detail = f"role={body.role},active={body.is_active}"
         await _audit(conn, actor, "user_updated", username, detail, ip)
     return {"ok": True}
@@ -125,7 +124,6 @@ async def deactivate_user(username: str, request: Request):
             raise HTTPException(status_code=404, detail="User not found")
         await conn.execute("UPDATE admin_users SET is_active = FALSE WHERE username = $1", username)
         r = get_redis()
-        await r.sadd("auth:revoked", username)
-        await r.expire("auth:revoked", settings.admin_token_ttl_seconds)
+        await r.setex(f"auth:revoked:{username}", settings.admin_token_ttl_seconds, "1")
         await _audit(conn, actor, "user_deactivated", username, "", ip)
     return {"ok": True}

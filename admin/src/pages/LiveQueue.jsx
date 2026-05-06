@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../App.jsx'
 
 function playBeep() {
@@ -16,14 +17,16 @@ function playBeep() {
   } catch (_) {}
 }
 
-const CANNED = [
-  'سيتم معالجة طلبك خلال 24 ساعة',
-  'هل تحتاج إلى مساعدة إضافية؟',
-  'يُرجى تزويدنا برقم حسابك',
-  'شكراً لتواصلك مع Rcell',
-  'تمّ تسجيل شكواك بنجاح',
-  'يُرجى الانتظار قليلاً',
-]
+function useCannedReplies() {
+  const [replies, setReplies] = useState([])
+  useEffect(() => {
+    fetch(`${api.base}/canned-replies`, { headers: { Authorization: `Bearer ${api.key}` } })
+      .then(r => r.ok ? r.json() : { replies: [] })
+      .then(d => setReplies(d.replies || []))
+      .catch(() => {})
+  }, [])
+  return replies
+}
 
 const DEFAULT_OUTCOME = {
   status: 'solved',
@@ -301,6 +304,8 @@ function ActiveChatCard({ s, onResolved }) {
   const [resolving, setResolving] = useState(false)
   const [showResolve, setShowResolve] = useState(false)
   const [customerTyping, setCustomerTyping] = useState(false)
+  const [showAllCanned, setShowAllCanned] = useState(false)
+  const cannedReplies = useCannedReplies()
   const inputRef = useRef(null)
   const esRef = useRef(null)
   const fallbackRef = useRef(null)
@@ -457,18 +462,44 @@ function ActiveChatCard({ s, onResolved }) {
         )}
 
         {/* Canned responses */}
-        <div className="flex flex-wrap gap-1.5 mt-3">
-          {CANNED.map((phrase, i) => (
-            <button
-              key={i}
-              onClick={() => { setInput(phrase); inputRef.current?.focus() }}
-              className="text-xs px-2.5 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition whitespace-nowrap"
-              style={{ direction: 'rtl' }}
-            >
-              {phrase}
-            </button>
-          ))}
-        </div>
+        {cannedReplies.length > 0 && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-gray-400 font-medium">Quick replies</span>
+              <Link
+                to="/canned-replies"
+                className="text-xs text-blue-500 hover:text-blue-700 transition"
+                title="Manage canned replies"
+              >
+                Edit replies ›
+              </Link>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {(showAllCanned ? cannedReplies : cannedReplies.slice(0, 6)).map(r => (
+                <button
+                  key={r.id}
+                  onClick={() => {
+                    setInput(prev => prev ? prev + '\n' + r.body : r.body)
+                    inputRef.current?.focus()
+                  }}
+                  className="text-xs px-2.5 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition whitespace-nowrap max-w-[220px] truncate"
+                  style={{ direction: 'auto' }}
+                  title={r.body}
+                >
+                  {r.title}
+                </button>
+              ))}
+              {cannedReplies.length > 6 && (
+                <button
+                  onClick={() => setShowAllCanned(v => !v)}
+                  className="text-xs px-2.5 py-1 rounded-full border border-dashed border-gray-300 text-gray-400 hover:text-blue-600 hover:border-blue-300 transition"
+                >
+                  {showAllCanned ? 'Show less' : `+${cannedReplies.length - 6} more`}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Reply box */}
         <div className="flex gap-2 mt-2">

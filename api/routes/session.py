@@ -1,4 +1,6 @@
 import asyncio
+import hmac
+import secrets
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -13,6 +15,7 @@ from core.utils import fire_task
 from models.session import SessionStatus
 
 router = APIRouter()
+STREAM_TOKEN_TTL_SECONDS = 60 * 60
 
 
 class ResolveBody(BaseModel):
@@ -181,6 +184,24 @@ async def session_typing(session_id: str, request: Request, sender: str = "agent
     return {"ok": True}
 
 
+@router.post("/session/{session_id}/stream-token")
+async def create_stream_token(session_id: str, request: Request):
+    session = await get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    await verify_session_access(request, session)
+
+    from core.session_manager import get_redis
+
+    token = secrets.token_urlsafe(32)
+    await get_redis().setex(
+        f"session:stream-token:{token}",
+        STREAM_TOKEN_TTL_SECONDS,
+        session_id,
+    )
+    return {"stream_token": token, "expires_in": STREAM_TOKEN_TTL_SECONDS}
+
+
 @router.post("/session/{session_id}/rating")
 async def rate_session(session_id: str, body: RatingBody, request: Request):
     session = await get_session(session_id)
@@ -214,14 +235,20 @@ async def session_stream(session_id: str, request: Request):
     session = await get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    await verify_session_access(request, session)
 
     from core.session_manager import get_redis
+    r = get_redis()
+    stream_token = request.query_params.get("stream_token", "")
+    token_session_id = await r.get(f"session:stream-token:{stream_token}") if stream_token else ""
+    has_stream_token = bool(token_session_id and hmac.compare_digest(token_session_id, session_id))
+    if not has_stream_token:
+        await verify_session_access(request, session)
 
     async def event_generator():
-        r = get_redis()
+        import time as _time
         pubsub = r.pubsub()
         await pubsub.subscribe(f"session:events:{session_id}")
+        last_ping = _time.monotonic()
         try:
             while True:
                 if await request.is_disconnected():
@@ -229,6 +256,10 @@ async def session_stream(session_id: str, request: Request):
                 msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
                 if msg and msg["type"] == "message":
                     yield {"data": msg["data"]}
+                    last_ping = _time.monotonic()
+                elif _time.monotonic() - last_ping >= 25:
+                    yield {"comment": "ping"}
+                    last_ping = _time.monotonic()
         finally:
             await pubsub.unsubscribe(f"session:events:{session_id}")
             await pubsub.aclose()

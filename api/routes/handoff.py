@@ -54,8 +54,16 @@ def case_defaults_for_handoff(reason: str) -> tuple[str, str]:
 @router.post("/handoff/direct")
 @limiter.limit("20/minute")
 async def direct_handoff(body: DirectHandoffBody, request: Request):
+    session_id = body.session_id
+    if session_id:
+        existing = await get_session(session_id)
+        if existing and existing.status != SessionStatus.resolved:
+            await verify_session_access(request, existing)
+        elif not existing:
+            session_id = None
+
     session = await get_or_create_session(
-        session_id=body.session_id,
+        session_id=session_id,
         customer_id=body.customer_id,
         channel=body.channel,
     )

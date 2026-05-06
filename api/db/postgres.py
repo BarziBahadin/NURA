@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Optional
 
@@ -8,11 +9,16 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 _pool: Optional[asyncpg.Pool] = None
+_pool_lock = asyncio.Lock()
 
 
 async def get_db_pool() -> asyncpg.Pool:
     global _pool
-    if _pool is None:
+    if _pool is not None:
+        return _pool
+    async with _pool_lock:
+        if _pool is not None:
+            return _pool
         _pool = await asyncpg.create_pool(
             host=settings.postgres_host,
             port=settings.postgres_port,
@@ -243,7 +249,8 @@ async def init_db() -> None:
                 ('technical', 'Technical Support', 'Connectivity, coverage, device and service issues'),
                 ('billing', 'Billing', 'Invoices, payments, packages and account balance'),
                 ('complaints', 'Complaints', 'Formal complaints, escalations and service quality'),
-                ('sales', 'Sales', 'New subscriptions, upgrades and offers')
+                ('sales', 'Sales', 'New subscriptions, upgrades and offers'),
+                ('suggestions', 'Suggestions', 'Customer suggestions, recommendations and general feedback')
             ON CONFLICT (code) DO NOTHING
         """)
         await conn.execute("CREATE SEQUENCE IF NOT EXISTS support_case_number_seq")
@@ -338,6 +345,22 @@ async def init_db() -> None:
                 count INT NOT NULL DEFAULT 0,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 PRIMARY KEY (day, handoff_reason)
+            )
+        """)
+
+        # canned_replies — pre-written agent responses, editable from admin panel
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS canned_replies (
+                id          SERIAL PRIMARY KEY,
+                title       TEXT NOT NULL,
+                body        TEXT NOT NULL,
+                category    TEXT NOT NULL DEFAULT '',
+                language    TEXT NOT NULL DEFAULT 'ar',
+                sort_order  INT NOT NULL DEFAULT 0,
+                created_by  TEXT NOT NULL DEFAULT '',
+                updated_by  TEXT NOT NULL DEFAULT '',
+                created_at  TIMESTAMPTZ DEFAULT NOW(),
+                updated_at  TIMESTAMPTZ DEFAULT NOW()
             )
         """)
 

@@ -3,5 +3,13 @@
   "n_samples": 584,
   "n_categories": 20,
   "training_date": "2026-05-04T20:35:46.875815",
-  "semantic_embeddings": false
+  "semantic_embeddings": false,
+  "artifacts": {
+    "local_model.pkl": {
+      "sha256": "ff812b1d214372c4098b853eb1fb659cec1175456be56a8d2cc2def9604faed0"
+    },
+    "vectorizer.pkl": {
+      "sha256": "a705f3822949e713d8ecb442c7c4fe9d5aab5659dce615a1f8d0d95078782369"
+    }
+  }
 }

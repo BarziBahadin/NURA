@@ -40,7 +40,7 @@ def get_bearer_token(request: Request) -> str:
 
 
 def is_valid_api_key(request: Request) -> bool:
-    if not settings.api_key:
+    if not settings.allow_admin_api_key or not settings.api_key:
         return False
     return secrets.compare_digest(get_bearer_token(request), settings.api_key)
 
@@ -51,8 +51,8 @@ async def verify_admin_token(token: str) -> dict[str, Any] | None:
         return None
     try:
         from core.session_manager import get_redis
-        revoked = await get_redis().sismember("auth:revoked", payload.get("sub", ""))
-        if revoked:
+        sub = payload.get("sub", "")
+        if sub and await get_redis().exists(f"auth:revoked:{sub}"):
             return None
     except Exception:
         return None

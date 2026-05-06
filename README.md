@@ -191,7 +191,11 @@ docker compose up -d
 Check API health:
 
 ```bash
-curl -H "Authorization: Bearer $API_KEY" \
+curl -X POST http://localhost:8080/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"your-admin-password"}'
+
+curl -H "Authorization: Bearer <access_token>" \
   http://localhost:8080/v1/health
 ```
 
@@ -236,12 +240,30 @@ docker compose exec nura-api python /app/ingestion/ingest.py
 
 ```html
 <script
-  src="http://YOUR-SERVER:8080/widget.js"
-  data-api="http://YOUR-SERVER:8080/v1">
+  defer
+  src="https://YOUR-SERVER/widget-loader.js"
+  data-api="https://YOUR-SERVER/v1"
+  data-lang="ar"
+  data-position="bottom-left"
+  data-primary="#f97316"
+  data-accent="#22c55e"
+  data-title="NURA">
 </script>
 ```
 
-The widget is self-contained and injects its own namespaced CSS and DOM.
+The recommended embed uses the tiny lazy loader. It shows the launcher first and downloads the full widget only when the visitor opens chat. The full widget is self-contained, waits safely for `document.body`, mounts inside Shadow DOM when the browser supports it, and falls back to namespaced CSS on older browsers.
+
+Supported embed options:
+
+| Attribute | Values | Description |
+|---|---|---|
+| `data-api` | URL | API base URL, for example `https://YOUR-SERVER/v1` |
+| `data-lang` | `ar`, `ku` | Initial widget language |
+| `data-position` | `bottom-left`, `bottom-right` | Launcher position |
+| `data-primary` | CSS color | Primary brand color |
+| `data-accent` | CSS color | Accent color |
+| `data-title` | Text | Header title shown in the widget |
+| `data-widget-src` | URL | Optional full widget URL if it is not served beside `widget-loader.js` |
 
 ---
 
@@ -431,9 +453,11 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 | `OPENAI_EMBEDDING_MODEL` | Model used for RAG embeddings |
 | `COMPANY_NAME` | Company/support brand name injected into prompts |
 | `AGENT_NAME` | Assistant name shown to users |
-| `API_KEY` | Bearer key for internal/admin endpoints |
+| `API_KEY` | Optional legacy bearer key for automation; disabled unless `ALLOW_ADMIN_API_KEY=true` |
+| `ALLOW_ADMIN_API_KEY` | Permit `API_KEY` to access admin endpoints; keep `false` for browser-facing deployments |
 | `POSTGRES_PASSWORD` | PostgreSQL password |
 | `ADMIN_SECRET_KEY` | Admin/session secret |
+| `ML_REQUIRE_ARTIFACT_HASHES` | Require hashes in `models/metadata.json` before loading ML pickle artifacts |
 | `RAG_TOP_K` | Number of handbook chunks retrieved per query |
 | `RAG_CHUNK_SIZE` | Chunk size for ingestion |
 | `HANDOFF_ENABLED` | Enable or disable human handoff |
@@ -495,9 +519,11 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 
 ## Production Checklist
 
-- Set strong values for `API_KEY`, `POSTGRES_PASSWORD`, and `ADMIN_SECRET_KEY`.
+- Set strong values for `POSTGRES_PASSWORD` and `ADMIN_SECRET_KEY`.
+- Keep `ALLOW_ADMIN_API_KEY=false` unless a trusted automation path explicitly needs it.
 - Restrict `CORS_ORIGINS` to production domains.
 - Move secrets out of plain `.env` for production deployments.
+- Rotate any secret that was committed, pasted into logs, or shared in chat.
 - Rebuild API after Python changes: `docker compose build nura-api`.
 - Rebuild admin after frontend changes: `docker compose build nura-admin`.
 - Verify `/v1/health`, `/v1/analytics/dashboard`, and `/v1/analytics/reports`.

@@ -21,16 +21,21 @@ logger = logging.getLogger(__name__)
 _preprocessor = TextPreprocessor(verbose=False)
 
 _openai_client: Optional[AsyncOpenAI] = None
+_openai_lock = asyncio.Lock()
 
 
-def get_openai_client() -> AsyncOpenAI:
+async def get_openai_client() -> AsyncOpenAI:
     global _openai_client
-    if _openai_client is None:
-        _openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+    if _openai_client is not None:
+        return _openai_client
+    async with _openai_lock:
+        if _openai_client is None:
+            _openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
     return _openai_client
 
 
 # Load ML local model at startup (optional — works without it)
+_ml = None
 _conversation_service = None
 try:
     from core.ml.local_model import LocalModelService
@@ -38,6 +43,7 @@ try:
     _ml = LocalModelService(
         model_path=Path(settings.ml_model_path),
         vectorizer_path=Path(settings.ml_vectorizer_path),
+        require_artifact_hashes=settings.ml_require_artifact_hashes,
         use_semantic=settings.use_semantic_embeddings,
         semantic_model_name=settings.semantic_model_name,
     )
@@ -99,7 +105,7 @@ def _tokens(text: str) -> set[str]:
 
 _gap_cache: list[dict] | None = None
 _gap_cache_at: float = 0.0
-_GAP_CACHE_TTL = 3600  # 1 hour
+_GAP_CACHE_TTL = 300  # 5 minutes — safe for multi-worker
 
 
 async def _load_gap_rows() -> list[dict]:
@@ -227,7 +233,7 @@ async def generate_response(
     )
 
     try:
-        client = get_openai_client()
+        client = await get_openai_client()
         resp = await client.chat.completions.create(
             model=settings.openai_model,
             messages=[

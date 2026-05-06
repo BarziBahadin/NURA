@@ -316,39 +316,52 @@
     .tree-nav-bar {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 9px;
       margin-bottom: 8px;
-      flex-wrap: wrap;
+      min-height: 34px;
     }
-    .tree-crumb {
-      font-size: 10px;
-      color: #aaa;
-      font-weight: 600;
+    .tree-title {
       flex: 1;
+      min-width: 0;
+      color: #111827;
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1.25;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      text-align: start;
     }
     .tree-nav-btn {
-      background: #fff7ed;
-      border: 1.5px solid #f97316;
-      color: #ea580c;
-      border-radius: 20px;
-      padding: 3px 10px;
-      font-size: 11px;
+      width: 32px;
+      height: 32px;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      color: #111827;
+      border-radius: 50%;
+      padding: 0;
+      font-size: 20px;
+      line-height: 1;
       cursor: pointer;
       font-family: inherit;
-      transition: background 0.15s, color 0.15s;
+      transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
       flex-shrink: 0;
-      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
-    .tree-nav-btn:hover { background: #f97316; color: #fff; }
+    .tree-nav-btn:hover {
+      background: #fff7ed;
+      color: #f97316;
+      border-color: #fed7aa;
+      transform: translateY(-1px);
+    }
     .tree-nav-btn.home {
-      background: none;
-      border-color: #ddd;
-      color: #999;
+      font-size: 16px;
+      color: #64748b;
+      background: #f8fafc;
     }
-    .tree-nav-btn.home:hover { background: #f0f2f5; color: #555; border-color: #bbb; }
+    .tree-nav-btn.home:hover { background: #f1f5f9; color: #111827; border-color: #cbd5e1; }
 
     .tree-level-q {
       font-size: 12px;
@@ -356,6 +369,12 @@
       font-weight: 900;
       margin-bottom: 10px;
       text-align: right;
+    }
+    .tree-level-q.sub {
+      color: #64748b;
+      font-size: 11.5px;
+      font-weight: 800;
+      margin-top: -2px;
     }
     #chat-window[dir="ltr"] .tree-level-q { text-align: left; }
 
@@ -410,6 +429,72 @@
       transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
     }
     .agent-bypass-btn:hover { background: #0f172a; border-color: #f97316; transform: translateY(-1px); }
+
+    .suggestion-card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 6px 18px rgba(15,23,42,0.05);
+    }
+    .suggestion-card h4 {
+      font-size: 13px;
+      color: #111827;
+      font-weight: 900;
+      margin-bottom: 5px;
+      text-align: start;
+    }
+    .suggestion-card p {
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.55;
+      margin-bottom: 10px;
+      text-align: start;
+    }
+    .suggestion-input {
+      width: 100%;
+      min-height: 86px;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      resize: vertical;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      line-height: 1.5;
+      color: #111827;
+      outline: none;
+      background: #fff;
+    }
+    .suggestion-input:focus {
+      border-color: #f97316;
+      box-shadow: 0 0 0 3px rgba(249,115,22,0.12);
+    }
+    .suggestion-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+    .suggestion-submit {
+      flex: 1;
+      border: none;
+      border-radius: 12px;
+      padding: 9px 12px;
+      background: #111827;
+      color: #fff;
+      font-size: 12.5px;
+      font-weight: 900;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .suggestion-submit:disabled { opacity: 0.45; cursor: default; }
+    .suggestion-cancel {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 9px 12px;
+      background: #fff;
+      color: #64748b;
+      font-size: 12.5px;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .suggestion-error { margin-top: 8px; color: #be123c; font-size: 11.5px; text-align: start; }
 
     /* Input */
     .chat-footer {
@@ -641,6 +726,14 @@
       sessionClosed: '🔒 تم إغلاق هذه الجلسة. شكراً لتواصلك معنا.',
       ratePrompt: 'كيف تقيّم تجربتك مع خدمة العملاء؟',
       rateThanks: 'شكراً على تقييمك! نسعى دائماً للتحسين.',
+      suggestionTitle: 'الشكاوى والاقتراحات',
+      suggestionIntro: 'هذا القسم مخصص للملاحظات العامة، التوصيات، الشكاوى، أو الاقتراحات. اكتب رسالتك هنا وسنرسلها مباشرة إلى قسم الاقتراحات في نظام المتابعة.',
+      suggestionPlaceholder: 'اكتب الشكوى أو الاقتراح هنا…',
+      suggestionSubmit: 'إرسال إلى قسم الاقتراحات',
+      suggestionCancel: 'إلغاء',
+      suggestionMin: 'يرجى كتابة 5 أحرف على الأقل.',
+      suggestionThanks: 'شكراً لك. تم إرسال ملاحظتك إلى فريقنا وسيتم مراجعتها ضمن قسم الاقتراحات.',
+      suggestionCase: 'رقم المتابعة',
     },
     ku: {
       dir: 'ltr',
@@ -668,6 +761,14 @@
       sessionClosed: '🔒 Ev rûniştgeha hate girtin. Spas ji bo têkiliya we.',
       ratePrompt: 'Hûn xizmetguzariya xerîdar çawa dinirxînin?',
       rateThanks: 'Spas ji bo nirxandina te! Em her tim hewl didin baştir bibin.',
+      suggestionTitle: 'Gilî û pêşniyar',
+      suggestionIntro: 'Ev beş ji bo têbînî, pêşniyar, gilî, an ramanên giştî ye. Peyama xwe binivîse û em ê wê rasterast bişînin beşa pêşniyaran di pergala me de.',
+      suggestionPlaceholder: 'Gilî an pêşniyara xwe li vir binivîse…',
+      suggestionSubmit: 'Bişîne beşa pêşniyaran',
+      suggestionCancel: 'Betal bike',
+      suggestionMin: 'Ji kerema xwe herî kêm 5 tîpan binivîse.',
+      suggestionThanks: 'Spas. Peyama te hate şandin û dê ji aliyê tîma me ve were nirxandin.',
+      suggestionCase: 'Hejmara şopandinê',
     },
   };
 
@@ -1314,6 +1415,7 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
   let isEscalated        = false;
   let isSessionClosed      = false;
   let agentEventSource     = null;
+  let agentStreamStarting  = false;
   let escalationBannerEl   = null;
   let treeStack            = [];
   let typingDebounceTimer  = null;
@@ -1340,6 +1442,14 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
 
   function currentTreeNode() {
     return treeStack.length > 0 ? treeStack[treeStack.length - 1] : TOPIC_TREE;
+  }
+
+  function cleanTreeTitle(label) {
+    return (label || '').replace(/^[^A-Za-z\u00C0-\u024F\u0600-\u06FF]+/, '').trim() || label;
+  }
+
+  function chooseServiceText() {
+    return currentLang === 'ar' ? 'اختر الخدمة التي تحتاجها' : 'Xizmeta ku pêdiviya te pê heye hilbijêre';
   }
 
   function mergeSharedTopicLabels(sharedNode, localNode) {
@@ -1377,9 +1487,11 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
   async function directToAgent() {
     if (isEscalated) return;
     try {
+      const handoffHeaders = { 'Content-Type': 'application/json' };
+      if (sessionToken) handoffHeaders['X-Session-Token'] = sessionToken;
       const handoffRes = await fetch(`${API_BASE}/handoff/direct`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: handoffHeaders,
         body: JSON.stringify({ session_id: sessionId, customer_id: customerId, channel: 'web', reason: 'direct_request' }),
       });
       if (!handoffRes.ok) throw new Error(`Handoff failed: ${handoffRes.status}`);
@@ -1407,7 +1519,10 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
 
       const backBtn = document.createElement('button');
       backBtn.className = 'tree-nav-btn';
-      backBtn.textContent = t.treeBack;
+      backBtn.type = 'button';
+      backBtn.title = t.treeBack;
+      backBtn.setAttribute('aria-label', t.treeBack);
+      backBtn.textContent = currentLang === 'ar' ? '›' : '‹';
       backBtn.addEventListener('click', () => {
         track('tree_back', treeLabel(treeStack[treeStack.length - 1]), '');
         treeStack.pop();
@@ -1415,10 +1530,18 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
       });
       navBar.appendChild(backBtn);
 
+      const title = document.createElement('div');
+      title.className = 'tree-title';
+      title.textContent = cleanTreeTitle(treeLabel(node));
+      navBar.appendChild(title);
+
       if (treeStack.length > 1) {
         const homeBtn = document.createElement('button');
         homeBtn.className = 'tree-nav-btn home';
-        homeBtn.textContent = t.treeHome;
+        homeBtn.type = 'button';
+        homeBtn.title = t.treeHome;
+        homeBtn.setAttribute('aria-label', t.treeHome);
+        homeBtn.textContent = '⌂';
         homeBtn.addEventListener('click', () => {
           track('tree_home', '', '');
           treeStack = [];
@@ -1427,19 +1550,13 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
         navBar.appendChild(homeBtn);
       }
 
-      // Breadcrumb trail
-      const crumb = document.createElement('span');
-      crumb.className = 'tree-crumb';
-      crumb.textContent = treeStack.map(n => treeLabel(n)).join(' › ');
-      navBar.appendChild(crumb);
-
       treePanel.appendChild(navBar);
     }
 
     // Current level question
     const q = document.createElement('div');
-    q.className = 'tree-level-q';
-    q.textContent = treeLabel(node);
+    q.className = 'tree-level-q' + (treeStack.length > 0 ? ' sub' : '');
+    q.textContent = treeStack.length > 0 ? chooseServiceText() : treeLabel(node);
     treePanel.appendChild(q);
 
     // Options for this level
@@ -1455,6 +1572,9 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
         if (child.action === 'agent') {
           track('direct_to_agent', 'tree_option', child.id);
           directToAgent();
+        } else if (child.action === 'complaint') {
+          track('suggestion_open', treeLabel(child), child.id);
+          renderSuggestionForm(child);
         } else if (child.article !== undefined) {
           handleLeaf(child);
         } else if (child.children) {
@@ -1467,6 +1587,121 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
 
     treePanel.appendChild(optsDiv);
 
+  }
+
+  function renderSuggestionForm(node) {
+    const t = UI[currentLang];
+    treePanel.innerHTML = '';
+
+    const navBar = document.createElement('div');
+    navBar.className = 'tree-nav-bar';
+
+    const backBtn = document.createElement('button');
+    backBtn.className = 'tree-nav-btn';
+    backBtn.type = 'button';
+    backBtn.title = t.treeBack;
+    backBtn.setAttribute('aria-label', t.treeBack);
+    backBtn.textContent = currentLang === 'ar' ? '›' : '‹';
+    backBtn.addEventListener('click', () => {
+      track('tree_back', treeLabel(node), '');
+      renderTree();
+    });
+    navBar.appendChild(backBtn);
+
+    const title = document.createElement('div');
+    title.className = 'tree-title';
+    title.textContent = t.suggestionTitle;
+    navBar.appendChild(title);
+    treePanel.appendChild(navBar);
+
+    const card = document.createElement('div');
+    card.className = 'suggestion-card';
+
+    const heading = document.createElement('h4');
+    heading.textContent = t.suggestionTitle;
+    card.appendChild(heading);
+
+    const intro = document.createElement('p');
+    intro.textContent = t.suggestionIntro;
+    card.appendChild(intro);
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'suggestion-input';
+    textarea.placeholder = t.suggestionPlaceholder;
+    textarea.maxLength = 5000;
+    textarea.setAttribute('dir', t.dir);
+    card.appendChild(textarea);
+
+    const actions = document.createElement('div');
+    actions.className = 'suggestion-actions';
+
+    const submit = document.createElement('button');
+    submit.className = 'suggestion-submit';
+    submit.type = 'button';
+    submit.textContent = t.suggestionSubmit;
+    submit.disabled = true;
+
+    const cancel = document.createElement('button');
+    cancel.className = 'suggestion-cancel';
+    cancel.type = 'button';
+    cancel.textContent = t.suggestionCancel;
+    cancel.addEventListener('click', renderTree);
+
+    const error = document.createElement('div');
+    error.className = 'suggestion-error';
+    error.style.display = 'none';
+
+    textarea.addEventListener('input', () => {
+      submit.disabled = textarea.value.trim().length < 5;
+      error.style.display = 'none';
+    });
+
+    submit.addEventListener('click', async () => {
+      const message = textarea.value.trim();
+      if (message.length < 5) {
+        error.textContent = t.suggestionMin;
+        error.style.display = 'block';
+        return;
+      }
+      submit.disabled = true;
+      cancel.disabled = true;
+      submit.textContent = currentLang === 'ar' ? 'جارٍ الإرسال…' : 'Tê şandin…';
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (sessionToken) headers['X-Session-Token'] = sessionToken;
+        const res = await fetch(`${API_BASE}/suggestions`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            session_id: sessionId,
+            customer_id: customerId,
+            channel: 'web',
+            kind: 'suggestion',
+            message,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
+        track('suggestion_submit', treeLabel(node), node.id, { message_length: String(message.length) });
+        appendUserMsg(message);
+        appendBotMsg(t.suggestionThanks + (data.case_number ? `\n${t.suggestionCase}: ${data.case_number}` : ''), null, null);
+        treeStack = [];
+        renderTree();
+      } catch (e) {
+        error.textContent = e.message || UI[currentLang].errorPrefix;
+        error.style.display = 'block';
+        submit.disabled = false;
+        cancel.disabled = false;
+        submit.textContent = t.suggestionSubmit;
+      }
+    });
+
+    actions.appendChild(submit);
+    actions.appendChild(cancel);
+    card.appendChild(actions);
+    card.appendChild(error);
+    treePanel.appendChild(card);
+    setTimeout(() => textarea.focus(), 50);
   }
 
   function handleLeaf(node) {
@@ -1555,8 +1790,8 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
     if (isEscalated && !isSessionClosed && sessionId && sessionToken) {
       clearTimeout(typingDebounceTimer);
       typingDebounceTimer = setTimeout(() => {
-        fetch(`${API_BASE}/session/${encodeURIComponent(sessionId)}/typing?sender=customer&session_token=${encodeURIComponent(sessionToken)}`,
-          { method: 'POST' }).catch(() => {});
+        fetch(`${API_BASE}/session/${encodeURIComponent(sessionId)}/typing?sender=customer`,
+          { method: 'POST', headers: { 'X-Session-Token': sessionToken } }).catch(() => {});
       }, 500);
     }
   });
@@ -1595,8 +1830,8 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
 
     try {
       const uploadRes = await fetch(
-        `${API_BASE}/upload?session_token=${encodeURIComponent(sessionToken)}`,
-        { method: 'POST', body: form }
+        `${API_BASE}/upload`,
+        { method: 'POST', headers: { 'X-Session-Token': sessionToken }, body: form }
       );
       if (!uploadRes.ok) {
         const err = await uploadRes.json().catch(() => ({}));
@@ -1619,7 +1854,7 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
       // Send through message pipeline so agents see it
       await fetch(`${API_BASE}/message`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken || '' },
         body: JSON.stringify({
           session_id: sessionId,
           channel: 'web',
@@ -1765,18 +2000,31 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
   }
 
   // ── SSE streaming (agent messages pushed in real-time) ────────────────────
-  function startAgentStream() {
-    if (agentEventSource || !sessionId || !sessionToken) return;
-    const streamUrl = `${API_BASE}/session/${encodeURIComponent(sessionId)}/stream?session_token=${encodeURIComponent(sessionToken)}`;
-    agentEventSource = new EventSource(streamUrl);
-    agentEventSource.onmessage = function (e) {
-      try { handleStreamEvent(JSON.parse(e.data)); } catch (_) {}
-    };
-    agentEventSource.onerror = function () {
-      agentEventSource.close();
-      agentEventSource = null;
+  async function startAgentStream() {
+    if (agentEventSource || agentStreamStarting || !sessionId || !sessionToken) return;
+    agentStreamStarting = true;
+    try {
+      const tokenRes = await fetch(`${API_BASE}/session/${encodeURIComponent(sessionId)}/stream-token`, {
+        method: 'POST',
+        headers: { 'X-Session-Token': sessionToken },
+      });
+      if (!tokenRes.ok) throw new Error(`Stream token failed: ${tokenRes.status}`);
+      const tokenData = await tokenRes.json();
+      const streamUrl = `${API_BASE}/session/${encodeURIComponent(sessionId)}/stream?stream_token=${encodeURIComponent(tokenData.stream_token)}`;
+      agentEventSource = new EventSource(streamUrl);
+      agentEventSource.onmessage = function (e) {
+        try { handleStreamEvent(JSON.parse(e.data)); } catch (_) {}
+      };
+      agentEventSource.onerror = function () {
+        agentEventSource.close();
+        agentEventSource = null;
+        if (!isSessionClosed && isEscalated) setTimeout(startAgentStream, 5000);
+      };
+    } catch (e) {
       if (!isSessionClosed && isEscalated) setTimeout(startAgentStream, 5000);
-    };
+    } finally {
+      agentStreamStarting = false;
+    }
   }
 
   function stopAgentStream() {
@@ -1857,9 +2105,9 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
     try {
       const res = await fetch(`${API_BASE}/message`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: sessionToken
+          ? { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken }
+          : { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id: sessionId,
           channel: 'web',

@@ -4,22 +4,22 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 
 from core.auth import require_roles
-from core.session_manager import get_all_sessions
 from db.postgres import get_db_pool
-from models.session import SessionStatus
 
 router = APIRouter()
 
 
 @router.get("/monitor/stats/realtime", dependencies=[Depends(require_roles("admin"))])
 async def realtime_stats():
-    all_sessions = await get_all_sessions()
-    active_count = sum(1 for s in all_sessions if s.status == SessionStatus.active)
-    pending_count = sum(1 for s in all_sessions if s.status == SessionStatus.pending_handoff)
-    human_count = sum(1 for s in all_sessions if s.status == SessionStatus.human_active)
-
     pool = await get_db_pool()
     async with pool.acquire() as conn:
+        status_rows = await conn.fetch(
+            """
+            SELECT status, COUNT(*) AS cnt
+            FROM sessions
+            GROUP BY status
+            """
+        )
         messages_last_hour = await conn.fetchval(
             "SELECT COUNT(*) FROM conversation_logs WHERE created_at > NOW() - INTERVAL '1 hour'"
         ) or 0
@@ -35,42 +35,50 @@ async def realtime_stats():
             "WHERE created_at >= CURRENT_DATE AND handoff_reason IS NOT NULL AND handoff_reason != ''"
         ) or 0
 
+    status_counts = {r["status"]: r["cnt"] for r in status_rows}
     escalation_rate = round(escalated_today / total_today * 100) if total_today > 0 else 0
 
     return {
-        "active_sessions": active_count,
-        "pending_handoff": pending_count,
-        "human_active": human_count,
+        "active_sessions":   status_counts.get("ACTIVE", 0),
+        "pending_handoff":   status_counts.get("PENDING_HANDOFF", 0),
+        "human_active":      status_counts.get("HUMAN_ACTIVE", 0),
         "messages_last_hour": messages_last_hour,
-        "cost_today_usd": round(float(cost_today), 4),
+        "cost_today_usd":    round(float(cost_today), 4),
         "escalation_rate_today_pct": escalation_rate,
     }
 
 
 @router.get("/monitor/sessions/live", dependencies=[Depends(require_roles("admin"))])
 async def live_sessions():
-    all_sessions = await get_all_sessions()
-    live = [
-        s for s in all_sessions
-        if s.status in (SessionStatus.active, SessionStatus.pending_handoff, SessionStatus.human_active)
-    ]
-    live.sort(key=lambda s: s.updated_at, reverse=True)
-    return {
-        "total": len(live),
-        "sessions": [
-            {
-                "session_id": s.session_id,
-                "customer_id": s.customer_id,
-                "channel": s.channel,
-                "status": s.status.value,
-                "message_count": len(s.history),
-                "last_activity": s.updated_at,
-                "assigned_to": s.metadata.get("assigned_agent", ""),
-                "handoff_reason": s.metadata.get("handoff_reason", ""),
-            }
-            for s in live
-        ],
-    }
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT session_id, customer_id, channel, status,
+                   jsonb_array_length(history) AS message_count,
+                   updated_at, metadata
+            FROM sessions
+            WHERE status IN ('ACTIVE', 'PENDING_HANDOFF', 'HUMAN_ACTIVE')
+            ORDER BY updated_at DESC
+            LIMIT 500
+            """
+        )
+
+    sessions = []
+    for r in rows:
+        meta = r["metadata"] if isinstance(r["metadata"], dict) else {}
+        sessions.append({
+            "session_id":      r["session_id"],
+            "customer_id":     r["customer_id"],
+            "channel":         r["channel"],
+            "status":          r["status"],
+            "message_count":   r["message_count"] or 0,
+            "last_activity":   r["updated_at"].isoformat(),
+            "assigned_to":     meta.get("assigned_agent", ""),
+            "handoff_reason":  meta.get("handoff_reason", ""),
+        })
+
+    return {"total": len(sessions), "sessions": sessions}
 
 
 @router.get("/monitor/audit-log", dependencies=[Depends(require_roles("admin"))])

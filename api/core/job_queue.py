@@ -54,7 +54,7 @@ async def run_job_worker(worker_name: str = "api-worker") -> None:
     while True:
         raw = None
         try:
-            raw = await r.brpoplpush(JOB_QUEUE_KEY, JOB_PROCESSING_KEY, timeout=1)
+            raw = await r.blmove(JOB_QUEUE_KEY, JOB_PROCESSING_KEY, timeout=1, src="RIGHT", dest="LEFT")
             if not raw:
                 await asyncio.sleep(0)
                 continue

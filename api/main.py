@@ -15,7 +15,7 @@ from core.observability import ObservabilityMiddleware
 from core.session_manager import close_redis
 from core.sla_monitor import run_sla_monitor
 from db.postgres import close_db_pool, init_db
-from routes import ai_control, analytics, auth, cases, handoff, health, knowledge, knowledge_gaps, message, monitor, session, upload, users
+from routes import ai_control, analytics, auth, canned_replies, cases, handoff, health, knowledge, knowledge_gaps, message, monitor, session, upload, users
 from routes.auth import seed_admin_user
 from routes.cases import refresh_department_cache
 from routes.telegram import run_telegram_poller
@@ -83,12 +83,26 @@ app.include_router(analytics.router,  prefix="/v1")
 app.include_router(users.router,      prefix="/v1")
 app.include_router(upload.router,     prefix="/v1")
 app.include_router(monitor.router,    prefix="/v1")
-app.include_router(ai_control.router, prefix="/v1")
+app.include_router(ai_control.router,    prefix="/v1")
+app.include_router(canned_replies.router, prefix="/v1")
 
 
 @app.get("/widget.js", include_in_schema=False)
 async def serve_widget():
-    return FileResponse("/app/frontend/widget.js", media_type="application/javascript")
+    return FileResponse(
+        "/app/frontend/widget.js",
+        media_type="application/javascript",
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
+@app.get("/widget-loader.js", include_in_schema=False)
+async def serve_widget_loader():
+    return FileResponse(
+        "/app/frontend/widget-loader.js",
+        media_type="application/javascript",
+        headers={"Cache-Control": "public, max-age=300"},
+    )
 
 
 @app.get("/")

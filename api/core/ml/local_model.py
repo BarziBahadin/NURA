@@ -1,7 +1,8 @@
+import hashlib
+import json
 import pickle
 import logging
 from difflib import SequenceMatcher
-from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -34,18 +35,59 @@ class LocalModelService:
         self,
         model_path: Path,
         vectorizer_path: Path,
+        require_artifact_hashes: bool = False,
         use_semantic: bool = False,
         semantic_model_name: str = "paraphrase-multilingual-MiniLM-L12-v2",
     ):
         self.model_path = model_path
         self.vectorizer_path = vectorizer_path
+        self.require_artifact_hashes = require_artifact_hashes
         self.use_semantic = use_semantic
         self.semantic_model_name = semantic_model_name
         self.st_model = None
         self.question_embeddings = None
         self._load()
 
+    @staticmethod
+    def _sha256(path: Path) -> str:
+        digest = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    def _verify_artifact_hashes(self) -> None:
+        metadata_path = self.model_path.parent / "metadata.json"
+        if not metadata_path.exists():
+            message = "ML metadata.json not found; cannot verify pickle artifact hashes."
+            if self.require_artifact_hashes:
+                raise RuntimeError(message)
+            logger.warning(message)
+            return
+
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            metadata = json.load(f)
+        artifacts = metadata.get("artifacts", {})
+        expected = {
+            self.model_path.name: artifacts.get(self.model_path.name, {}).get("sha256"),
+            self.vectorizer_path.name: artifacts.get(self.vectorizer_path.name, {}).get("sha256"),
+        }
+        missing = [name for name, value in expected.items() if not value]
+        if missing:
+            message = f"ML metadata missing artifact hashes for: {', '.join(missing)}"
+            if self.require_artifact_hashes:
+                raise RuntimeError(message)
+            logger.warning(message)
+            return
+
+        for path in (self.model_path, self.vectorizer_path):
+            actual = self._sha256(path)
+            if actual != expected[path.name]:
+                raise RuntimeError(f"ML artifact hash mismatch for {path.name}")
+
     def _load(self):
+        self._verify_artifact_hashes()
+
         with open(self.vectorizer_path, "rb") as f:
             self.vectorizer = pickle.load(f)
 
@@ -88,7 +130,6 @@ class LocalModelService:
                 best_idx = i
         return best_idx, best_ratio
 
-    @lru_cache(maxsize=512)
     def generate(self, question: str, threshold: float = 0.70) -> dict:
         normalized_q = normalize_arabic(question)
 

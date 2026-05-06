@@ -2,23 +2,44 @@
   'use strict';
 
   var _s = document.currentScript;
+  function initNuraWidget() {
+  if (window.__NURA_WIDGET_LOADED__) return;
+  window.__NURA_WIDGET_LOADED__ = true;
+
   var API_BASE = (_s && _s.getAttribute('data-api')) || 'http://localhost:8080/v1';
+  var initialLang = (_s && _s.getAttribute('data-lang')) || 'ar';
+  var widgetPosition = (_s && _s.getAttribute('data-position')) || 'bottom-left';
+  var primaryColor = (_s && _s.getAttribute('data-primary')) || '#f97316';
+  var accentColor = (_s && _s.getAttribute('data-accent')) || '#22c55e';
+  var brandTitle = (_s && _s.getAttribute('data-title')) || 'NURA';
+  var autoOpen = (_s && _s.getAttribute('data-auto-open')) === 'true';
+
+  if (initialLang !== 'ar' && initialLang !== 'ku') initialLang = 'ar';
+  if (widgetPosition !== 'bottom-right') widgetPosition = 'bottom-left';
 
   // ── Inject styles ──────────────────────────────────────────────────────────
   var style = document.createElement('style');
   style.textContent = [
+    ':host { all: initial; color-scheme: light; }',
     '#nura-widget-root * { box-sizing: border-box; margin: 0; padding: 0; }',
-    '#nura-widget-root { font-family: \'Segoe UI\', \'Noto Sans Arabic\', Tahoma, Arial, sans-serif; }',
+    '#nura-widget-root {',
+    '  --nura-primary: #f97316;',
+    '  --nura-accent: #22c55e;',
+    '  --nura-viewport-height: 100vh;',
+    '  font-family: \'Segoe UI\', \'Noto Sans Arabic\', Tahoma, Arial, sans-serif;',
+    '}',
 
     '#chat-toggle {',
-    '  position: fixed; bottom: 28px; left: 28px;',
+    '  position: fixed; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); left: 28px;',
     '  width: 60px; height: 60px; border-radius: 50%;',
-    '  background: linear-gradient(135deg, #111827, #f97316);',
+    '  background: linear-gradient(135deg, #111827, var(--nura-primary));',
     '  border: none; cursor: pointer;',
     '  box-shadow: 0 14px 34px rgba(17,24,39,0.28), 0 4px 18px rgba(249,115,22,0.36);',
     '  display: flex; align-items: center; justify-content: center;',
     '  transition: transform 0.2s, box-shadow 0.2s; z-index: 2147483640;',
+    '  -webkit-tap-highlight-color: transparent;',
     '}',
+    '#nura-widget-root.nura-pos-bottom-right #chat-toggle { left: auto; right: 28px; }',
     '#chat-toggle:hover { transform: scale(1.08); box-shadow: 0 18px 42px rgba(17,24,39,0.32), 0 6px 24px rgba(249,115,22,0.48); }',
 
     '#nura-badge {',
@@ -30,7 +51,7 @@
 
     '#chat-window {',
     '  position: fixed; top: 50%; left: 50%;',
-    '  width: 430px; max-height: 700px;',
+    '  width: 430px; height: min(700px, calc(var(--nura-viewport-height) - 48px)); max-height: 700px;',
     '  background: #fff; border-radius: 22px; border: 1px solid rgba(17,24,39,0.08);',
     '  box-shadow: 0 26px 78px rgba(15,23,42,0.22);',
     '  display: flex; flex-direction: column; overflow: hidden;',
@@ -56,7 +77,7 @@
     '  width: 42px; height: 42px; border-radius: 50%;',
     '  background: #fff; border: 1px solid rgba(249,115,22,0.35);',
     '  display: flex; align-items: center; justify-content: center;',
-    '  color: #f97316; font-weight: 900; font-size: 13px; flex-shrink: 0; letter-spacing: -0.5px;',
+    '  color: var(--nura-primary); font-weight: 900; font-size: 13px; flex-shrink: 0; letter-spacing: 0;',
     '}',
     '.nura-header-info { flex: 1; min-width: 0; text-align: right; }',
     '#chat-window[dir="ltr"] .nura-header-info { text-align: left; }',
@@ -78,7 +99,7 @@
     '  font-size: 11px; font-weight: 800; padding: 4px 9px; cursor: pointer; border-radius: 999px;',
     '  transition: background 0.15s, color 0.15s; font-family: inherit; letter-spacing: 0.3px;',
     '}',
-    '.nura-lang-btn.active { background: rgba(255,255,255,0.95); color: #ea580c; }',
+    '.nura-lang-btn.active { background: rgba(255,255,255,0.95); color: var(--nura-primary); }',
     '.nura-lang-btn:hover:not(.active) { color: #fff; }',
 
     '#nura-close-btn {',
@@ -168,18 +189,20 @@
     '#nura-tree-panel::-webkit-scrollbar { width: 3px; }',
     '#nura-tree-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }',
 
-    '.nura-tree-nav-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }',
-    '.nura-tree-crumb { font-size: 10px; color: #aaa; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
+    '.nura-tree-nav-bar { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; min-height: 34px; }',
+    '.nura-tree-title { flex: 1; min-width: 0; color: #111827; font-size: 13px; font-weight: 900; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: start; }',
     '.nura-tree-nav-btn {',
-    '  background: #fff7ed; border: 1.5px solid #f97316; color: #ea580c;',
-    '  border-radius: 20px; padding: 3px 10px; font-size: 11px; cursor: pointer;',
-    '  font-family: inherit; transition: background 0.15s, color 0.15s; flex-shrink: 0; white-space: nowrap;',
+    '  width: 32px; height: 32px; background: #fff; border: 1px solid #e5e7eb; color: #111827;',
+    '  border-radius: 50%; padding: 0; font-size: 20px; line-height: 1; cursor: pointer;',
+    '  font-family: inherit; transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s; flex-shrink: 0;',
+    '  display: inline-flex; align-items: center; justify-content: center;',
     '}',
-    '.nura-tree-nav-btn:hover { background: #f97316; color: #fff; }',
-    '.nura-tree-nav-btn.home { background: none; border-color: #ddd; color: #999; }',
-    '.nura-tree-nav-btn.home:hover { background: #f0f2f5; color: #555; border-color: #bbb; }',
+    '.nura-tree-nav-btn:hover { background: #fff7ed; color: var(--nura-primary); border-color: #fed7aa; transform: translateY(-1px); }',
+    '.nura-tree-nav-btn.home { font-size: 16px; color: #64748b; background: #f8fafc; }',
+    '.nura-tree-nav-btn.home:hover { background: #f1f5f9; color: #111827; border-color: #cbd5e1; }',
 
     '.nura-tree-level-q { font-size: 12px; color: #111827; font-weight: 900; margin-bottom: 10px; text-align: right; }',
+    '.nura-tree-level-q.sub { color: #64748b; font-size: 11.5px; font-weight: 800; margin-top: -2px; }',
     '#chat-window[dir="ltr"] .nura-tree-level-q { text-align: left; }',
     '.nura-agent-bypass-btn {',
     '  margin-top: 12px; width: 100%; padding: 11px 14px;',
@@ -188,6 +211,29 @@
     '  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;',
     '}',
     '.nura-agent-bypass-btn:hover { background: #0f172a; border-color: #f97316; transform: translateY(-1px); }',
+    '.nura-suggestion-card {',
+    '  background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 12px;',
+    '  box-shadow: 0 6px 18px rgba(15,23,42,0.05);',
+    '}',
+    '.nura-suggestion-card h4 { font-size: 13px; color: #111827; font-weight: 900; margin-bottom: 5px; text-align: start; }',
+    '.nura-suggestion-card p { font-size: 12px; color: #64748b; line-height: 1.55; margin-bottom: 10px; text-align: start; }',
+    '.nura-suggestion-input {',
+    '  width: 100%; min-height: 86px; border: 1px solid #e5e7eb; border-radius: 12px;',
+    '  resize: vertical; padding: 10px 12px; font-size: 13px; font-family: inherit; line-height: 1.5;',
+    '  color: #111827; outline: none; background: #fff;',
+    '}',
+    '.nura-suggestion-input:focus { border-color: var(--nura-primary); box-shadow: 0 0 0 3px rgba(249,115,22,0.12); }',
+    '.nura-suggestion-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }',
+    '.nura-suggestion-submit {',
+    '  flex: 1; border: none; border-radius: 12px; padding: 9px 12px;',
+    '  background: #111827; color: #fff; font-size: 12.5px; font-weight: 900; cursor: pointer; font-family: inherit;',
+    '}',
+    '.nura-suggestion-submit:disabled { opacity: 0.45; cursor: default; }',
+    '.nura-suggestion-cancel {',
+    '  border: 1px solid #e5e7eb; border-radius: 12px; padding: 9px 12px;',
+    '  background: #fff; color: #64748b; font-size: 12.5px; font-weight: 800; cursor: pointer; font-family: inherit;',
+    '}',
+    '.nura-suggestion-error { margin-top: 8px; color: #be123c; font-size: 11.5px; text-align: start; }',
     '.nura-tree-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }',
     '.nura-tree-opt {',
     '  background: #fff; border: 1px solid #e2e8f0; color: #1f2937;',
@@ -209,13 +255,13 @@
     '  outline: none; resize: none; max-height: 100px; line-height: 1.4;',
     '  transition: border-color 0.2s, box-shadow 0.2s; text-align: right;',
     '}',
-    '#nura-msg-input:focus { border-color: #f97316; box-shadow: 0 0 0 3px rgba(249,115,22,0.14); }',
+    '#nura-msg-input:focus { border-color: var(--nura-primary); box-shadow: 0 0 0 3px rgba(249,115,22,0.14); }',
     '#chat-window[dir="ltr"] #nura-msg-input { text-align: left; }',
     '#nura-msg-input::placeholder { color: #bbb; }',
 
     '#nura-send-btn {',
     '  width: 42px; height: 42px; border-radius: 50%;',
-    '  background: linear-gradient(135deg, #f97316, #22c55e);',
+    '  background: linear-gradient(135deg, var(--nura-primary), var(--nura-accent));',
     '  border: none; cursor: pointer;',
     '  display: flex; align-items: center; justify-content: center; flex-shrink: 0;',
     '  transition: transform 0.15s, opacity 0.15s;',
@@ -270,27 +316,56 @@
     '  background: none; border: none; font-size: 24px; cursor: pointer;',
     '  color: #ddd; transition: color 0.15s, transform 0.1s; line-height: 1; padding: 0 2px;',
     '}',
-    '.nura-star-btn:hover, .nura-star-btn.lit { color: #f97316; }',
+    '.nura-star-btn:hover, .nura-star-btn.lit { color: var(--nura-primary); }',
     '.nura-star-btn:hover { transform: scale(1.15); }',
 
-    '@media (max-width: 460px) {',
-    '  #chat-window { width: calc(100vw - 24px); max-height: 90vh; }',
+    '@media (max-width: 520px) {',
+    '  #chat-toggle { width: 58px; height: 58px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: 18px; }',
+    '  #nura-widget-root.nura-pos-bottom-right #chat-toggle { left: auto; right: 18px; }',
+    '  #chat-window {',
+    '    top: auto; left: 0; right: 0; bottom: 0;',
+    '    width: 100vw; height: var(--nura-viewport-height); height: min(var(--nura-viewport-height), 100dvh); max-height: none;',
+    '    border-radius: 20px 20px 0 0; border-left: none; border-right: none; border-bottom: none;',
+    '    transform: translateY(105%);',
+    '  }',
+    '  #chat-window.nura-open { transform: translateY(0); }',
+    '  .nura-chat-header { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }',
+    '  .nura-chat-footer { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }',
+    '  #nura-msg-input { font-size: 16px; }',
+    '  .nura-msg { max-width: 90%; }',
     '  .nura-tree-options { grid-template-columns: 1fr; }',
     '}',
+    '@media (prefers-reduced-motion: reduce) {',
+    '  #nura-widget-root *, #nura-widget-root *::before, #nura-widget-root *::after {',
+    '    animation-duration: 0.001ms !important; animation-iteration-count: 1 !important;',
+    '    scroll-behavior: auto !important; transition-duration: 0.001ms !important;',
+    '  }',
+    '}',
   ].join('\n');
-  document.head.appendChild(style);
+
+  var host = document.createElement('div');
+  host.id = 'nura-widget-host';
+  var shadowRoot = host.attachShadow ? host.attachShadow({ mode: 'open' }) : null;
+  if (shadowRoot) {
+    shadowRoot.appendChild(style);
+  } else {
+    document.head.appendChild(style);
+  }
 
   // ── Inject HTML ────────────────────────────────────────────────────────────
   var root = document.createElement('div');
   root.id = 'nura-widget-root';
+  root.className = widgetPosition === 'bottom-right' ? 'nura-pos-bottom-right' : 'nura-pos-bottom-left';
+  root.style.setProperty('--nura-primary', primaryColor);
+  root.style.setProperty('--nura-accent', accentColor);
   root.innerHTML = [
-    '<button id="chat-toggle" aria-label="فتح المحادثة">',
+    '<button id="chat-toggle" aria-label="فتح المحادثة" aria-expanded="false" aria-controls="chat-window">',
     '  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="white" viewBox="0 0 24 24">',
     '    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>',
     '  </svg>',
     '  <div id="nura-badge">1</div>',
     '</button>',
-    '<div id="chat-window" role="dialog" aria-label="نافذة دعم العملاء">',
+    '<div id="chat-window" role="dialog" aria-modal="false" aria-hidden="true" aria-label="نافذة دعم العملاء">',
     '  <div class="nura-chat-header">',
     '    <button id="nura-close-btn" aria-label="إغلاق">✕</button>',
     '    <div id="nura-lang-toggle" role="group" aria-label="Language">',
@@ -303,7 +378,7 @@
     '    </div>',
     '    <div class="nura-avatar">NU</div>',
     '  </div>',
-    '  <div id="nura-messages"></div>',
+    '  <div id="nura-messages" aria-live="polite" aria-relevant="additions text"></div>',
     '  <div id="nura-typing"><span></span><span></span><span></span></div>',
     '  <div id="nura-tree-panel"></div>',
     '  <div class="nura-chat-footer">',
@@ -316,7 +391,12 @@
     '  </div>',
     '</div>',
   ].join('\n');
-  document.body.appendChild(root);
+  if (shadowRoot) {
+    shadowRoot.appendChild(root);
+    document.body.appendChild(host);
+  } else {
+    document.body.appendChild(root);
+  }
 
   // ── UI strings per language ────────────────────────────────────────────────
   var UI = {
@@ -338,6 +418,14 @@
       rateThanks: 'شكراً على تقييمك! نسعى دائماً للتحسين.',
       treeRoot: 'كيف يمكنني مساعدتك؟', treeBack: '← رجوع', treeHome: '🏠 الرئيسية',
       talkToAgent: '🎧 التحدث مع موظف',
+      suggestionTitle: 'الشكاوى والاقتراحات',
+      suggestionIntro: 'هذا القسم مخصص للملاحظات العامة، التوصيات، الشكاوى، أو الاقتراحات. اكتب رسالتك هنا وسنرسلها مباشرة إلى قسم الاقتراحات في نظام المتابعة.',
+      suggestionPlaceholder: 'اكتب الشكوى أو الاقتراح هنا…',
+      suggestionSubmit: 'إرسال إلى قسم الاقتراحات',
+      suggestionCancel: 'إلغاء',
+      suggestionMin: 'يرجى كتابة 5 أحرف على الأقل.',
+      suggestionThanks: 'شكراً لك. تم إرسال ملاحظتك إلى فريقنا وسيتم مراجعتها ضمن قسم الاقتراحات.',
+      suggestionCase: 'رقم المتابعة',
     },
     ku: {
       dir: 'ltr', htmlLang: 'ku',
@@ -357,6 +445,14 @@
       rateThanks: 'Spas ji bo nirxandina te! Em her tim hewl didin baştir bibin.',
       treeRoot: 'Çawa dikarim alîkariya te bikim?', treeBack: '← Vegerîn', treeHome: '🏠 Serxane',
       talkToAgent: '🎧 Bi karmend re biaxive',
+      suggestionTitle: 'Gilî û pêşniyar',
+      suggestionIntro: 'Ev beş ji bo têbînî, pêşniyar, gilî, an ramanên giştî ye. Peyama xwe binivîse û em ê wê rasterast bişînin beşa pêşniyaran di pergala me de.',
+      suggestionPlaceholder: 'Gilî an pêşniyara xwe li vir binivîse…',
+      suggestionSubmit: 'Bişîne beşa pêşniyaran',
+      suggestionCancel: 'Betal bike',
+      suggestionMin: 'Ji kerema xwe herî kêm 5 tîpan binivîse.',
+      suggestionThanks: 'Spas. Peyama te hate şandin û dê ji aliyê tîma me ve were nirxandin.',
+      suggestionCase: 'Hejmara şopandinê',
     },
   };
 
@@ -486,6 +582,7 @@
   var escalationBannerEl   = null;
   var treeStack            = [];
   var agentEventSource     = null;
+  var agentStreamStarting  = false;
   var typingDebounceTimer  = null;
 
   // ── DOM refs ───────────────────────────────────────────────────────────────
@@ -503,6 +600,44 @@
   var headerTitle = root.querySelector('#nura-header-title');
   var headerStatus= root.querySelector('#nura-header-status');
   var langBtns    = root.querySelectorAll('.nura-lang-btn');
+  var lastFocusedEl = null;
+
+  function updateViewportHeight() {
+    var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight || 720;
+    root.style.setProperty('--nura-viewport-height', h + 'px');
+    if (isOpen) scrollBottom();
+  }
+
+  updateViewportHeight();
+  window.addEventListener('resize', updateViewportHeight, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateViewportHeight, { passive: true });
+    window.visualViewport.addEventListener('scroll', updateViewportHeight, { passive: true });
+  }
+
+  function focusableElements() {
+    return Array.prototype.slice.call(root.querySelectorAll(
+      'button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])'
+    )).filter(function (el) {
+      return !el.disabled && el.offsetParent !== null;
+    });
+  }
+
+  function trapFocus(e) {
+    if (!isOpen || e.key !== 'Tab') return;
+    var items = focusableElements();
+    if (!items.length) return;
+    var first = items[0];
+    var last = items[items.length - 1];
+    var active = shadowRoot ? shadowRoot.activeElement : document.activeElement;
+    if (e.shiftKey && active === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 
   // ── Tree helpers ───────────────────────────────────────────────────────────
   function treeLabel(node) {
@@ -510,6 +645,12 @@
     return node.label[currentLang] || node.label.ar;
   }
   function currentTreeNode() { return treeStack.length > 0 ? treeStack[treeStack.length - 1] : TOPIC_TREE; }
+  function cleanTreeTitle(label) {
+    return (label || '').replace(/^[^A-Za-z\u00C0-\u024F\u0600-\u06FF]+/, '').trim() || label;
+  }
+  function chooseServiceText() {
+    return currentLang === 'ar' ? 'اختر الخدمة التي تحتاجها' : 'Xizmeta ku pêdiviya te pê heye hilbijêre';
+  }
 
   function mergeSharedTopicLabels(sharedNode, localNode) {
     if (!sharedNode) return localNode;
@@ -546,9 +687,11 @@
   async function directToAgent() {
     if (isEscalated || isSessionClosed) return;
     try {
+      var handoffHeaders = { 'Content-Type': 'application/json' };
+      if (sessionToken) handoffHeaders['X-Session-Token'] = sessionToken;
       var handoffRes = await fetch(API_BASE + '/handoff/direct', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: handoffHeaders,
         body: JSON.stringify({ session_id: sessionId, customer_id: customerId, channel: 'web', reason: 'direct_request' }),
       });
       if (!handoffRes.ok) throw new Error('Handoff failed: ' + handoffRes.status);
@@ -574,7 +717,10 @@
 
       var backBtn = document.createElement('button');
       backBtn.className = 'nura-tree-nav-btn';
-      backBtn.textContent = t.treeBack;
+      backBtn.type = 'button';
+      backBtn.title = t.treeBack;
+      backBtn.setAttribute('aria-label', t.treeBack);
+      backBtn.textContent = currentLang === 'ar' ? '›' : '‹';
       backBtn.addEventListener('click', function () {
         track('tree_back', treeLabel(treeStack[treeStack.length - 1]), '');
         treeStack.pop();
@@ -582,10 +728,18 @@
       });
       navBar.appendChild(backBtn);
 
+      var title = document.createElement('div');
+      title.className = 'nura-tree-title';
+      title.textContent = cleanTreeTitle(treeLabel(node));
+      navBar.appendChild(title);
+
       if (treeStack.length > 1) {
         var homeBtn = document.createElement('button');
         homeBtn.className = 'nura-tree-nav-btn home';
-        homeBtn.textContent = t.treeHome;
+        homeBtn.type = 'button';
+        homeBtn.title = t.treeHome;
+        homeBtn.setAttribute('aria-label', t.treeHome);
+        homeBtn.textContent = '⌂';
         homeBtn.addEventListener('click', function () {
           track('tree_home', '', '');
           treeStack = [];
@@ -594,16 +748,12 @@
         navBar.appendChild(homeBtn);
       }
 
-      var crumb = document.createElement('span');
-      crumb.className = 'nura-tree-crumb';
-      crumb.textContent = treeStack.map(function (n) { return treeLabel(n); }).join(' › ');
-      navBar.appendChild(crumb);
       treePanel.appendChild(navBar);
     }
 
     var q = document.createElement('div');
-    q.className = 'nura-tree-level-q';
-    q.textContent = treeLabel(node);
+    q.className = 'nura-tree-level-q' + (treeStack.length > 0 ? ' sub' : '');
+    q.textContent = treeStack.length > 0 ? chooseServiceText() : treeLabel(node);
     treePanel.appendChild(q);
 
     var optsDiv = document.createElement('div');
@@ -615,7 +765,13 @@
       btn.textContent = treeLabel(child);
       btn.addEventListener('click', function () {
         track('tree_click', treeLabel(child), child.id, { topic_id: child.id, article_id: child.article != null ? child.article : null });
-        if (child.article !== undefined) {
+        if (child.action === 'complaint') {
+          track('suggestion_open', treeLabel(child), child.id);
+          renderSuggestionForm(child);
+        } else if (child.action === 'agent') {
+          track('direct_to_agent', 'tree_option', child.id);
+          directToAgent();
+        } else if (child.article !== undefined) {
           handleLeaf(child);
         } else if (child.children) {
           treeStack.push(child);
@@ -639,6 +795,122 @@
     }
   }
 
+  function renderSuggestionForm(node) {
+    var t = UI[currentLang];
+    treePanel.innerHTML = '';
+
+    var navBar = document.createElement('div');
+    navBar.className = 'nura-tree-nav-bar';
+
+    var backBtn = document.createElement('button');
+    backBtn.className = 'nura-tree-nav-btn';
+    backBtn.type = 'button';
+    backBtn.title = t.treeBack;
+    backBtn.setAttribute('aria-label', t.treeBack);
+    backBtn.textContent = currentLang === 'ar' ? '›' : '‹';
+    backBtn.addEventListener('click', function () {
+      track('tree_back', treeLabel(node), '');
+      renderTree();
+    });
+    navBar.appendChild(backBtn);
+
+    var title = document.createElement('div');
+    title.className = 'nura-tree-title';
+    title.textContent = t.suggestionTitle;
+    navBar.appendChild(title);
+    treePanel.appendChild(navBar);
+
+    var card = document.createElement('div');
+    card.className = 'nura-suggestion-card';
+
+    var heading = document.createElement('h4');
+    heading.textContent = t.suggestionTitle;
+    card.appendChild(heading);
+
+    var intro = document.createElement('p');
+    intro.textContent = t.suggestionIntro;
+    card.appendChild(intro);
+
+    var textarea = document.createElement('textarea');
+    textarea.className = 'nura-suggestion-input';
+    textarea.placeholder = t.suggestionPlaceholder;
+    textarea.maxLength = 5000;
+    textarea.setAttribute('dir', t.dir);
+    card.appendChild(textarea);
+
+    var actions = document.createElement('div');
+    actions.className = 'nura-suggestion-actions';
+
+    var submit = document.createElement('button');
+    submit.className = 'nura-suggestion-submit';
+    submit.type = 'button';
+    submit.textContent = t.suggestionSubmit;
+    submit.disabled = true;
+
+    var cancel = document.createElement('button');
+    cancel.className = 'nura-suggestion-cancel';
+    cancel.type = 'button';
+    cancel.textContent = t.suggestionCancel;
+    cancel.addEventListener('click', renderTree);
+
+    var error = document.createElement('div');
+    error.className = 'nura-suggestion-error';
+    error.style.display = 'none';
+
+    textarea.addEventListener('input', function () {
+      submit.disabled = textarea.value.trim().length < 5;
+      error.style.display = 'none';
+    });
+
+    submit.addEventListener('click', async function () {
+      var message = textarea.value.trim();
+      if (message.length < 5) {
+        error.textContent = t.suggestionMin;
+        error.style.display = 'block';
+        return;
+      }
+
+      submit.disabled = true;
+      cancel.disabled = true;
+      submit.textContent = currentLang === 'ar' ? 'جارٍ الإرسال…' : 'Tê şandin…';
+      try {
+        var headers = { 'Content-Type': 'application/json' };
+        if (sessionToken) headers['X-Session-Token'] = sessionToken;
+        var res = await fetch(API_BASE + '/suggestions', {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({
+            session_id: sessionId,
+            customer_id: customerId,
+            channel: 'web',
+            kind: 'suggestion',
+            message: message,
+          }),
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) throw new Error(data.detail || ('Error ' + res.status));
+        track('suggestion_submit', treeLabel(node), node.id, { message_length: String(message.length) });
+        appendUserMsg(message);
+        appendBotMsg(t.suggestionThanks + (data.case_number ? '\n' + t.suggestionCase + ': ' + data.case_number : ''), null, null);
+        treeStack = [];
+        renderTree();
+      } catch (e) {
+        error.textContent = e.message || UI[currentLang].errorPrefix;
+        error.style.display = 'block';
+        submit.disabled = false;
+        cancel.disabled = false;
+        submit.textContent = t.suggestionSubmit;
+      }
+    });
+
+    actions.appendChild(submit);
+    actions.appendChild(cancel);
+    card.appendChild(actions);
+    card.appendChild(error);
+    treePanel.appendChild(card);
+    setTimeout(function () { textarea.focus(); }, 50);
+  }
+
   function handleLeaf(node) {
     var dict    = currentLang === 'ku' ? ARTICLES_KU : ARTICLES;
     var content = dict[node.article];
@@ -657,14 +929,17 @@
   function applyLang(lang) {
     currentLang = lang;
     var t = UI[lang];
+    root.setAttribute('lang', t.htmlLang);
+    root.setAttribute('dir', t.dir);
     win.setAttribute('dir', t.dir);
     msgInput.setAttribute('dir', t.dir);
     msgInput.placeholder = t.placeholder;
-    headerTitle.textContent = t.headerTitle;
+    headerTitle.textContent = brandTitle || t.headerTitle;
     headerStatus.innerHTML = '<span class="nura-online-dot"></span> ' + t.headerStatus;
     langBtns.forEach(function (b) { b.classList.toggle('active', b.dataset.lang === lang); });
     sendBtn.setAttribute('aria-label', t.sendAriaLabel);
     closeBtn.setAttribute('aria-label', t.closeAriaLabel);
+    toggle.setAttribute('aria-label', lang === 'ar' ? 'فتح المحادثة' : 'Vekirina sohbetê');
     treeStack = [];
     renderTree();
     if (welcomed) {
@@ -683,16 +958,25 @@
 
   // ── Open / close ───────────────────────────────────────────────────────────
   function openChat() {
+    lastFocusedEl = document.activeElement;
     isOpen = true;
     win.classList.add('nura-open');
+    win.setAttribute('aria-hidden', 'false');
+    toggle.setAttribute('aria-expanded', 'true');
     badge.style.display = 'none';
-    setTimeout(function () { msgInput.focus(); }, 250);
+    updateViewportHeight();
+    setTimeout(function () { msgInput.focus(); scrollBottom(); }, 250);
     if (isEscalated && !isSessionClosed) startAgentStream();
   }
   function closeChat() {
     isOpen = false;
     win.classList.remove('nura-open');
+    win.setAttribute('aria-hidden', 'true');
+    toggle.setAttribute('aria-expanded', 'false');
     stopAgentStream();
+    if (lastFocusedEl && typeof lastFocusedEl.focus === 'function') {
+      setTimeout(function () { lastFocusedEl.focus(); }, 0);
+    }
   }
 
   toggle.addEventListener('click', function () {
@@ -705,6 +989,13 @@
     }
   });
   closeBtn.addEventListener('click', function () { track('chat_close', 'close_btn', ''); closeChat(); });
+  win.addEventListener('keydown', trapFocus);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && isOpen) {
+      track('chat_close', 'escape_key', '');
+      closeChat();
+    }
+  });
 
   // ── Input ──────────────────────────────────────────────────────────────────
   msgInput.addEventListener('input', function () {
@@ -715,13 +1006,16 @@
       clearTimeout(typingDebounceTimer);
       typingDebounceTimer = setTimeout(function () {
         fetch(API_BASE + '/session/' + encodeURIComponent(sessionId) +
-          '/typing?sender=customer&session_token=' + encodeURIComponent(sessionToken),
-          { method: 'POST' }).catch(function () {});
+          '/typing?sender=customer',
+          { method: 'POST', headers: { 'X-Session-Token': sessionToken } }).catch(function () {});
       }, 500);
     }
   });
   msgInput.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+  msgInput.addEventListener('focus', function () {
+    setTimeout(function () { updateViewportHeight(); scrollBottom(); }, 150);
   });
   sendBtn.addEventListener('click', sendMessage);
 
@@ -755,8 +1049,8 @@
 
     try {
       var uploadRes = await fetch(
-        API_BASE + '/upload?session_token=' + encodeURIComponent(sessionToken),
-        { method: 'POST', body: form }
+        API_BASE + '/upload',
+        { method: 'POST', headers: { 'X-Session-Token': sessionToken }, body: form }
       );
       if (!uploadRes.ok) {
         var uploadErr = await uploadRes.json().catch(function () { return {}; });
@@ -770,7 +1064,7 @@
 
       var messageRes = await fetch(API_BASE + '/message', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken || '' },
         body: JSON.stringify({
           session_id: sessionId,
           channel: 'web',
@@ -956,21 +1250,36 @@
   }
 
   // ── Agent message polling ──────────────────────────────────────────────────
-  function startAgentStream() {
-    if (agentEventSource || !sessionId || !sessionToken) return;
-    var streamUrl = API_BASE + '/session/' + encodeURIComponent(sessionId) +
-      '/stream?session_token=' + encodeURIComponent(sessionToken);
-    agentEventSource = new EventSource(streamUrl);
-    agentEventSource.onmessage = function (e) {
-      try { handleStreamEvent(JSON.parse(e.data)); } catch (_) {}
-    };
-    agentEventSource.onerror = function () {
-      agentEventSource.close();
-      agentEventSource = null;
+  async function startAgentStream() {
+    if (agentEventSource || agentStreamStarting || !sessionId || !sessionToken) return;
+    agentStreamStarting = true;
+    try {
+      var tokenRes = await fetch(API_BASE + '/session/' + encodeURIComponent(sessionId) + '/stream-token', {
+        method: 'POST',
+        headers: { 'X-Session-Token': sessionToken },
+      });
+      if (!tokenRes.ok) throw new Error('Stream token failed: ' + tokenRes.status);
+      var tokenData = await tokenRes.json();
+      var streamUrl = API_BASE + '/session/' + encodeURIComponent(sessionId) +
+        '/stream?stream_token=' + encodeURIComponent(tokenData.stream_token);
+      agentEventSource = new EventSource(streamUrl);
+      agentEventSource.onmessage = function (e) {
+        try { handleStreamEvent(JSON.parse(e.data)); } catch (_) {}
+      };
+      agentEventSource.onerror = function () {
+        agentEventSource.close();
+        agentEventSource = null;
+        if (!isSessionClosed && isEscalated) {
+          setTimeout(startAgentStream, 5000);
+        }
+      };
+    } catch (e) {
       if (!isSessionClosed && isEscalated) {
         setTimeout(startAgentStream, 5000);
       }
-    };
+    } finally {
+      agentStreamStarting = false;
+    }
   }
 
   function stopAgentStream() {
@@ -1056,7 +1365,9 @@
     try {
       var res = await fetch(API_BASE + '/message', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: sessionToken
+          ? { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken }
+          : { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: sessionId, channel: 'web', customer_id: customerId, message: text }),
       });
 
@@ -1118,8 +1429,23 @@
   }
 
   // ── Init ───────────────────────────────────────────────────────────────────
-  applyLang('ar');
+  applyLang(initialLang);
   loadSharedTopicTree();
-  setTimeout(function () { if (!isOpen) badge.style.display = 'flex'; }, 2000);
+  if (autoOpen) {
+    openChat();
+    if (!welcomed) {
+      welcomed = true;
+      setTimeout(function () { appendBotMsg(UI[currentLang].welcome, null, null); }, 300);
+    }
+  } else {
+    setTimeout(function () { if (!isOpen) badge.style.display = 'flex'; }, 2000);
+  }
 
+  }
+
+  if (document.body) {
+    initNuraWidget();
+  } else {
+    document.addEventListener('DOMContentLoaded', initNuraWidget, { once: true });
+  }
 })();

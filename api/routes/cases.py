@@ -3,18 +3,21 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
-from core.auth import get_admin_identity, require_roles, verify_api_key
+from core.auth import get_admin_identity, require_roles, verify_api_key, verify_session_access
 from core.session_manager import get_session
 from db.postgres import get_db_pool
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 CASE_STATUSES = {"open", "pending", "in_progress", "waiting_customer", "escalated", "resolved", "closed"}
 CASE_PRIORITIES = {"low", "normal", "high", "urgent"}
 SLA_HOURS = {"low": 72, "normal": 24, "high": 8, "urgent": 2}
 FIRST_RESPONSE_HOURS = {"low": 24, "normal": 8, "high": 2, "urgent": 0.5}
-_valid_departments: set[str] = {"general", "billing", "technical", "complaints", "sales"}
+_valid_departments: set[str] = {"general", "billing", "technical", "complaints", "sales", "suggestions"}
 
 
 class CaseCreateBody(BaseModel):
@@ -51,6 +54,14 @@ class CaseFromSessionBody(BaseModel):
 
 class CaseNoteBody(BaseModel):
     note: str = Field(..., min_length=1, max_length=5000)
+
+
+class PublicSuggestionBody(BaseModel):
+    message: str = Field(..., min_length=5, max_length=5000)
+    kind: str = Field(default="suggestion", max_length=32)
+    session_id: Optional[str] = Field(default=None, max_length=128)
+    customer_id: Optional[str] = Field(default=None, max_length=128)
+    channel: str = Field(default="web", max_length=32)
 
 
 async def _actor(request: Request) -> str:
@@ -204,6 +215,78 @@ async def ensure_case_for_session(
             conn, row["id"], actor, "created", note=f"Auto-created from handoff: {reason}"
         )
         return _row_to_case(row)
+
+
+async def create_suggestion_case(
+    message: str,
+    kind: str = "suggestion",
+    session_id: str | None = None,
+    customer_id: str = "",
+    channel: str = "web",
+    actor: str = "widget",
+    origin: str = "web widget",
+) -> dict:
+    kind = kind if kind in {"suggestion", "complaint"} else "suggestion"
+    department = "suggestions" if is_valid_department_code("suggestions") else (
+        "complaints" if is_valid_department_code("complaints") else "general"
+    )
+    tag = "complaint" if kind == "complaint" else "suggestion"
+    title_prefix = "Customer complaint" if kind == "complaint" else "Customer suggestion"
+    message = message.strip()
+    title = f"{title_prefix}: {message[:120]}"
+    description = (
+        f"Submitted from {origin}.\n\n"
+        f"Type: {kind}\n"
+        f"Customer ID: {customer_id or 'unknown'}\n"
+        f"Session ID: {session_id or 'none'}\n\n"
+        f"Message:\n{message}"
+    )
+    first_response_due_at, sla_due_at = _sla_due("normal")
+
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        case_number = await _next_case_number(conn)
+        row = await conn.fetchrow(
+            """
+            INSERT INTO support_cases (
+                case_number, session_id, customer_id, channel, title, description,
+                department, priority, owner, tags, internal_notes, source,
+                first_response_due_at, sla_due_at, sla_status, created_by, updated_by
+            )
+            VALUES ($1,$2,$3,$4,$5,$6,$7,'normal',NULL,$8,$9,'suggestion',$10,$11,'ok',$12,$12)
+            RETURNING *
+            """,
+            case_number, session_id, customer_id, channel, title, description,
+            department, [tag, channel], f"Submitted from {origin} suggestion intake",
+            first_response_due_at, sla_due_at, actor,
+        )
+        await _log_case_activity(
+            conn, row["id"], actor, "created", note=f"Public {kind} submitted from {origin}"
+        )
+    return _row_to_case(row)
+
+
+@router.post("/suggestions")
+@limiter.limit("10/minute")
+async def create_public_suggestion(body: PublicSuggestionBody, request: Request):
+    session = None
+    if body.session_id:
+        session = await get_session(body.session_id)
+        if session:
+            await verify_session_access(request, session)
+    session_id = session.session_id if session else None
+    customer_id = body.customer_id or (session.customer_id if session else "")
+    channel = body.channel or (session.channel if session else "web")
+    case = await create_suggestion_case(
+        message=body.message,
+        kind=body.kind,
+        session_id=session_id,
+        customer_id=customer_id,
+        channel=channel,
+        actor="widget",
+        origin="web widget",
+    )
+    return {"ok": True, "case_number": case["case_number"], "case": case}
 
 
 @router.get("/departments", dependencies=[Depends(verify_api_key)])

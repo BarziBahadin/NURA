@@ -1,3 +1,4 @@
+import hashlib
 import json
 import pickle
 import shutil
@@ -21,6 +22,14 @@ try:
     _ST_AVAILABLE = True
 except ImportError:
     pass
+
+
+def _sha256(path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def normalize_arabic(text: str) -> str:
@@ -91,6 +100,10 @@ class ModelTrainer:
             "n_categories": len(set(self.categories)),
             "training_date": pd.Timestamp.now().isoformat(),
             "semantic_embeddings": self.question_embeddings is not None,
+            "artifacts": {
+                LOCAL_MODEL_PATH.name: {"sha256": _sha256(LOCAL_MODEL_PATH)},
+                VECTORIZER_PATH.name: {"sha256": _sha256(VECTORIZER_PATH)},
+            },
         }
         with open(METADATA_PATH, "w") as f:
             json.dump(metadata, f, indent=2)

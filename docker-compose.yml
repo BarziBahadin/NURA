@@ -3,7 +3,7 @@ services:
     build: ./api
     container_name: nura-api
     ports:
-      - "8080:8000"
+      - "127.0.0.1:8080:8000"
     env_file: .env
     depends_on:
       postgres:
@@ -80,7 +80,7 @@ services:
     image: chromadb/chroma:1.0.0
     container_name: nura-chromadb
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
     volumes:
       - nura_chroma_data:/chroma/chroma
     networks:
@@ -95,7 +95,7 @@ services:
       POSTGRES_USER: nura_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - nura_postgres_data:/var/lib/postgresql/data
       - ./api/db/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql
@@ -112,7 +112,7 @@ services:
     image: redis:7-alpine
     container_name: nura-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -128,10 +128,8 @@ services:
       args:
         VITE_NURA_API_BASE: /v1
     container_name: nura-admin
-    environment:
-      API_KEY: ${API_KEY:?API_KEY is required}
     ports:
-      - "3004:80"
+      - "127.0.0.1:3004:80"
     networks:
       - nura_network
     restart: unless-stopped

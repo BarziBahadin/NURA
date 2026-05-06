@@ -10,11 +10,12 @@ import Login from './pages/Login.jsx'
 import UserManagement from './pages/UserManagement.jsx'
 import SystemMonitor from './pages/SystemMonitor.jsx'
 import KnowledgeGapQueue from './pages/KnowledgeGapQueue.jsx'
+import CannedReplies from './pages/CannedReplies.jsx'
 import { API_BASE, getToken, setToken, isTokenValid, getRole } from './lib/api.js'
 
 // api.key is a live getter so every fetch call reads the current stored token.
-// nginx injects the real API key for /v1/ routes, so backend auth always works.
-// The JWT is used for: (a) showing/hiding the login page, (b) role-based nav.
+// The JWT is used for authenticated API calls, showing/hiding the login page,
+// and role-based navigation.
 export const api = {
   base: API_BASE,
   get key() { return getToken() },
@@ -24,10 +25,12 @@ const ALL_NAV_ITEMS = [
   { path: '/',          label: 'Dashboard',      icon: '📊', roles: ['admin', 'viewer'] },
   { path: '/queue',     label: 'Live Queue',      icon: '🔔', roles: ['admin', 'agent'] },
   { path: '/cases',     label: 'Cases',           icon: '📁', roles: ['admin', 'agent', 'viewer'] },
+  { path: '/suggestions', label: 'Suggestions',   icon: '💡', roles: ['admin', 'agent', 'viewer'] },
   { path: '/sessions',  label: 'Sessions',        icon: '💬', roles: ['admin', 'agent', 'viewer'] },
   { path: '/reports',   label: 'Reports',         icon: '📈', roles: ['admin', 'viewer'] },
-  { path: '/gaps',      label: 'Knowledge Gaps',  icon: '🧩', roles: ['admin'] },
-  { path: '/knowledge', label: 'Knowledge Base',  icon: '📚', roles: ['admin'] },
+  { path: '/gaps',           label: 'Knowledge Gaps',  icon: '🧩', roles: ['admin'] },
+  { path: '/canned-replies', label: 'Canned Replies',  icon: '💬', roles: ['admin'] },
+  { path: '/knowledge',      label: 'Knowledge Base',  icon: '📚', roles: ['admin'] },
   { path: '/users',     label: 'Team',            icon: '👥', roles: ['admin'] },
   { path: '/monitor',   label: 'System Monitor',  icon: '🖥️', roles: ['admin'] },
 ]
@@ -177,9 +180,20 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/queue" element={<LiveQueue />} />
           <Route path="/cases" element={<Cases />} />
+          <Route
+            path="/suggestions"
+            element={
+              <Cases
+                initialDepartment="suggestions"
+                title="Suggestions"
+                subtitle="Customer complaints, recommendations, and suggestions submitted from the widget"
+              />
+            }
+          />
           <Route path="/sessions" element={<SessionViewer />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/gaps" element={<KnowledgeGapQueue />} />
+          <Route path="/canned-replies" element={<CannedReplies />} />
           <Route path="/knowledge" element={<KnowledgeBase />} />
           <Route path="/users" element={<UserManagement />} />
           <Route path="/monitor" element={<SystemMonitor />} />

@@ -16,7 +16,7 @@ class Channel(str, Enum):
 class IncomingMessage(BaseModel):
     session_id: Optional[str] = None
     channel: Channel = Channel.web
-    customer_id: str
+    customer_id: str = Field(..., max_length=128, pattern=r"^[\w\-@.+]+$")
     message: str = Field(..., max_length=2000)
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
     attachment_url: Optional[str] = None

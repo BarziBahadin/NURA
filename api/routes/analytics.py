@@ -9,7 +9,6 @@ from slowapi.util import get_remote_address
 
 from core.auth import verify_api_key
 from core.logger import log_message_feedback, log_tree_click, log_widget_event
-from core.session_manager import get_all_sessions
 from db.postgres import get_db_pool
 
 logger = logging.getLogger(__name__)
@@ -20,6 +19,7 @@ ALLOWED_EVENT_TYPES = {
     "chat_open", "chat_close", "lang_switch", "send_message",
     "tree_click", "tree_back", "tree_home", "followup_yes",
     "followup_no", "feedback_good", "feedback_bad", "direct_to_agent",
+    "suggestion_open", "suggestion_submit",
 }
 
 
@@ -297,9 +297,11 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
                    ROUND(confidence::numeric, 2) AS confidence,
                    escalated, created_at
             FROM conversation_logs
+            WHERE created_at >= $1
             ORDER BY created_at DESC
             LIMIT 50
             """,
+            since,
         )
         recent = [
             {
@@ -501,11 +503,19 @@ async def get_reports(
 
 @router.get("/analytics/ratings")
 async def get_ratings(_: None = Depends(verify_api_key)):
-    sessions = await get_all_sessions()
-    rated = [s.metadata["rating"] for s in sessions if "rating" in s.metadata]
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT (metadata->>'rating')::int AS rating
+            FROM sessions
+            WHERE metadata ? 'rating'
+              AND (metadata->>'rating')::int BETWEEN 1 AND 5
+            """
+        )
+    rated = [r["rating"] for r in rows]
     dist = {str(i): 0 for i in range(1, 6)}
-    for r in rated:
-        if 1 <= r <= 5:
-            dist[str(r)] += 1
+    for score in rated:
+        dist[str(score)] += 1
     avg = round(sum(rated) / len(rated), 2) if rated else None
     return {"avg_rating": avg, "total_rated": len(rated), "distribution": dist}

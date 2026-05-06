@@ -16,7 +16,7 @@ import pandas as pd
 
 from training.config import (
     TRAINING_CSV, LOCAL_MODEL_PATH, VECTORIZER_PATH,
-    SNAPSHOTS_DIR, MIN_CONFIDENCE_LOCAL, INCLUDE_APPROVED_GAPS,
+    METADATA_PATH, SNAPSHOTS_DIR, MIN_CONFIDENCE_LOCAL, INCLUDE_APPROVED_GAPS,
 )
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -218,6 +218,7 @@ def rollback(snapshot):
     click.echo(f"Rolling back to: {target.name}")
     shutil.copy2(target / "local_model.pkl", LOCAL_MODEL_PATH)
     shutil.copy2(target / "vectorizer.pkl", VECTORIZER_PATH)
+    shutil.copy2(target / "metadata.json", METADATA_PATH)
     m = json.loads((target / "metadata.json").read_text())
     click.echo(f"  Samples: {m.get('n_samples','?')}  |  Trained: {str(m.get('training_date','?'))[:19]}")
     click.echo("Rollback complete. Restart the API to load the restored model.")

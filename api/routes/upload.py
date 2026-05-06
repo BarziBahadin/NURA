@@ -1,4 +1,9 @@
+import base64
+import hashlib
+import hmac
+import json
 import os
+import time
 import uuid
 from urllib.parse import urlencode
 
@@ -7,6 +12,7 @@ from fastapi.responses import FileResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from config import settings
 from core.auth import has_admin_access, verify_session_access
 from core.session_manager import get_session
 
@@ -15,7 +21,64 @@ limiter = Limiter(key_func=get_remote_address)
 
 UPLOAD_DIR = "/app/uploads"
 MAX_SIZE = 5 * 1024 * 1024  # 5 MB
+FILE_TOKEN_TTL_SECONDS = 15 * 60
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"}
+
+
+def _b64(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode().rstrip("=")
+
+
+def _unb64(data: str) -> bytes:
+    return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
+
+
+def _upload_hmac_key() -> bytes:
+    return hashlib.sha256(b"nura:upload-token:" + settings.admin_secret_key.encode()).digest()
+
+
+def _sign_file_token(session_id: str, filename: str) -> str:
+    payload = {
+        "sid": session_id,
+        "fn": filename,
+        "exp": int(time.time()) + FILE_TOKEN_TTL_SECONDS,
+    }
+    body = _b64(json.dumps(payload, separators=(",", ":")).encode())
+    sig = hmac.new(_upload_hmac_key(), body.encode(), hashlib.sha256).digest()
+    return f"{body}.{_b64(sig)}"
+
+
+def _verify_file_token(token: str, session_id: str, filename: str) -> bool:
+    if not token or "." not in token:
+        return False
+    body, sig = token.rsplit(".", 1)
+    expected = _b64(hmac.new(_upload_hmac_key(), body.encode(), hashlib.sha256).digest())
+    if not hmac.compare_digest(sig, expected):
+        return False
+    try:
+        payload = json.loads(_unb64(body))
+    except Exception:
+        return False
+    if int(payload.get("exp", 0)) < int(time.time()):
+        return False
+    return payload.get("sid") == session_id and payload.get("fn") == filename
+
+
+def _safe_segment(value: str, field: str) -> str:
+    clean = os.path.basename(value or "")
+    if not clean or clean != value:
+        raise HTTPException(status_code=400, detail=f"Invalid {field}")
+    return clean
+
+
+def _upload_path(session_id: str, filename: str) -> tuple[str, str]:
+    safe_session = _safe_segment(session_id, "session_id")
+    safe_filename = _safe_segment(filename, "filename")
+    root = os.path.abspath(os.path.join(UPLOAD_DIR, safe_session))
+    path = os.path.abspath(os.path.join(root, safe_filename))
+    if os.path.commonpath([root, path]) != root:
+        raise HTTPException(status_code=400, detail="Invalid upload path")
+    return root, path
 
 
 @router.post("/upload")
@@ -45,30 +108,29 @@ async def upload_file(
 
     safe_name = os.path.basename(file.filename or "upload")
     filename = f"{uuid.uuid4().hex}_{safe_name}"
-    dest_dir = os.path.join(UPLOAD_DIR, session_id or "admin")
+    dest_dir, dest_path = _upload_path(session_id or "admin", filename)
     os.makedirs(dest_dir, exist_ok=True)
-    dest_path = os.path.join(dest_dir, filename)
 
     with open(dest_path, "wb") as f:
         f.write(contents)
 
     path_url = f"/v1/uploads/{session_id or 'admin'}/{filename}"
     url = str(request.base_url).rstrip("/") + path_url
-    supplied_token = request.query_params.get("session_token") or request.headers.get("X-Session-Token", "")
-    if session_id and supplied_token:
-        url += "?" + urlencode({"session_token": supplied_token})
+    if session_id:
+        url += "?" + urlencode({"file_token": _sign_file_token(session_id, filename)})
     return {"url": url, "filename": filename, "content_type": file.content_type}
 
 
 @router.get("/uploads/{session_id}/{filename}")
 async def serve_file(session_id: str, filename: str, request: Request):
-    if not await has_admin_access(request):
+    _, path = _upload_path(session_id, filename)
+    file_token = request.query_params.get("file_token", "")
+    if not _verify_file_token(file_token, session_id, filename) and not await has_admin_access(request):
         session = await get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
         await verify_session_access(request, session)
 
-    path = os.path.join(UPLOAD_DIR, session_id, filename)
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="File not found")
 

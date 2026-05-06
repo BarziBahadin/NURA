@@ -89,10 +89,22 @@ def extract_intent(text: str) -> str:
     return result if len(result) >= 10 else text
 
 
+_GENERATE_CACHE_MAX = 512
+
+
 class ConversationService:
     def __init__(self, local_model, confidence_threshold: float = 0.70):
         self.model = local_model
         self.threshold = confidence_threshold
+        self._cache: dict[tuple, dict] = {}
+
+    def _generate(self, question: str) -> dict:
+        key = (question, self.threshold)
+        if key not in self._cache:
+            if len(self._cache) >= _GENERATE_CACHE_MAX:
+                self._cache.pop(next(iter(self._cache)))
+            self._cache[key] = self.model.generate(question, threshold=self.threshold)
+        return self._cache[key]
 
     def process(self, message: str) -> dict:
         if is_greeting(message):
@@ -110,10 +122,10 @@ class ConversationService:
         if intent_query != message:
             logger.debug(f"Intent extracted: {intent_query!r}")
 
-        result = self.model.generate(intent_query, threshold=self.threshold)
+        result = self._generate(intent_query)
 
         if result["confidence"] < self.threshold and intent_query != message:
-            alt = self.model.generate(message, threshold=self.threshold)
+            alt = self._generate(message)
             if alt["confidence"] > result["confidence"]:
                 result = alt
 

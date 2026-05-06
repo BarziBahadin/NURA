@@ -19,6 +19,7 @@ _redis_client: Optional[aioredis.Redis] = None
 SESSION_TTL = 3600 * 24  # 24 hours
 HUMAN_SESSION_TTL = 3600 * 24 * 7  # one week for live handoff recovery
 CUSTOMER_TOKEN_KEY = "customer_token"
+MAX_HISTORY = 100
 
 
 def get_redis() -> aioredis.Redis:
@@ -52,17 +53,22 @@ async def get_or_create_session(
     new_id = str(uuid.uuid4()) if resolved_existing else (session_id or str(uuid.uuid4()))
     r = get_redis()
     lock_key = f"session:lock:{new_id}"
-    acquired = await r.set(lock_key, "1", nx=True, ex=5)
+
+    acquired = False
+    for _ in range(20):
+        acquired = await r.set(lock_key, "1", nx=True, ex=5)
+        if acquired:
+            session = await get_session(new_id)
+            if session:
+                await r.delete(lock_key)
+                return session
+            break
+        session = await get_session(new_id)
+        if session:
+            return session
+        await asyncio.sleep(0.1)
     if not acquired:
-        await asyncio.sleep(0.15)
-        session = await get_session(new_id)
-        if session:
-            return session
-    else:
-        session = await get_session(new_id)
-        if session:
-            await r.delete(lock_key)
-            return session
+        raise RuntimeError(f"Timed out acquiring session creation lock for {new_id}")
 
     try:
         now = datetime.now(timezone.utc).isoformat()
@@ -159,7 +165,8 @@ async def persist_session(session: Session) -> None:
                 datetime.fromisoformat(session.updated_at),
             )
     except Exception as e:
-        logger.error(f"Failed to persist session {session.session_id} to Postgres: {e}")
+        logger.exception(f"Failed to persist session {session.session_id} to Postgres: {e}")
+        raise
 
 
 async def load_session_from_db(session_id: str) -> Optional[Session]:
@@ -230,6 +237,8 @@ async def append_turn(
         message_type=message_type,
     )
     session.history.append(turn)
+    if len(session.history) > MAX_HISTORY:
+        session.history = session.history[-MAX_HISTORY:]
     session.updated_at = datetime.now(timezone.utc).isoformat()
     await save_session(session)
     await publish_session_event(session.session_id, {"type": "turn", "turn": turn.model_dump()})

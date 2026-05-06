@@ -419,7 +419,11 @@ function CaseRow({ item, departments, onUpdated }) {
   )
 }
 
-export default function Cases() {
+export default function Cases({
+  initialDepartment = 'all',
+  title = 'Cases',
+  subtitle = 'Ticket workflow, ownership, departments and SLA tracking',
+}) {
   const [cases, setCases] = useState([])
   const [departments, setDepartments] = useState([])
   const [stats, setStats] = useState({})
@@ -430,7 +434,16 @@ export default function Cases() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
-  const [filters, setFilters] = useState({ status: 'all', priority: 'all', department: 'all', q: '' })
+  const [filters, setFilters] = useState({
+    status: 'all',
+    priority: 'all',
+    department: initialDepartment,
+    q: '',
+  })
+
+  useEffect(() => {
+    setFilters(f => ({ ...f, department: initialDepartment }))
+  }, [initialDepartment])
 
   const query = useMemo(() => {
     const params = new URLSearchParams()
@@ -487,8 +500,8 @@ export default function Cases() {
     <div className="p-6 max-w-7xl">
       <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Cases</h1>
-          <div className="text-xs text-gray-400 mt-1">Ticket workflow, ownership, departments and SLA tracking</div>
+          <h1 className="text-2xl font-bold text-gray-800">{title}</h1>
+          <div className="text-xs text-gray-400 mt-1">{subtitle}</div>
         </div>
         <div className="flex gap-2">
           <button onClick={fetchCases} className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">

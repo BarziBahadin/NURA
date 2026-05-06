@@ -1,4 +1,4 @@
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
 from typing import List
 
@@ -12,7 +12,8 @@ class Settings(BaseSettings):
 
     api_host: str = "0.0.0.0"
     api_port: int = 8000
-    api_key: str
+    api_key: str = ""
+    allow_admin_api_key: bool = False
 
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
@@ -31,7 +32,7 @@ class Settings(BaseSettings):
     redis_port: int = 6379
 
     chroma_host: str = "chromadb"
-    chroma_port: int = 8001
+    chroma_port: int = 8000
 
     rag_chunk_size: int = 512
     rag_chunk_overlap: int = 64
@@ -42,6 +43,7 @@ class Settings(BaseSettings):
     ml_model_path: str = "/app/ml_models/local_model.pkl"
     ml_vectorizer_path: str = "/app/ml_models/vectorizer.pkl"
     ml_confidence_threshold: float = 0.70
+    ml_require_artifact_hashes: bool = False
     use_semantic_embeddings: bool = False
     semantic_model_name: str = "paraphrase-multilingual-MiniLM-L12-v2"
 
@@ -74,6 +76,15 @@ class Settings(BaseSettings):
         if v == "admin-secret-change-in-production":
             raise ValueError("ADMIN_SECRET_KEY must be changed from the default value")
         return v
+
+    @model_validator(mode="after")
+    def production_safety_checks(self):
+        if self.app_env.lower() == "production":
+            if "*" in self.cors_origins_list:
+                raise ValueError("CORS_ORIGINS cannot include '*' in production")
+            if self.allow_admin_api_key and len(self.api_key) < 32:
+                raise ValueError("API_KEY must be at least 32 characters when ALLOW_ADMIN_API_KEY=true")
+        return self
 
     @property
     def cors_origins_list(self) -> List[str]:
