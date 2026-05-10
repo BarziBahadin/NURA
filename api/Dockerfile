@@ -1,5 +1,7 @@
 FROM python:3.11-slim
 
+ARG USE_SEMANTIC_EMBEDDINGS=false
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -7,8 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements-ml.txt ./
+RUN pip install --no-cache-dir -r requirements.txt && \
+    if [ "$USE_SEMANTIC_EMBEDDINGS" = "true" ]; then \
+        pip install --no-cache-dir -r requirements-ml.txt; \
+    fi
 
 COPY . .
 

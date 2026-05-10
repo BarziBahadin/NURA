@@ -26,6 +26,20 @@ FILE_TOKEN_TTL_SECONDS = 15 * 60
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"}
 
 
+def _detect_mime(data: bytes) -> str | None:
+    if data[:3] == b'\xff\xd8\xff':
+        return "image/jpeg"
+    if data[:8] == b'\x89PNG\r\n\x1a\n':
+        return "image/png"
+    if data[:6] in (b'GIF87a', b'GIF89a'):
+        return "image/gif"
+    if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+        return "image/webp"
+    if data[:4] == b'%PDF':
+        return "application/pdf"
+    return None
+
+
 def _b64(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).decode().rstrip("=")
 
@@ -100,14 +114,15 @@ async def upload_file(
             raise HTTPException(status_code=404, detail="Session not found")
         await verify_session_access(request, session)
 
-    if file.content_type not in ALLOWED_TYPES:
-        record_failure("uploads", reason="content_type", content_type=file.content_type)
-        raise HTTPException(status_code=415, detail="File type not allowed")
-
     contents = await file.read(MAX_SIZE + 1)
     if len(contents) > MAX_SIZE:
         record_failure("uploads", reason="size")
         raise HTTPException(status_code=413, detail="File too large (max 5 MB)")
+
+    actual_mime = _detect_mime(contents)
+    if actual_mime not in ALLOWED_TYPES:
+        record_failure("uploads", reason="content_type", content_type=file.content_type)
+        raise HTTPException(status_code=415, detail="File type not allowed")
 
     safe_name = os.path.basename(file.filename or "upload")
     filename = f"{uuid.uuid4().hex}_{safe_name}"
@@ -121,8 +136,8 @@ async def upload_file(
     url = str(request.base_url).rstrip("/") + path_url
     if session_id:
         url += "?" + urlencode({"file_token": _sign_file_token(session_id, filename)})
-    record_event("uploads.completed", channel=session.channel if session else "admin", content_type=file.content_type)
-    return {"url": url, "filename": filename, "content_type": file.content_type}
+    record_event("uploads.completed", channel=session.channel if session else "admin", content_type=actual_mime)
+    return {"url": url, "filename": filename, "content_type": actual_mime}
 
 
 @router.get("/uploads/{session_id}/{filename}")

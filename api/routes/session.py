@@ -10,9 +10,10 @@ from sse_starlette.sse import EventSourceResponse
 
 from core.auth import has_admin_access, verify_api_key, verify_session_access
 from core.logger import log_session_outcome
-from core.session_manager import append_turn, get_all_sessions, get_session, publish_session_event, save_session
+from core.session_manager import append_turn, get_all_sessions, get_queue_sessions, get_session, publish_session_event, save_session
 from core.utils import fire_task
 from models.session import SessionStatus
+from routes.telegram import _send as _tg_send, send_resolved_to_telegram
 
 router = APIRouter()
 STREAM_TOKEN_TTL_SECONDS = 60 * 60
@@ -55,7 +56,6 @@ async def close_session(session_id: str, _: None = Depends(verify_api_key)):
     chat_id = _telegram_chat_id(session, session_id)
     if chat_id is not None:
         try:
-            from routes.telegram import send_resolved_to_telegram
             fire_task(send_resolved_to_telegram(chat_id), label="tg:resolved")
         except Exception:
             pass
@@ -108,7 +108,6 @@ async def resolve_session(
     chat_id = _telegram_chat_id(session, session_id)
     if chat_id is not None:
         try:
-            from routes.telegram import send_resolved_to_telegram
             fire_task(send_resolved_to_telegram(chat_id), label="tg:resolved")
         except Exception:
             pass
@@ -130,12 +129,7 @@ async def list_sessions(
 
 @router.get("/queue")
 async def get_queue(_: None = Depends(verify_api_key)):
-    all_sessions = await get_all_sessions()
-    active = [
-        s for s in all_sessions
-        if s.status in (SessionStatus.pending_handoff, SessionStatus.human_active)
-    ]
-    active.sort(key=lambda s: s.updated_at)
+    active = await get_queue_sessions()
     return {"pending": len(active), "sessions": [s.model_dump() for s in active]}
 
 
@@ -163,8 +157,7 @@ async def send_agent_message(
     chat_id = _telegram_chat_id(session, session_id)
     if chat_id is not None:
         try:
-            from routes.telegram import _send
-            fire_task(_send(chat_id, body.message), label="tg:agent_message")
+            fire_task(_tg_send(chat_id, body.message), label="tg:agent_message")
         except Exception:
             pass
     return {"ok": True}

@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from slowapi import Limiter
@@ -6,6 +8,7 @@ from slowapi.util import get_remote_address
 from core.auth import create_admin_token, get_admin_identity, hash_password, is_valid_api_key, verify_db_password
 from core.logger import log_security_event
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
@@ -32,8 +35,8 @@ async def login(body: LoginBody, request: Request):
                 "UPDATE admin_users SET last_login = NOW() WHERE username = $1",
                 body.username,
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to update last_login for %s: %s", body.username, exc)
 
     token = create_admin_token(body.username, role=user["role"])
     await log_security_event("admin_login_success", body.username, ip)

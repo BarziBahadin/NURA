@@ -9,6 +9,7 @@
 
     body {
       font-family: 'Segoe UI', 'Noto Sans Arabic', Tahoma, Arial, sans-serif;
+      --viewport-height: 100vh;
       background: #f0f2f5;
       min-height: 100vh;
     }
@@ -28,7 +29,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: transform 0.2s, box-shadow 0.2s;
+      transition: transform 0.2s, box-shadow 0.2s, opacity 0.22s;
       z-index: 1000;
     }
     #chat-toggle:hover { transform: scale(1.08); box-shadow: 0 18px 42px rgba(17,24,39,0.32), 0 6px 24px rgba(249,115,22,0.48); }
@@ -64,6 +65,7 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      overscroll-behavior: contain;
       z-index: 999;
       transform: translate(-50%, -50%) scale(0.85);
       opacity: 0;
@@ -184,6 +186,8 @@
       flex-direction: column;
       gap: 10px;
       scroll-behavior: smooth;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
     }
     #messages::-webkit-scrollbar { width: 4px; }
     #messages::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
@@ -309,6 +313,9 @@
       background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
       max-height: 230px;
       overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      transition: max-height 0.18s ease, padding 0.18s ease, border-color 0.18s ease, opacity 0.14s ease;
     }
     #tree-panel::-webkit-scrollbar { width: 3px; }
     #tree-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
@@ -429,6 +436,45 @@
       transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
     }
     .agent-bypass-btn:hover { background: #0f172a; border-color: #f97316; transform: translateY(-1px); }
+
+    .voice-btn {
+      margin-top: 8px;
+      width: 100%;
+      padding: 11px 14px;
+      background: #fff;
+      border: 1px solid #fed7aa;
+      border-radius: 14px;
+      color: #ea580c;
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    }
+    .voice-btn:hover { background: #fff7ed; border-color: #f97316; transform: translateY(-1px); }
+    .voice-panel {
+      margin-top: 10px;
+      padding: 12px;
+      border: 1px solid #fed7aa;
+      border-radius: 14px;
+      background: #fff7ed;
+      color: #9a3412;
+      font-size: 12px;
+      line-height: 1.5;
+      text-align: start;
+    }
+    .voice-actions { display: flex; gap: 8px; margin-top: 9px; }
+    .voice-actions button {
+      border: 0;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .voice-primary { background: #ea580c; color: #fff; }
+    .voice-secondary { background: #fff; color: #9a3412; border: 1px solid #fed7aa !important; }
 
     .suggestion-card {
       background: #fff;
@@ -642,9 +688,31 @@
     .star-btn:hover { color: #f97316; transform: scale(1.15); }
     .star-btn.lit   { color: #f97316; }
 
-    @media (max-width: 460px) {
-      #chat-window { width: calc(100vw - 24px); max-height: 90vh; }
+    @media (max-width: 600px) {
+      #chat-toggle { width: 56px; height: 56px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); left: 20px; }
+      #chat-window {
+        top: 0; left: 0; right: 0; bottom: 0;
+        width: 100vw; height: 100%; height: 100dvh; max-height: none;
+        border-radius: 0; border: none;
+        transform: translateY(105%);
+        opacity: 1;
+      }
+      #chat-window.open { transform: translateY(0); }
+      #chat-window.keyboard-active { height: var(--viewport-height); }
+      .chat-header { padding-top: calc(16px + env(safe-area-inset-top, 0px)); border-radius: 0; }
+      .chat-footer { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+      #msg-input { font-size: 16px; }
+      .msg { max-width: 92%; }
       .tree-options { grid-template-columns: 1fr; }
+      #tree-panel { max-height: 260px; }
+      #chat-window.mobile-input-active #tree-panel {
+        max-height: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+        border-top-color: transparent;
+        opacity: 0;
+        overflow: hidden;
+      }
     }
   </style>
 </head>
@@ -665,6 +733,7 @@
     <div id="lang-toggle" role="group" aria-label="Language">
       <button class="lang-btn active" data-lang="ar">عربي</button>
       <button class="lang-btn" data-lang="ku">Kurdî</button>
+      <button class="lang-btn" data-lang="en">EN</button>
     </div>
     <div class="header-info">
       <h3 id="header-title">NURA</h3>
@@ -723,6 +792,16 @@
       treeBack: '← رجوع',
       treeHome: '🏠 الرئيسية',
       talkToAgent: '🎧 التحدث مع موظف',
+      voiceCall: '📞 مكالمة صوتية',
+      voiceReady: 'غرفة المكالمة جاهزة داخل NURA. اضغط انضمام لتفعيل الميكروفون وانتظار الموظف.',
+      voiceJoin: 'انضمام',
+      voiceMute: 'كتم',
+      voiceUnmute: 'إلغاء الكتم',
+      voiceLeave: 'إنهاء',
+      voiceConnecting: 'جاري الاتصال…',
+      voiceConnected: 'أنت داخل المكالمة',
+      voiceAccepted: '✅ قبل الموظف المكالمة الصوتية.',
+      voiceError: 'تعذر بدء المكالمة الصوتية',
       sessionClosed: '🔒 تم إغلاق هذه الجلسة. شكراً لتواصلك معنا.',
       ratePrompt: 'كيف تقيّم تجربتك مع خدمة العملاء؟',
       rateThanks: 'شكراً على تقييمك! نسعى دائماً للتحسين.',
@@ -732,8 +811,13 @@
       suggestionSubmit: 'إرسال إلى قسم الاقتراحات',
       suggestionCancel: 'إلغاء',
       suggestionMin: 'يرجى كتابة 5 أحرف على الأقل.',
+      suggestionSending: 'جارٍ الإرسال…',
       suggestionThanks: 'شكراً لك. تم إرسال ملاحظتك إلى فريقنا وسيتم مراجعتها ضمن قسم الاقتراحات.',
       suggestionCase: 'رقم المتابعة',
+      openChatAriaLabel: 'فتح المحادثة',
+      attachFirstMessage: '⚠️ اكتب رسالة أولاً قبل إرفاق ملف.',
+      feedbackGoodTitle: 'إجابة صحيحة',
+      feedbackBadTitle: 'إجابة خاطئة',
     },
     ku: {
       dir: 'ltr',
@@ -758,6 +842,16 @@
       treeBack: '← Vegerîn',
       treeHome: '🏠 Serxane',
       talkToAgent: '🎧 Bi karmend re biaxive',
+      voiceCall: '📞 Banga dengî',
+      voiceReady: 'Odeya bangê di NURA de amade ye. Ji bo mikrofonê tevlî bibin û li benda karmend bimînin.',
+      voiceJoin: 'Tevlî bibe',
+      voiceMute: 'Bêdeng',
+      voiceUnmute: 'Deng veke',
+      voiceLeave: 'Bi dawî bike',
+      voiceConnecting: 'Tê girêdan…',
+      voiceConnected: 'Hûn di bangê de ne',
+      voiceAccepted: '✅ Karmendê bangê pejirand.',
+      voiceError: 'Destpêkirina banga dengî nehat kirin',
       sessionClosed: '🔒 Ev rûniştgeha hate girtin. Spas ji bo têkiliya we.',
       ratePrompt: 'Hûn xizmetguzariya xerîdar çawa dinirxînin?',
       rateThanks: 'Spas ji bo nirxandina te! Em her tim hewl didin baştir bibin.',
@@ -767,8 +861,63 @@
       suggestionSubmit: 'Bişîne beşa pêşniyaran',
       suggestionCancel: 'Betal bike',
       suggestionMin: 'Ji kerema xwe herî kêm 5 tîpan binivîse.',
+      suggestionSending: 'Tê şandin…',
       suggestionThanks: 'Spas. Peyama te hate şandin û dê ji aliyê tîma me ve were nirxandin.',
       suggestionCase: 'Hejmara şopandinê',
+      openChatAriaLabel: 'Vekirina sohbetê',
+      attachFirstMessage: '⚠️ Ji kerema xwe berî pêvekirina pelê peyamek binivîse.',
+      feedbackGoodTitle: 'Bersiv rast e',
+      feedbackBadTitle: 'Bersiv xelet e',
+    },
+    en: {
+      dir: 'ltr',
+      htmlLang: 'en',
+      headerTitle: 'NURA',
+      headerStatus: 'Online now',
+      placeholder: 'Type your message here...',
+      sendAriaLabel: 'Send',
+      closeAriaLabel: 'Close',
+      welcome: 'Welcome to Rcell digital support.\nChoose a service from the menu or type your question directly.',
+      followUpMarker: 'Can I help you with anything else?',
+      yesBtn: 'Yes, I have another question',
+      noBtn: 'No, thank you',
+      yesReply: 'Of course. Choose a topic or type your question.',
+      noReply: 'You are welcome. We are always happy to help.\nIf you need support later, we are here for you.',
+      noUserText: 'No, thank you',
+      errorPrefix: 'Could not connect to the server',
+      escalatingBanner: '⏳ Connecting you with a human agent...',
+      agentConnectedBanner: '✅ A human agent is online now',
+      agentLabel: 'Agent',
+      treeRoot: 'How can I help you?',
+      treeBack: '← Back',
+      treeHome: '🏠 Home',
+      talkToAgent: '🎧 Talk to an agent',
+      voiceCall: '📞 Voice call',
+      voiceReady: 'Your NURA call room is ready. Join to enable your microphone and wait for the agent.',
+      voiceJoin: 'Join',
+      voiceMute: 'Mute',
+      voiceUnmute: 'Unmute',
+      voiceLeave: 'Leave',
+      voiceConnecting: 'Connecting...',
+      voiceConnected: 'You are in the call',
+      voiceAccepted: '✅ The agent accepted the voice call.',
+      voiceError: 'Could not start the voice call',
+      sessionClosed: '🔒 This session has been closed. Thank you for contacting us.',
+      ratePrompt: 'How would you rate your customer support experience?',
+      rateThanks: 'Thank you for your rating. We are always working to improve.',
+      suggestionTitle: 'Complaints and Suggestions',
+      suggestionIntro: 'This section is for general feedback, recommendations, complaints, or suggestions. Write your message here and we will send it directly to the suggestions section in our follow-up system.',
+      suggestionPlaceholder: 'Write your complaint or suggestion here...',
+      suggestionSubmit: 'Send to Suggestions',
+      suggestionCancel: 'Cancel',
+      suggestionMin: 'Please write at least 5 characters.',
+      suggestionSending: 'Sending...',
+      suggestionThanks: 'Thank you. Your feedback has been sent to our team and will be reviewed in the suggestions section.',
+      suggestionCase: 'Tracking number',
+      openChatAriaLabel: 'Open chat',
+      attachFirstMessage: '⚠️ Please send a message before attaching a file.',
+      feedbackGoodTitle: 'Helpful answer',
+      feedbackBadTitle: 'Wrong answer',
     },
   };
 
@@ -1357,6 +1506,173 @@ Hûn dikarin bi yek ji awayên jêrîn bi me re têkilî bidin:
 Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
   };
 
+  const ARTICLES_EN = {
+    0: `To download the Self-Care app:
+
+Android:
+• Google Play: https://play.google.com/store/apps/details?id=com.rcell.selfcareApp
+• Apkpure: https://apkpure.com/ar/rcell-selfcare/com.rcell.selfcareApp
+
+iOS:
+• https://apps.apple.com/us/app/rselfcare/id6473144133
+
+Or visit: https://rcell.me/vas/selfcare`,
+
+    1: `If you cannot access the Self-Care website:
+• Make sure your browser is updated to the latest version.
+• Or clear your browser history/cache from browser settings.`,
+
+    2: `To activate the PIN code from the Self-Care app:
+Settings > Activate PIN code > Choose your private PIN > Enter your password > Tap "Activate PIN code".`,
+
+    3: `Connection checklist:
+1. Make sure Mobile Data is enabled.
+2. Check that the APN settings are correct.
+3. Make sure the network mode is set correctly, such as 4G or 3G.
+4. Make sure you have an active internet package.
+5. Check that you have not reached your data limit.
+
+APN settings:
+• Android: Settings > Connections > Mobile Networks > Access Point Names
+• iOS: Settings > Cellular > Cellular Data Network > APN`,
+
+    4: `To send points from the Self-Care app:
+Tap "Send" > Enter the recipient number > Enter the number of points > Tap "Send".`,
+
+    5: `To download the Hakki app:
+
+Android:
+• Google Play: https://play.google.com/store/apps/details?id=com.rcell.app
+• Apkpure: https://apkpure.com/ar/hakki/com.rcell.app
+
+iOS:
+• https://apps.apple.com/us/app/hakki/id6449400694
+
+Or visit: https://rcell.me/vas/hakki`,
+
+    6: `To fix slow internet, follow these steps in order:
+1. Close all background apps.
+2. Turn off VPN.
+3. Turn off hotspot.
+4. Make sure you are using the Rcell SIM and disable other SIM cards.
+5. Turn Airplane Mode on, then off.
+6. Restart your device.
+7. Update the operating system.
+8. Run a speed test on fast.com.
+9. If the issue continues, change your location and try again.
+10. If it still does not improve, please submit a complaint ticket.`,
+
+    7: `HD Call, also known as VoLTE, is voice calling over LTE. It lets calls run over the 4G-LTE network instead of older 2G or 3G networks.`,
+    8: `HD Call (VoLTE) benefits:
+• Better voice quality.
+• Faster call setup.
+• Use data and voice together during calls.`,
+    9: `To check whether your phone supports HD Call:
+• In phone settings, search for "VoLTE" or "4G Calling".
+• Check your device specifications or manual.
+• Or contact the telecom provider directly.`,
+    10: `To activate HD Call (VoLTE):
+
+Android:
+Settings > Connections > Mobile Networks > Enable "VoLTE calls" or "4G Calling"
+
+iPhone:
+Settings > Cellular > Cellular Data Options > Enable LTE > Voice & Data`,
+    11: `After enabling HD Call, make calls as usual. Your phone will automatically use LTE if the network and your area support it.`,
+    12: `HD Call troubleshooting:
+1. Restart your phone.
+2. Check that 4G/LTE is available in your area.
+3. Check for any announced network outage.
+4. Turn Airplane Mode on, then off.
+5. Reset network settings.
+6. Check APN settings.
+7. Try the SIM card in another device.`,
+    13: `If you are having trouble logging in to the Self-Care app:
+• Update the app and browser to the latest version.
+• Turn off VPN if you are using one.
+• Try the web version: https://my.rcell.me/
+
+If the issue continues, contact support.`,
+    14: `To change your password in the app:
+1. Open the app home screen.
+2. Tap the options button at the top.
+3. Choose "Change password".
+4. Enter a new password with letters and numbers.
+5. Tap "Confirm".`,
+    16: `Package details and prices:
+• Sun: 1 GB daily = 4,500 SYP (3 points)
+• Pluto: 3 GB weekly = 10,500 SYP (7 points)
+• Earth: 9 GB monthly = 25,000 SYP (16 points)
+• Moon: 5 GB monthly = 20,000 SYP (11 points)
+• Mars: 20 GB monthly = 55,000 SYP (36 points)
+• Planets: 40 GB monthly = 100,000 SYP (66 points)
+
+1 point = 1,500 Syrian pounds`,
+    17: `Working hours:
+• Saturday: 8:00 AM - 4:00 PM
+• Sunday - Thursday: 8:00 AM - 10:00 PM
+• Friday: Official holiday`,
+    18: `SIM cards are currently available. You can buy them from our centers and authorized points of sale in your city for 75,000 Syrian pounds.`,
+    19: `To recover your password:
+Settings > Edit profile > Tap "Recover here".`,
+    20: `Ana Platform — one account for all Rcell apps.
+
+Ana is a single sign-on platform that lets you access all Rcell apps with one account.
+
+Supported apps:
+• Self-Care app
+• Hakki app
+• Future Rcell apps
+
+Platform link: ana.rcell.me`,
+    21: `Correct APN settings for Rcell:
+• Name: internet
+• APN: internet
+• Network type: LTE
+• Type: default
+
+After adding it, restart the device or turn Airplane Mode on for 30 seconds, then turn it off.`,
+    22: `If your internet balance finishes quickly:
+1. Disable automatic app updates.
+2. Check usage by app.
+3. Turn off background refresh/background data.
+4. If the issue continues, contact support to check the account.`,
+    23: `If your SIM card is locked and asks for a PUK code:
+
+Warning: entering the wrong PUK 10 times permanently disables the SIM. Do not guess.
+
+To get the PUK code, contact Rcell support directly or visit the nearest Rcell service center with your ID.`,
+    24: `eSIM is a digital SIM built into the device and does not require a physical SIM card.
+
+To ask about availability or activation, visit the nearest Rcell service center or contact support.`,
+    25: `5G network — coming soon from Rcell.
+
+Rcell is in the final stages of launching 5G in Syria. The official launch date will be announced soon.`,
+    26: `Rcell numbers and facts:
+• More than 1,000 coverage towers
+• More than 40 covered areas in Syria
+• More than 1.1 million subscribers
+• More than 11 customer service centers
+• More than 2,000 authorized points of sale
+
+To find the nearest center: www.rcell.me`,
+    27: `Rcell business internet:
+FTTx fiber for businesses and multi-SIM 4G packages for companies.
+
+For inquiries: www.rcell.me`,
+    28: `The Hakki app lets you communicate for free in emergencies, even after your balance runs out.
+
+Download Hakki, sign in with your Ana account, and use it to communicate for free.`,
+    29: `If your recharge card is scratched or damaged:
+
+Contact Rcell support and send a clear photo of both sides of the card. The technical team will review it and send the code if possible.`,
+    30: `To submit a complaint or suggestion:
+
+Use the "Submit a complaint or suggestion" option in this widget, talk to an agent, call customer service, or visit the nearest Rcell service center.
+
+Your complaint or suggestion will be reviewed as soon as possible.`,
+  };
+
   // ── Topic tree ───────────────────────────────────────────────────────────
   const TOPIC_LABELS_KU = {
     root: 'Çawa dikarim alîkariya te bikim?',
@@ -1403,7 +1719,52 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
     other_complaint: 'Pêşkêşkirina gilî an pêşniyar',
     other_agent: '🎧 Rasterast bi karmend re biaxive',
   };
-  let TOPIC_TREE = { id: 'root', label: { ar: 'كيف يمكنني مساعدتك؟', ku: TOPIC_LABELS_KU.root }, children: [] };
+  const TOPIC_LABELS_EN = {
+    root: 'How can I help you?',
+    apps: '📱 Apps',
+    selfcare: 'Self-Care App',
+    sc_dl: 'Download the app',
+    sc_login: 'Login problem',
+    sc_access: 'Cannot access the website',
+    hakki: 'Hakki App',
+    hk_dl: 'Download the app',
+    hk_sos: 'Free emergency use',
+    ana: 'Ana Platform',
+    internet: '🌐 Internet and Connectivity',
+    slow: 'Slow internet',
+    noconn: 'No connection',
+    apn: 'APN settings',
+    fiveg: '5G - Coming soon',
+    hdcall: 'HD Call (VoLTE)',
+    hd_what: 'What is HD Call?',
+    hd_why: 'Benefits',
+    hd_sup: 'Does my phone support it?',
+    hd_act: 'How do I activate it?',
+    hd_use: 'How do I use it?',
+    hd_fix: 'HD Call issue',
+    account: '🔐 Account and Security',
+    password: 'Password',
+    pw_change: 'Change password',
+    pw_recover: 'Forgot password',
+    pin: 'PIN code',
+    login_prob: 'Login problem',
+    puk: 'Locked SIM / PUK code',
+    packages: '📦 Packages and Services',
+    pkg_prices: 'Package prices',
+    sim: 'SIM card',
+    esim: 'Digital eSIM',
+    points: 'Send points',
+    fastdata: 'Balance ends quickly',
+    scratchcard: 'Scratched recharge card',
+    info: 'ℹ️ General Information',
+    hours: 'Working hours',
+    coverage: 'Company coverage and centers',
+    business: 'FTTx business internet',
+    other: '🔗 Other',
+    other_complaint: 'Submit a complaint or suggestion',
+    other_agent: '🎧 Talk directly to an agent',
+  };
+  let TOPIC_TREE = { id: 'root', label: { ar: 'كيف يمكنني مساعدتك؟', ku: TOPIC_LABELS_KU.root, en: TOPIC_LABELS_EN.root }, children: [] };
 
   // ── State ─────────────────────────────────────────────────────────────────
   let currentLang        = 'ar';
@@ -1419,6 +1780,12 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
   let escalationBannerEl   = null;
   let treeStack            = [];
   let typingDebounceTimer  = null;
+  let voiceCall            = null;
+  let livekitPromise       = null;
+  let voiceRoom            = null;
+  let voiceTrack           = null;
+  let voiceStatus          = 'idle';
+  let voiceMuted           = false;
 
   // ── DOM ───────────────────────────────────────────────────────────────────
   const toggle      = document.getElementById('chat-toggle');
@@ -1433,6 +1800,88 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
   const headerTitle = document.getElementById('header-title');
   const headerStatus= document.getElementById('header-status');
   const langBtns    = document.querySelectorAll('.lang-btn');
+  let pageScrollY = 0;
+  let pageScrollLocked = false;
+  let previousBodyStyles = {};
+  let previousDocumentElementStyles = {};
+
+  function isMobileViewport() {
+    return window.matchMedia ? window.matchMedia('(max-width: 600px)').matches : window.innerWidth <= 600;
+  }
+
+  function updateViewportHeight() {
+    const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight || 720;
+    document.body.style.setProperty('--viewport-height', h + 'px');
+    if (!isMobileViewport()) setTreeCollapsedForInput(false);
+    setPageScrollLocked(isOpen);
+    updateKeyboardSafeMode();
+    if (isOpen) scrollBottom();
+  }
+
+  function setTreeCollapsedForInput(collapsed) {
+    const shouldCollapse = collapsed && isMobileViewport();
+    win.classList.toggle('mobile-input-active', shouldCollapse);
+    treePanel.setAttribute('aria-hidden', shouldCollapse ? 'true' : 'false');
+    if ('inert' in treePanel) treePanel.inert = shouldCollapse;
+    updateKeyboardSafeMode();
+  }
+
+  function updateKeyboardSafeMode() {
+    const keyboardLikelyOpen = window.visualViewport
+      ? window.visualViewport.height < window.innerHeight - 80
+      : false;
+    const shouldUseKeyboardHeight = isOpen && isMobileViewport() && document.activeElement === msgInput && keyboardLikelyOpen;
+    win.classList.toggle('keyboard-active', shouldUseKeyboardHeight);
+  }
+
+  function setPageScrollLocked(locked) {
+    const shouldLock = locked && isMobileViewport();
+    if (shouldLock && !pageScrollLocked) {
+      pageScrollY = window.scrollY || window.pageYOffset || 0;
+      previousBodyStyles = {
+        position: document.body.style.position,
+        top: document.body.style.top,
+        left: document.body.style.left,
+        right: document.body.style.right,
+        width: document.body.style.width,
+        overflow: document.body.style.overflow,
+        overscrollBehavior: document.body.style.overscrollBehavior,
+      };
+      previousDocumentElementStyles = {
+        overflow: document.documentElement.style.overflow,
+        overscrollBehavior: document.documentElement.style.overscrollBehavior,
+      };
+      document.documentElement.style.overflow = 'hidden';
+      document.documentElement.style.overscrollBehavior = 'none';
+      document.body.style.position = 'fixed';
+      document.body.style.top = '-' + pageScrollY + 'px';
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+      document.body.style.overscrollBehavior = 'none';
+      pageScrollLocked = true;
+    } else if (!shouldLock && pageScrollLocked) {
+      document.documentElement.style.overflow = previousDocumentElementStyles.overflow || '';
+      document.documentElement.style.overscrollBehavior = previousDocumentElementStyles.overscrollBehavior || '';
+      document.body.style.position = previousBodyStyles.position || '';
+      document.body.style.top = previousBodyStyles.top || '';
+      document.body.style.left = previousBodyStyles.left || '';
+      document.body.style.right = previousBodyStyles.right || '';
+      document.body.style.width = previousBodyStyles.width || '';
+      document.body.style.overflow = previousBodyStyles.overflow || '';
+      document.body.style.overscrollBehavior = previousBodyStyles.overscrollBehavior || '';
+      window.scrollTo(0, pageScrollY);
+      pageScrollLocked = false;
+    }
+  }
+
+  updateViewportHeight();
+  window.addEventListener('resize', updateViewportHeight, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateViewportHeight, { passive: true });
+    window.visualViewport.addEventListener('scroll', updateViewportHeight, { passive: true });
+  }
 
   // ── Tree helpers ──────────────────────────────────────────────────────────
   function treeLabel(node) {
@@ -1449,7 +1898,9 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
   }
 
   function chooseServiceText() {
-    return currentLang === 'ar' ? 'اختر الخدمة التي تحتاجها' : 'Xizmeta ku pêdiviya te pê heye hilbijêre';
+    if (currentLang === 'ar') return 'اختر الخدمة التي تحتاجها';
+    if (currentLang === 'en') return 'Choose the service you need';
+    return 'Xizmeta ku pêdiviya te pê heye hilbijêre';
   }
 
   function mergeSharedTopicLabels(sharedNode, localNode) {
@@ -1459,6 +1910,7 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
       merged.label = {
         ar: sharedNode.label,
         ku: TOPIC_LABELS_KU[sharedNode.id] || (localNode && localNode.label && localNode.label.ku) || sharedNode.label,
+        en: TOPIC_LABELS_EN[sharedNode.id] || (localNode && localNode.label && localNode.label.en) || sharedNode.label,
       };
     }
     const localChildrenById = {};
@@ -1505,6 +1957,157 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
     } catch (e) {
       console.warn('directToAgent failed:', e);
     }
+  }
+
+  function apiOrigin() {
+    return API_BASE.replace(/\/v1\/?$/, '');
+  }
+
+  function loadLiveKitClient() {
+    if (window.LivekitClient) return Promise.resolve(window.LivekitClient);
+    if (livekitPromise) return livekitPromise;
+    livekitPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = `${apiOrigin()}/vendor/livekit-client.umd.js`;
+      script.async = true;
+      script.onload = () => resolve(window.LivekitClient);
+      script.onerror = () => reject(new Error('LiveKit client failed to load'));
+      document.head.appendChild(script);
+    });
+    return livekitPromise;
+  }
+
+  async function requestVoiceCall() {
+    const t = UI[currentLang];
+    if (isSessionClosed) return;
+    try {
+      track('voice_call_request', 'widget', '');
+      const headers = { 'Content-Type': 'application/json' };
+      if (sessionToken) headers['X-Session-Token'] = sessionToken;
+      const res = await fetch(`${API_BASE}/voice/request`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ session_id: sessionId, customer_id: customerId, channel: 'web' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || t.voiceError);
+      sessionId = data.session_id || sessionId;
+      sessionToken = data.session_token || sessionToken;
+      voiceCall = data;
+      voiceStatus = 'ready';
+      startAgentStream();
+      renderTree();
+    } catch (e) {
+      const errDiv = document.createElement('div');
+      errDiv.className = 'tree-level-q sub';
+      errDiv.textContent = '⚠️ ' + (e.message || t.voiceError);
+      treePanel.appendChild(errDiv);
+    }
+  }
+
+  async function joinVoiceCall() {
+    const t = UI[currentLang];
+    if (!voiceCall || voiceRoom) return;
+    voiceStatus = 'connecting';
+    renderTree();
+    try {
+      const LK = await loadLiveKitClient();
+      const room = new LK.Room({ adaptiveStream: true, dynacast: true });
+      voiceRoom = room;
+      room.on(LK.RoomEvent.Disconnected, () => {
+        if (voiceTrack) voiceTrack.stop();
+        voiceRoom = null;
+        voiceTrack = null;
+        voiceMuted = false;
+        voiceStatus = 'ended';
+        renderTree();
+      });
+      await room.connect(voiceCall.server_url, voiceCall.livekit_token);
+      voiceTrack = await LK.createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true });
+      await room.localParticipant.publishTrack(voiceTrack);
+      voiceMuted = false;
+      voiceStatus = 'connected';
+      renderTree();
+    } catch (e) {
+      console.warn('voice join failed:', e);
+      if (voiceTrack) voiceTrack.stop();
+      voiceTrack = null;
+      if (voiceRoom) voiceRoom.disconnect();
+      voiceRoom = null;
+      voiceMuted = false;
+      voiceStatus = 'error';
+      appendBotMsg(t.voiceError, null, null);
+      renderTree();
+    }
+  }
+
+  function toggleVoiceMute() {
+    if (!voiceTrack) return;
+    if (voiceMuted) voiceTrack.unmute();
+    else voiceTrack.mute();
+    voiceMuted = !voiceMuted;
+    renderTree();
+  }
+
+  async function endVoiceCallOnServer() {
+    if (!voiceCall || !voiceCall.call_id) return;
+    try {
+      const headers = {};
+      if (sessionToken) headers['X-Session-Token'] = sessionToken;
+      await fetch(`${API_BASE}/voice/${encodeURIComponent(voiceCall.call_id)}/end`, {
+        method: 'POST',
+        headers,
+        keepalive: true,
+      });
+    } catch (_) {}
+  }
+
+  function leaveVoiceCall(notifyServer = true) {
+    if (notifyServer) endVoiceCallOnServer();
+    if (voiceTrack) voiceTrack.stop();
+    voiceTrack = null;
+    if (voiceRoom) voiceRoom.disconnect();
+    voiceRoom = null;
+    voiceMuted = false;
+    voiceStatus = 'ended';
+    renderTree();
+  }
+
+  function renderVoicePanel() {
+    if (!voiceCall) return;
+    const t = UI[currentLang];
+    const panel = document.createElement('div');
+    panel.className = 'voice-panel';
+    let statusText = t.voiceReady;
+    if (voiceStatus === 'connecting') statusText = t.voiceConnecting;
+    if (voiceStatus === 'connected') statusText = t.voiceConnected;
+    if (voiceStatus === 'error') statusText = t.voiceError;
+    panel.textContent = statusText;
+    const actions = document.createElement('div');
+    actions.className = 'voice-actions';
+    if (voiceStatus !== 'connected') {
+      const join = document.createElement('button');
+      join.className = 'voice-primary';
+      join.type = 'button';
+      join.textContent = t.voiceJoin;
+      join.addEventListener('click', joinVoiceCall);
+      actions.appendChild(join);
+    } else {
+      const mute = document.createElement('button');
+      mute.className = 'voice-secondary';
+      mute.type = 'button';
+      mute.textContent = voiceMuted ? t.voiceUnmute : t.voiceMute;
+      mute.addEventListener('click', toggleVoiceMute);
+      actions.appendChild(mute);
+      const leave = document.createElement('button');
+      leave.className = 'voice-primary';
+      leave.type = 'button';
+      leave.textContent = t.voiceLeave;
+      leave.addEventListener('click', leaveVoiceCall);
+      actions.appendChild(leave);
+    }
+    panel.appendChild(actions);
+    treePanel.appendChild(panel);
   }
 
   function renderTree() {
@@ -1587,6 +2190,16 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
 
     treePanel.appendChild(optsDiv);
 
+    if (treeStack.length === 0 && !isEscalated) {
+      const voiceBtn = document.createElement('button');
+      voiceBtn.className = 'voice-btn';
+      voiceBtn.type = 'button';
+      voiceBtn.textContent = t.voiceCall;
+      voiceBtn.addEventListener('click', requestVoiceCall);
+      treePanel.appendChild(voiceBtn);
+    }
+    renderVoicePanel();
+
   }
 
   function renderSuggestionForm(node) {
@@ -1665,7 +2278,7 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
       }
       submit.disabled = true;
       cancel.disabled = true;
-      submit.textContent = currentLang === 'ar' ? 'جارٍ الإرسال…' : 'Tê şandin…';
+      submit.textContent = t.suggestionSending;
       try {
         const headers = { 'Content-Type': 'application/json' };
         if (sessionToken) headers['X-Session-Token'] = sessionToken;
@@ -1705,7 +2318,7 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
   }
 
   function handleLeaf(node) {
-    const dict    = currentLang === 'ku' ? ARTICLES_KU : ARTICLES;
+    const dict    = currentLang === 'en' ? ARTICLES_EN : (currentLang === 'ku' ? ARTICLES_KU : ARTICLES);
     const content = dict[node.article];
     if (content === undefined) return;
 
@@ -1738,6 +2351,7 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
     langBtns.forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
     sendBtn.setAttribute('aria-label', t.sendAriaLabel);
     closeBtn.setAttribute('aria-label', t.closeAriaLabel);
+    toggle.setAttribute('aria-label', t.openChatAriaLabel);
 
     // Re-render tree in new language (reset to root on language switch)
     treeStack = [];
@@ -1761,13 +2375,25 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
   function openChat() {
     isOpen = true;
     win.classList.add('open');
+    toggle.style.opacity = '0';
+    toggle.style.transform = 'scale(0.5)';
+    toggle.style.pointerEvents = 'none';
     badge.style.display = 'none';
-    setTimeout(() => msgInput.focus(), 250);
+    updateViewportHeight();
+    setTimeout(() => {
+      if (!isMobileViewport()) msgInput.focus();
+      scrollBottom();
+    }, 250);
     if (isEscalated && !isSessionClosed) startAgentStream();
   }
   function closeChat() {
     isOpen = false;
+    setPageScrollLocked(false);
+    setTreeCollapsedForInput(false);
     win.classList.remove('open');
+    toggle.style.opacity = '1';
+    toggle.style.transform = '';
+    toggle.style.pointerEvents = '';
     stopAgentStream();
   }
 
@@ -1798,6 +2424,13 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
   msgInput.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
+  msgInput.addEventListener('focus', () => {
+    setTreeCollapsedForInput(true);
+    setTimeout(scrollBottom, 150);
+  });
+  msgInput.addEventListener('blur', () => {
+    setTimeout(() => setTreeCollapsedForInput(false), 120);
+  });
   sendBtn.addEventListener('click', sendMessage);
 
   // ── Attachment upload ──────────────────────────────────────────────────────
@@ -1814,9 +2447,7 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
     if (!sessionId || !sessionToken) {
       const errDiv = document.createElement('div');
       errDiv.className = 'error-bubble';
-      errDiv.textContent = currentLang === 'ar'
-        ? '⚠️ اكتب رسالة أولاً قبل إرفاق ملف.'
-        : '⚠️ Ji kerema xwe berî pêvekirina pelê peyamek binivîse.';
+      errDiv.textContent = UI[currentLang].attachFirstMessage;
       messagesEl.appendChild(errDiv);
       scrollBottom();
       return;
@@ -1859,7 +2490,9 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
           session_id: sessionId,
           channel: 'web',
           customer_id: customerId,
-          message: msgType === 'image' ? '[صورة]' : `[ملف: ${file.name}]`,
+          message: msgType === 'image'
+            ? (currentLang === 'en' ? '[Image]' : '[صورة]')
+            : (currentLang === 'en' ? `[File: ${file.name}]` : `[ملف: ${file.name}]`),
           attachment_url: url,
           message_type: msgType,
         }),
@@ -1912,10 +2545,10 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
       fbDiv.className = 'feedback-btns';
       const btnGood = document.createElement('button');
       btnGood.className = 'fb-btn good'; btnGood.textContent = '✓';
-      btnGood.title = currentLang === 'ar' ? 'إجابة صحيحة' : 'Bersiv rast e';
+      btnGood.title = UI[currentLang].feedbackGoodTitle;
       const btnBad  = document.createElement('button');
       btnBad.className  = 'fb-btn bad';  btnBad.textContent  = '✗';
-      btnBad.title = currentLang === 'ar' ? 'إجابة خاطئة' : 'Bersiv xelet e';
+      btnBad.title = UI[currentLang].feedbackBadTitle;
       btnGood.addEventListener('click', () => { track('feedback_good', source || '', ''); onFeedback(true,  btnGood, btnBad); });
       btnBad.addEventListener('click',  () => { track('feedback_bad',  source || '', ''); onFeedback(false, btnGood, btnBad); });
       fbDiv.appendChild(btnGood);
@@ -1996,7 +2629,8 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
   function fmtTime() {
-    return new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
+    const locale = currentLang === 'en' ? 'en' : (currentLang === 'ku' ? 'ku' : 'ar');
+    return new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   }
 
   // ── SSE streaming (agent messages pushed in real-time) ────────────────────
@@ -2018,10 +2652,10 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
       agentEventSource.onerror = function () {
         agentEventSource.close();
         agentEventSource = null;
-        if (!isSessionClosed && isEscalated) setTimeout(startAgentStream, 5000);
+        if (!isSessionClosed && (isEscalated || voiceCall)) setTimeout(startAgentStream, 5000);
       };
     } catch (e) {
-      if (!isSessionClosed && isEscalated) setTimeout(startAgentStream, 5000);
+      if (!isSessionClosed && (isEscalated || voiceCall)) setTimeout(startAgentStream, 5000);
     } finally {
       agentStreamStarting = false;
     }
@@ -2052,6 +2686,14 @@ Gilî an pêşniyara we dê di zûtirîn dema gengaz de were berçav kirin.`,
       scrollBottom();
       msgInput.disabled = true;
       sendBtn.disabled  = true;
+    } else if (event.type === 'voice_call_accepted') {
+      voiceCall = { ...(voiceCall || {}), ...(event.call || {}) };
+      appendBotMsg(UI[currentLang].voiceAccepted, null, null);
+      renderTree();
+    } else if (event.type === 'voice_call_ended') {
+      leaveVoiceCall(false);
+      voiceCall = null;
+      renderTree();
     }
   }
 

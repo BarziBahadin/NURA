@@ -4,10 +4,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from config import settings
 from core.job_queue import run_job_worker
@@ -15,7 +16,7 @@ from core.observability import ObservabilityMiddleware
 from core.session_manager import close_redis
 from core.sla_monitor import run_sla_monitor
 from db.postgres import close_db_pool, init_db
-from routes import ai_control, analytics, auth, canned_replies, cases, handoff, health, knowledge, knowledge_gaps, message, monitor, session, upload, users
+from routes import ai_control, analytics, auth, canned_replies, cases, handoff, health, knowledge, knowledge_gaps, message, monitor, rules, session, upload, users, voice
 from routes.auth import seed_admin_user
 from routes.cases import refresh_department_cache
 from routes.telegram import run_telegram_poller
@@ -24,6 +25,48 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address)
+
+# Public widget endpoints that must accept requests from any origin (embedded sites,
+# local file:// testing, customer domains). Admin endpoints remain restricted to the
+# CORS_ORIGINS whitelist via the inner CORSMiddleware.
+_WIDGET_PATHS = (
+    "/v1/topic-tree",
+    "/v1/analytics/",
+    "/v1/sessions",
+    "/v1/message",
+    "/v1/handoff/",
+    "/v1/upload",
+    "/v1/uploads/",
+    "/widget",
+    "/vendor/",
+)
+
+_WIDGET_CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Session-ID, X-Customer-ID",
+    "Access-Control-Max-Age": "86400",
+}
+
+
+class WidgetCORSMiddleware(BaseHTTPMiddleware):
+    """Outermost middleware: applies open CORS to public widget endpoints so that
+    the inner strict CORSMiddleware never rejects them, regardless of origin."""
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        is_widget = any(path == p.rstrip("/") or path.startswith(p) for p in _WIDGET_PATHS)
+
+        if is_widget and request.method == "OPTIONS":
+            return Response(status_code=200, headers=_WIDGET_CORS_HEADERS)
+
+        response = await call_next(request)
+
+        if is_widget:
+            # Overwrite whatever the inner CORSMiddleware set so there is exactly one header
+            response.headers["Access-Control-Allow-Origin"] = "*"
+
+        return response
 
 
 @asynccontextmanager
@@ -70,6 +113,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Must be added AFTER CORSMiddleware so it wraps the outside — processes requests first.
+app.add_middleware(WidgetCORSMiddleware)
 
 app.include_router(health.router,     prefix="/v1")
 app.include_router(auth.router,       prefix="/v1")
@@ -85,6 +130,8 @@ app.include_router(upload.router,     prefix="/v1")
 app.include_router(monitor.router,    prefix="/v1")
 app.include_router(ai_control.router,    prefix="/v1")
 app.include_router(canned_replies.router, prefix="/v1")
+app.include_router(voice.router, prefix="/v1")
+app.include_router(rules.router,  prefix="/v1")
 
 
 @app.get("/widget.js", include_in_schema=False)
@@ -102,6 +149,24 @@ async def serve_widget_loader():
         "/app/frontend/widget-loader.js",
         media_type="application/javascript",
         headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
+@app.get("/widget.html", include_in_schema=False)
+async def serve_widget_test_page():
+    return FileResponse(
+        "/app/frontend/widget.html",
+        media_type="text/html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/vendor/livekit-client.umd.js", include_in_schema=False)
+async def serve_livekit_client():
+    return FileResponse(
+        "/app/frontend/vendor/livekit-client.umd.js",
+        media_type="application/javascript",
+        headers={"Cache-Control": "public, max-age=86400"},
     )
 
 

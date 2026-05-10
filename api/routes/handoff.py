@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from core.auth import verify_api_key, verify_session_access
+from core.auth import get_admin_identity, verify_api_key, verify_session_access
 from core.logger import log_session_outcome
 from core.observability import record_event
 from core.session_manager import get_customer_token, get_or_create_session, get_session, save_session
@@ -14,6 +14,7 @@ from core.utils import fire_task
 from models.session import SessionStatus
 from routes.cases import ensure_case_for_session
 from routes import cases as case_routes
+from routes.telegram import _send as _tg_send, send_resolved_to_telegram
 from datetime import datetime, timezone
 
 AGENT_JOINED_AR = "✅ تم التواصل مع أحد أعضاء الفريق. يمكنك الآن الكتابة مباشرة."
@@ -129,9 +130,11 @@ async def escalate_to_human(
 @router.post("/handoff/{session_id}/accept")
 async def accept_handoff(
     session_id: str,
-    agent_id: str = "agent-1",
+    request: Request,
     _: None = Depends(verify_api_key),
 ):
+    identity = await get_admin_identity(request) or {}
+    agent_id = identity.get("sub") or "api_key"
     session = await get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -156,8 +159,7 @@ async def accept_handoff(
     chat_id = _telegram_chat_id(session, session_id)
     if chat_id is not None:
         try:
-            from routes.telegram import _send
-            fire_task(_send(chat_id, AGENT_JOINED_AR), label="tg:agent_joined")
+            fire_task(_tg_send(chat_id, AGENT_JOINED_AR), label="tg:agent_joined")
         except Exception:
             pass
     return {
@@ -179,7 +181,6 @@ async def resolve_session(
     chat_id = _telegram_chat_id(session, session_id)
     if chat_id is not None:
         try:
-            from routes.telegram import send_resolved_to_telegram
             fire_task(send_resolved_to_telegram(chat_id), label="tg:resolved")
         except Exception:
             pass

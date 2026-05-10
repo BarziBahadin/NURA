@@ -6,37 +6,20 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends
-from openai import AsyncOpenAI
 
 from config import settings
 from core.auth import verify_api_key
 from core.observability import metrics_snapshot
 
 router = APIRouter()
-
-_openai_client: Optional[AsyncOpenAI] = None
-_openai_lock = asyncio.Lock()
 _health_cache: dict = {}
 _HEALTH_TTL = 60
 
 
-async def _get_openai_client() -> AsyncOpenAI:
-    global _openai_client
-    if _openai_client is not None:
-        return _openai_client
-    async with _openai_lock:
-        if _openai_client is None:
-            _openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
-    return _openai_client
-
-
 async def _check_openai() -> str:
-    try:
-        client = await _get_openai_client()
-        await client.models.list()
-        return "ok"
-    except Exception:
-        return "error"
+    # Don't make a live API call on every health check — just confirm the key is configured.
+    # A wrong key will surface on the first real generation call with a clear error.
+    return "ok" if settings.openai_api_key else "error"
 
 
 async def _check_redis() -> str:
@@ -156,6 +139,10 @@ async def get_topic_tree():
     global _topic_tree_cache
     if _topic_tree_cache is not None:
         return _topic_tree_cache
-    with open("/app/manafest/topic_tree.json", "r", encoding="utf-8") as f:
-        _topic_tree_cache = json.load(f)
+    try:
+        with open("/app/manafest/topic_tree.json", "r", encoding="utf-8") as f:
+            _topic_tree_cache = json.load(f)
+    except FileNotFoundError:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Topic tree not configured")
     return _topic_tree_cache

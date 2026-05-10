@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { X, Timer, File, CaretRight, CheckCircle } from '@phosphor-icons/react'
+import { X, Timer, File, CaretRight, CheckCircle, PhoneCall } from '@phosphor-icons/react'
 import { api } from '../App.jsx'
+import LiveVoiceCall from '../components/LiveVoiceCall.jsx'
 
 function playBeep() {
   try {
@@ -298,6 +299,46 @@ function PendingHandoffCard({ s, onPreview, onResolve, resolving }) {
   )
 }
 
+function VoiceCallCard({ call, callToken, onAccept, accepting, onEnd, onCancel, cancelling }) {
+  return (
+    <div className="bg-white rounded-2xl shadow p-4 border-l-4 border-orange-500">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full font-semibold inline-flex items-center gap-1">
+              <PhoneCall size={14} weight="fill" /> Voice
+            </span>
+            <span className="font-mono text-xs text-gray-400">{call.call_id.slice(0, 8)}…</span>
+            <span className="bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full">{call.channel}</span>
+            <span className="bg-orange-100 text-orange-600 text-xs px-2 py-0.5 rounded-full font-medium">
+              <Timer size={28} className="inline mr-0.5" />{waitingTime(call.requested_at)}
+            </span>
+          </div>
+          <div className="text-sm font-semibold text-gray-800 truncate">Customer: {call.customer_id}</div>
+          <div className="text-xs text-gray-400 font-mono mt-1 truncate">{call.session_id}</div>
+        </div>
+        <div className="flex flex-col gap-2 flex-shrink-0">
+          <button
+            onClick={() => onAccept(call)}
+            disabled={accepting || cancelling}
+            className="bg-orange-600 hover:bg-orange-700 text-white text-sm px-4 py-2 rounded-xl transition disabled:opacity-50 whitespace-nowrap"
+          >
+            {accepting ? 'Accepting...' : (callToken ? 'Refresh Token' : 'Accept Call')}
+          </button>
+          <button
+            onClick={() => onCancel(call)}
+            disabled={accepting || cancelling}
+            className="bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-600 text-sm px-3 py-2 rounded-xl transition disabled:opacity-50 whitespace-nowrap"
+          >
+            {cancelling ? 'Clearing...' : 'Clear'}
+          </button>
+        </div>
+      </div>
+      {callToken && <LiveVoiceCall call={callToken} onEnd={() => onEnd(call.call_id)} />}
+    </div>
+  )
+}
+
 function ActiveChatCard({ s, onResolved }) {
   const [turns, setTurns] = useState(s.history || [])
   const [input, setInput] = useState('')
@@ -334,32 +375,60 @@ function ActiveChatCard({ s, onResolved }) {
   }
 
   useEffect(() => {
-    fetchAllMessages()
+    let cancelled = false
+    let es = null
 
-    const es = new EventSource(`${api.base}/session/${s.session_id}/stream`)
-    esRef.current = es
-
-    es.onmessage = (e) => {
+    async function startStream() {
       try {
-        const event = JSON.parse(e.data)
-        if (event.type === 'turn') appendTurn(event.turn)
-        else if (event.type === 'typing' && event.sender === 'customer') {
-          setCustomerTyping(true)
-          clearTimeout(customerTypingTimerRef.current)
-          customerTypingTimerRef.current = setTimeout(() => setCustomerTyping(false), 3000)
+        const tokenRes = await fetch(`${api.base}/session/${s.session_id}/stream-token`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${api.key}` },
+        })
+        const tokenData = await tokenRes.json()
+        if (!tokenRes.ok || !tokenData.stream_token || cancelled) {
+          throw new Error(tokenData.detail || 'Could not start session stream')
         }
-      } catch (_) {}
+
+        es = new EventSource(
+          `${api.base}/session/${s.session_id}/stream?stream_token=${encodeURIComponent(tokenData.stream_token)}`
+        )
+        esRef.current = es
+
+        es.onmessage = (e) => {
+          try {
+            const event = JSON.parse(e.data)
+            if (event.type === 'turn') appendTurn(event.turn)
+            else if (event.type === 'typing' && event.sender === 'customer') {
+              setCustomerTyping(true)
+              clearTimeout(customerTypingTimerRef.current)
+              customerTypingTimerRef.current = setTimeout(() => setCustomerTyping(false), 3000)
+            }
+          } catch (_) {}
+        }
+
+        es.onerror = () => {
+          es.close()
+          esRef.current = null
+          if (!fallbackRef.current) {
+            fallbackRef.current = setInterval(fetchAllMessages, 8000)
+          }
+        }
+      } catch (e) {
+        console.error(e)
+        if (!fallbackRef.current) {
+          fallbackRef.current = setInterval(fetchAllMessages, 8000)
+        }
+      }
     }
 
-    es.onerror = () => {
-      es.close()
-      esRef.current = null
-      fallbackRef.current = setInterval(fetchAllMessages, 8000)
-    }
+    fetchAllMessages()
+    startStream()
 
     return () => {
-      es.close()
+      cancelled = true
+      es?.close()
       clearInterval(fallbackRef.current)
+      fallbackRef.current = null
       clearTimeout(customerTypingTimerRef.current)
       clearTimeout(typingDebounceRef.current)
     }
@@ -526,14 +595,21 @@ function ActiveChatCard({ s, onResolved }) {
   )
 }
 
-export default function LiveQueue() {
+export default function LiveQueue({ mode = 'chats' }) {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [accepting, setAccepting] = useState({})
   const [resolving, setResolving] = useState({})
   const [resolveTarget, setResolveTarget] = useState(null)
   const [previewTarget, setPreviewTarget] = useState(null)
+  const [voiceCalls, setVoiceCalls] = useState([])
+  const [acceptingCall, setAcceptingCall] = useState({})
+  const [cancellingCall, setCancellingCall] = useState({})
+  const [clearingCalls, setClearingCalls] = useState(false)
+  const [callTokens, setCallTokens] = useState({})
   const prevPendingRef = useRef(null)
+  const prevCallsRef = useRef(null)
+  const isCallsView = mode === 'calls'
 
   async function fetchQueue() {
     try {
@@ -541,17 +617,98 @@ export default function LiveQueue() {
         headers: { Authorization: `Bearer ${api.key}` },
       })
       const data = await res.json()
+      const callsRes = await fetch(`${api.base}/voice/calls`, {
+        headers: { Authorization: `Bearer ${api.key}` },
+      })
+      const callsData = callsRes.ok ? await callsRes.json() : { calls: [] }
       const incoming = data.sessions || []
       const newPending = incoming.filter(s => s.status === 'PENDING_HANDOFF').length
       if (prevPendingRef.current !== null && newPending > prevPendingRef.current) {
         playBeep()
       }
       prevPendingRef.current = newPending
+      if (isCallsView && prevCallsRef.current !== null && (callsData.calls || []).length > prevCallsRef.current) {
+        playBeep()
+      }
+      prevCallsRef.current = (callsData.calls || []).length
       setSessions(incoming)
+      setVoiceCalls(callsData.calls || [])
     } catch (e) {
       console.error(e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function acceptVoiceCall(call) {
+    setAcceptingCall(a => ({ ...a, [call.call_id]: true }))
+    try {
+      const res = await fetch(`${api.base}/voice/${call.call_id}/accept`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${api.key}` },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Could not accept call')
+      setCallTokens(prev => ({ ...prev, [call.call_id]: data }))
+      await fetchQueue()
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setAcceptingCall(a => ({ ...a, [call.call_id]: false }))
+    }
+  }
+
+  function clearCallToken(callId) {
+    setCallTokens(prev => {
+      const next = { ...prev }
+      delete next[callId]
+      return next
+    })
+  }
+
+  async function cancelVoiceCall(call) {
+    setCancellingCall(a => ({ ...a, [call.call_id]: true }))
+    try {
+      await fetch(`${api.base}/voice/${call.call_id}/cancel`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${api.key}` },
+      })
+      clearCallToken(call.call_id)
+      await fetchQueue()
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setCancellingCall(a => ({ ...a, [call.call_id]: false }))
+    }
+  }
+
+  async function endVoiceCall(callId) {
+    clearCallToken(callId)
+    try {
+      await fetch(`${api.base}/voice/${callId}/end`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${api.key}` },
+      })
+      await fetchQueue()
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  async function clearFailedVoiceCalls() {
+    if (clearingCalls) return
+    setClearingCalls(true)
+    try {
+      await fetch(`${api.base}/voice/clear-failed`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${api.key}` },
+      })
+      setCallTokens({})
+      await fetchQueue()
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setClearingCalls(false)
     }
   }
 
@@ -592,29 +749,57 @@ export default function LiveQueue() {
     fetchQueue()
     const t = setInterval(fetchQueue, 5000)
     return () => clearInterval(t)
-  }, [])
+  }, [isCallsView])
 
   const pending = sessions.filter(s => s.status === 'PENDING_HANDOFF')
   const active = sessions.filter(s => s.status === 'HUMAN_ACTIVE')
+  const hasChats = pending.length > 0 || active.length > 0
+  const hasCalls = voiceCalls.length > 0
 
   return (
     <div className="p-6 max-w-7xl">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Live Queue</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">
+            {isCallsView ? 'Call Desk' : 'Live Queue'}
+          </h1>
+          <div className="text-sm text-gray-400 mt-1">
+            {isCallsView ? 'Voice call requests only' : 'Incoming message handoffs only'}
+          </div>
+        </div>
         <div className="flex gap-2">
-          {pending.length > 0 && (
-            <span className="text-sm font-semibold px-3 py-1 rounded-full bg-red-100 text-red-700">
-              {pending.length} waiting
-            </span>
+          {isCallsView ? (
+            hasCalls ? (
+              <span className="text-sm font-semibold px-3 py-1 rounded-full bg-orange-100 text-orange-700">
+                {voiceCalls.length} calls
+              </span>
+            ) : (
+              <span className="text-sm font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700">
+                No calls waiting
+              </span>
+            )
+          ) : (
+            <>
+              {pending.length > 0 && (
+                <span className="text-sm font-semibold px-3 py-1 rounded-full bg-red-100 text-red-700">
+                  {pending.length} waiting
+                </span>
+              )}
+              {active.length > 0 && (
+                <span className="text-sm font-semibold px-3 py-1 rounded-full bg-blue-100 text-blue-700">
+                  {active.length} active
+                </span>
+              )}
+              {!hasChats && (
+                <span className="text-sm font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700">
+                  All messages clear
+                </span>
+              )}
+            </>
           )}
-          {active.length > 0 && (
-            <span className="text-sm font-semibold px-3 py-1 rounded-full bg-blue-100 text-blue-700">
-              {active.length} active
-            </span>
-          )}
-          {sessions.length === 0 && (
-            <span className="text-sm font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700">
-              All clear
+          {!isCallsView && voiceCalls.length > 0 && (
+            <span className="text-sm font-semibold px-3 py-1 rounded-full bg-orange-100 text-orange-700">
+              Calls moved to Call Desk
             </span>
           )}
         </div>
@@ -622,14 +807,57 @@ export default function LiveQueue() {
 
       {loading ? (
         <div className="text-center text-gray-400 py-12">Loading...</div>
-      ) : sessions.length === 0 ? (
+      ) : isCallsView && !hasCalls ? (
         <div className="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
           <CheckCircle size={28} className="mx-auto mb-3 text-green-500" weight="fill" />
-          <div>No sessions in queue</div>
+          <div>No voice calls waiting</div>
+        </div>
+      ) : !isCallsView && !hasChats ? (
+        <div className="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
+          <CheckCircle size={28} className="mx-auto mb-3 text-green-500" weight="fill" />
+          <div>No incoming message handoffs</div>
         </div>
       ) : (
         <div className="space-y-6">
-          {active.length > 0 && (
+          {isCallsView && voiceCalls.length > 0 && (
+            <section>
+              <div className="bg-white rounded-2xl shadow p-4 mb-4 border border-orange-100">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-xs text-orange-500 uppercase tracking-wide font-bold">
+                      Voice Call Requests
+                    </div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      Accept, join, mute, leave, or clear failed voice calls from this call-only workspace.
+                    </div>
+                  </div>
+                  <button
+                    onClick={clearFailedVoiceCalls}
+                    disabled={clearingCalls}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50 font-semibold whitespace-nowrap"
+                  >
+                    {clearingCalls ? 'Clearing...' : 'Clear Failed Calls'}
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+                {voiceCalls.map(call => (
+                  <VoiceCallCard
+                    key={call.call_id}
+                    call={call}
+                    callToken={callTokens[call.call_id]}
+                    onAccept={acceptVoiceCall}
+                    accepting={!!acceptingCall[call.call_id]}
+                    onEnd={endVoiceCall}
+                    onCancel={cancelVoiceCall}
+                    cancelling={!!cancellingCall[call.call_id]}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {!isCallsView && active.length > 0 && (
             <section>
               <div className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-2">
                 Active Chats
@@ -642,7 +870,7 @@ export default function LiveQueue() {
             </section>
           )}
 
-          {pending.length > 0 && (
+          {!isCallsView && pending.length > 0 && (
             <section>
               <div className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-2">
                 Waiting For Agent

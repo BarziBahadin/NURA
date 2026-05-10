@@ -1,6 +1,7 @@
 import logging
 import os
 import subprocess
+import threading
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
@@ -14,8 +15,13 @@ ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
 HANDBOOK_DIR = Path("/app/handbook")
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
+_ingestion_lock = threading.Lock()
+
 
 def run_ingestion():
+    if not _ingestion_lock.acquire(blocking=False):
+        logger.info("Ingestion already running, skipping duplicate trigger")
+        return
     try:
         result = subprocess.run(
             ["python", "/app/ingestion/ingest.py"],
@@ -29,6 +35,8 @@ def run_ingestion():
             logger.error(f"Ingestion stderr: {result.stderr}")
     except Exception as e:
         logger.error(f"Ingestion failed: {e}")
+    finally:
+        _ingestion_lock.release()
 
 
 @router.post("/knowledge/upload")

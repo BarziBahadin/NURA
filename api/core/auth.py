@@ -54,7 +54,9 @@ async def verify_admin_token(token: str) -> dict[str, Any] | None:
         sub = payload.get("sub", "")
         if sub and await get_redis().exists(f"auth:revoked:{sub}"):
             return None
-    except Exception:
+    except Exception as exc:
+        import logging as _logging
+        _logging.getLogger(__name__).error("Redis revocation check failed, denying auth: %s", exc)
         return None
     return payload
 

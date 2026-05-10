@@ -3,7 +3,7 @@
 NURA is an AI-assisted customer support system for telecom-style support teams.
 It combines a self-contained chat widget, guided topic tree, retrieval-augmented AI answers, live human handoff, and admin reporting.
 
-The system is designed for Arabic-first support, with Kurdish support in the widget, and can be embedded into any website with a single script tag.
+The system is designed for Arabic-first support, with Arabic, Kurdish, and English support in the widget, and can be embedded into any website with a single script tag.
 
 ---
 
@@ -44,30 +44,42 @@ React Admin Panel - port 3004
 
 ### Backend Hardening Status
 
-Completed hardening phases:
+Completed hardening and reliability work:
 
 - Automated backend test suite for critical flows.
-- Alembic database migrations.
+- Alembic database migrations plus local startup schema initialization.
 - Durable PostgreSQL-backed sessions with Redis recovery.
 - Redis-backed background job queue for important side effects.
+- Postgres-first session and queue listing to avoid Redis full scans.
+- Shared session access checks for widget/customer session endpoints.
+- Telegram session reset handling after resolved sessions.
+- Support cases, suggestions, SLA state, activity notes, and department routing.
+- Admin user records, roles, JWT login, token revocation on user deactivation, and audit logging.
+- Health checks, request IDs, runtime counters, worker heartbeats, and Docker health checks.
 
 Still planned:
 
-- Full admin user-management UI.
 - Scheduled aggregation jobs when traffic grows.
 - External metrics/error tooling such as Prometheus and Sentry.
-- Production deployment profile with API, worker, and Telegram split into separate processes.
+- Production deployment profile split across API, worker, Telegram, and reverse proxy services.
 
 ### Chat Widget
 
 - Embeddable `frontend/widget.js`, served by the API at `/widget.js`.
 - Standalone local test page at `frontend/widget.html`.
-- Arabic RTL and Kurdish Kurmanji support.
+- Arabic RTL, Kurdish Kurmanji, and English support.
+- Lazy one-line loader at `/widget-loader.js`.
+- Shadow DOM mounting when supported, with namespaced CSS fallback.
+- Mobile-safe fullscreen behavior, safe-area handling, and focus trapping.
 - Guided topic tree with instant article answers.
+- Shared topic structure loaded from `/v1/topic-tree`; widget overlays Kurdish and English labels locally.
 - Free-text chat through `/v1/message`.
 - Per-answer confidence and source labels.
 - Thumbs up/down feedback.
 - Direct human-agent request button.
+- Self-hosted voice-call request button powered by NURA's local LiveKit service.
+- File/image upload after a session token exists.
+- Suggestions and complaints form that creates back-office suggestion cases.
 - Human handoff banner and live session continuation.
 
 ### AI And Knowledge
@@ -79,6 +91,8 @@ Still planned:
 - Conversation memory from Redis.
 - Async intent classification for reporting.
 - LLM token usage and estimated cost logging.
+- Admin toggle for OpenAI replies. When OpenAI replies are off, rules and local ML can still answer without sending customer text to OpenAI.
+- Local ML training utilities under `training/` with curated/manual training pairs.
 
 ### Human Handoff
 
@@ -104,11 +118,23 @@ The admin panel is built with React, Vite, and Tailwind.
 
 Pages:
 
-- **Dashboard**: KPIs, source breakdown, activity, latest conversations, satisfaction, deflection, resolution, knowledge gaps, and AI cost.
-- **Live Queue**: pending handoffs, active chats, agent replies, canned responses, accept/resolve flow.
-- **Reports**: five reporting tabs for knowledge gaps, intents, handoffs, outcomes, and cost.
-- **Session Viewer**: conversation history search and review.
+- **Dashboard**: operations command center for queue pressure, SLA risk, open cases, suggestions, attention items, trends, workload, and recent conversations.
+- **Live Queue**: three-column pending/active handoff workflow, self-hosted voice-call requests, agent replies, canned responses, accept/resolve flow.
+- **Cases**: support case tracking with owner, department, priority, SLA state, status, notes, and activity.
+- **Suggestions**: dedicated queue for customer suggestions, complaints, recommendations, and general feedback.
+- **Sessions**: conversation history search and review.
+- **Reports**: deeper analytics tabs for knowledge gaps, intents, handoffs, outcomes, and cost.
+- **Knowledge Gaps**: review/approve/reject/resolve gaps detected from weak answers and feedback.
+- **Canned Replies**: reusable agent response snippets.
 - **Knowledge Base**: handbook upload and ingestion controls.
+- **Team**: admin user management with roles and activation state.
+- **System Monitor**: realtime counters, live sessions, audit log, and operational activity.
+
+Roles:
+
+- `admin`: full access.
+- `agent`: live queue, sessions, cases, suggestions, and agent workflows.
+- `viewer`: read-only operations/reporting pages.
 
 ### Reporting And Analytics
 
@@ -131,6 +157,9 @@ Available reporting endpoints:
 - `GET /v1/analytics/dashboard?days=30`
 - `GET /v1/analytics/reports?days=30`
 - `GET /v1/analytics/ratings`
+- `GET /v1/cases/stats`
+- `GET /v1/suggestions/stats`
+- `GET /v1/monitor/stats/realtime`
 
 ### Background Jobs
 
@@ -181,13 +210,71 @@ Request observability includes:
 - protected `GET /v1/metrics`
 - counters for uploads, OpenAI calls, Telegram sends, suggestions, handoff accept time, and SLA transitions
 - `/v1/health` checks for API, Redis, PostgreSQL, ChromaDB, uploads, ML artifacts, SLA monitor, job worker, and Telegram worker heartbeat
+- `GET /v1/monitor/audit-log`
+- `GET /v1/monitor/activity`
 
 ---
 
 ## Quick Start
 
+Start from the project root:
+
+```bash
+cd /Users/barzy/code/NURA
+```
+
+Create `.env` if needed and set required secrets:
+
+```bash
+cp .env.example .env
+```
+
+At minimum, set:
+
+- `POSTGRES_PASSWORD`
+- `ADMIN_SECRET_KEY`
+- `ADMIN_PASSWORD`
+- `OPENAI_API_KEY` if OpenAI replies/RAG embeddings should run
+
+### Fast Admin Development With Vite
+
+For day-to-day UI work, use Vite instead of rebuilding the admin Docker image. Docker still runs the API, database, Redis, ChromaDB, and LiveKit; Vite serves the React admin with hot reload.
+
+```bash
+./start-dev.sh
+```
+
+Open the Vite admin:
+
+```bash
+open http://localhost:5173
+```
+
+On another device on the same Wi-Fi, use the LAN URL printed by `start-dev.sh`, for example:
+
+```text
+http://192.168.1.8:5173
+```
+
+When running this way:
+
+- React/admin changes update instantly.
+- No Docker rebuild is needed for admin UI changes.
+- API requests still go through `/v1` and are proxied to `http://localhost:8080`.
+- Keep using `http://localhost:3004` only for the production-style Nginx admin container.
+
+### Docker Stack
+
+Start the full production-style stack:
+
 ```bash
 docker compose up -d
+```
+
+Check containers:
+
+```bash
+docker compose ps
 ```
 
 Check API health:
@@ -207,16 +294,42 @@ Open the admin panel:
 open http://localhost:3004
 ```
 
+For active development, prefer `http://localhost:5173` from Vite.
+
 Open the standalone widget:
 
 ```bash
 open frontend/widget.html
 ```
 
+Or test the hosted widget script:
+
+```html
+<script
+  defer
+  src="http://localhost:8080/widget-loader.js"
+  data-api="http://localhost:8080/v1"
+  data-lang="en"
+  data-title="NURA">
+</script>
+```
+
 Ingest handbook files into ChromaDB:
 
 ```bash
 docker compose exec nura-api python /app/ingestion/ingest.py
+```
+
+Run backend tests:
+
+```bash
+docker compose exec nura-api pytest -q
+```
+
+Build the admin UI:
+
+```bash
+npm --prefix admin run build
 ```
 
 ---
@@ -229,10 +342,11 @@ docker compose exec nura-api python /app/ingestion/ingest.py
 | API Docs | `http://localhost:8080/docs` | Swagger UI |
 | Health | `http://localhost:8080/v1/health` | Service checks |
 | Widget Script | `http://localhost:8080/widget.js` | Embeddable widget |
+| Widget Loader | `http://localhost:8080/widget-loader.js` | Lazy one-line embed |
 | Admin Panel | `http://localhost:3004` | React admin |
 | ChromaDB | `http://localhost:8001` | Vector store |
-| PostgreSQL | `localhost:5432` | Main reporting/logging DB |
-| Redis | `localhost:6379` | Session cache |
+| PostgreSQL | `127.0.0.1:5432` | Main reporting/logging DB |
+| Redis | `127.0.0.1:6379` | Session cache |
 | Worker | optional Compose profile | Redis-backed background jobs |
 | Telegram Worker | optional Compose profile | Standalone Telegram polling |
 
@@ -328,7 +442,7 @@ Supported embed options:
 | Attribute | Values | Description |
 |---|---|---|
 | `data-api` | URL | API base URL, for example `https://YOUR-SERVER/v1` |
-| `data-lang` | `ar`, `ku` | Initial widget language |
+| `data-lang` | `ar`, `ku`, `en` | Initial widget language |
 | `data-position` | `bottom-left`, `bottom-right` | Launcher position |
 | `data-primary` | CSS color | Primary brand color |
 | `data-accent` | CSS color | Accent color |
@@ -338,6 +452,15 @@ Supported embed options:
 ---
 
 ## API Examples
+
+Most admin/back-office endpoints require a JWT:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"your-admin-password"}' \
+  | python -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+```
 
 ### Send A Message
 
@@ -365,6 +488,35 @@ Example response:
 }
 ```
 
+### Create A Suggestion
+
+```bash
+curl -X POST http://localhost:8080/v1/suggestions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": null,
+    "customer_id": "widget-xyz",
+    "channel": "web",
+    "kind": "suggestion",
+    "message": "I suggest adding clearer package renewal reminders."
+  }'
+```
+
+### Create A Case
+
+```bash
+curl -X POST http://localhost:8080/v1/cases \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Customer cannot connect to internet",
+    "description": "Customer reports no mobile data after APN reset.",
+    "department": "technical",
+    "priority": "high",
+    "owner": "agent1"
+  }'
+```
+
 ### Track Widget Event
 
 ```bash
@@ -384,19 +536,40 @@ curl -X POST http://localhost:8080/v1/analytics/click \
 ### Dashboard KPIs
 
 ```bash
-curl "http://localhost:8080/v1/analytics/dashboard?days=30"
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/v1/analytics/dashboard?days=30"
 ```
 
 ### Reports
 
 ```bash
-curl "http://localhost:8080/v1/analytics/reports?days=30"
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/v1/analytics/reports?days=30"
+```
+
+### Topic Tree
+
+```bash
+curl http://localhost:8080/v1/topic-tree
+```
+
+### AI Reply Toggle
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/v1/ai/status
+
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/v1/ai/disable
+
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/v1/ai/enable
 ```
 
 ### Resolve A Session
 
 ```bash
 curl -X POST http://localhost:8080/v1/session/SESSION_ID/resolve \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "status": "solved",
@@ -411,6 +584,63 @@ curl -X POST http://localhost:8080/v1/session/SESSION_ID/resolve \
 
 ## Database Tables
 
+PostgreSQL runs through Docker Compose and is exposed locally on `127.0.0.1:5432`.
+
+Connection details:
+
+```text
+Type: PostgreSQL
+Host: 127.0.0.1
+Port: 5432
+Database: nura_db
+Username: nura_user
+Password: value of POSTGRES_PASSWORD in .env
+```
+
+Recommended GUI clients:
+
+- DBeaver
+- TablePlus
+- pgAdmin
+
+MySQL Workbench is not suitable because this project uses PostgreSQL, not MySQL.
+
+Important: run `docker compose ...` commands from the project root:
+
+```bash
+cd /Users/barzy/code/NURA
+```
+
+If you run Compose commands from another directory, Docker will fail with `no configuration file provided: not found`.
+
+Open a Postgres shell:
+
+```bash
+docker compose exec postgres psql -U nura_user -d nura_db
+```
+
+Show all tables from inside `psql`:
+
+```sql
+\dt
+```
+
+Show all tables directly from the terminal:
+
+```bash
+docker compose exec postgres psql -U nura_user -d nura_db -c "\dt"
+```
+
+Show table names with estimated row counts:
+
+```bash
+docker compose exec postgres psql -U nura_user -d nura_db -c "
+SELECT schemaname, relname AS table_name, n_live_tup AS estimated_rows
+FROM pg_stat_user_tables
+ORDER BY relname;
+"
+```
+
 | Table | Purpose |
 |---|---|
 | `conversation_logs` | Customer and assistant messages, source, confidence, escalation state |
@@ -419,26 +649,36 @@ curl -X POST http://localhost:8080/v1/session/SESSION_ID/resolve \
 | `widget_events` | Widget button clicks and telemetry |
 | `message_feedback` | Good/bad response ratings |
 | `message_insights` | LLM-classified intent, sentiment, confidence bucket, knowledge gaps |
+| `knowledge_gap_reviews` | Admin review queue for detected knowledge gaps |
 | `session_outcomes` | Handoff reason, status, category, root cause, resolution notes, timing |
 | `llm_usage_logs` | Prompt tokens, completion tokens, total tokens, estimated cost |
 | `chat_turns` | Live handoff conversation turns |
 | `security_logs` | Auth failures and rate-limit events |
+| `admin_audit_logs` | Admin auth and operational audit events |
+| `admin_users` | Admin, agent, and viewer accounts |
 | `ingestion_logs` | Handbook ingestion history |
+| `support_departments` | Back-office department codes and names |
+| `support_cases` | Cases, complaints, suggestions, SLA state, owner, department, priority |
+| `support_case_activity` | Case activity feed and notes |
+| `canned_replies` | Reusable agent response snippets |
+| `daily_message_stats` | Aggregate message stats for reporting |
+| `daily_cost_stats` | Aggregate OpenAI cost/token stats |
+| `daily_handoff_stats` | Aggregate handoff stats |
 
 Useful checks:
 
 ```bash
-docker compose exec nura-postgres psql -U nura_user -d nura_db \
+docker compose exec postgres psql -U nura_user -d nura_db \
   -c "SELECT session_id, customer_message, source, confidence, escalated, created_at FROM conversation_logs ORDER BY created_at DESC LIMIT 20;"
 ```
 
 ```bash
-docker compose exec nura-postgres psql -U nura_user -d nura_db \
+docker compose exec postgres psql -U nura_user -d nura_db \
   -c "SELECT event_type, COUNT(*) FROM widget_events GROUP BY event_type ORDER BY count DESC;"
 ```
 
 ```bash
-docker compose exec nura-postgres psql -U nura_user -d nura_db \
+docker compose exec postgres psql -U nura_user -d nura_db \
   -c "SELECT status, issue_category, handoff_reason, COUNT(*) FROM session_outcomes GROUP BY status, issue_category, handoff_reason;"
 ```
 
@@ -466,6 +706,7 @@ NURA/
 |-- .manafest/
 |   |-- articals.json
 |   |-- system_prompt.txt
+|   |-- topic_tree.json
 |-- api/
 |   |-- main.py
 |   |-- config.py
@@ -476,22 +717,41 @@ NURA/
 |   |   |-- job_queue.py
 |   |   |-- handoff_controller.py
 |   |   |-- session_manager.py
+|   |   |-- message_pipeline.py
+|   |   |-- observability.py
+|   |   |-- sla_monitor.py
 |   |   |-- text_preprocessor.py
 |   |   |-- logger.py
 |   |-- routes/
+|   |   |-- auth.py
+|   |   |-- ai_control.py
+|   |   |-- cases.py
+|   |   |-- canned_replies.py
 |   |   |-- message.py
 |   |   |-- handoff.py
 |   |   |-- session.py
 |   |   |-- analytics.py
 |   |   |-- health.py
+|   |   |-- knowledge.py
+|   |   |-- knowledge_gaps.py
+|   |   |-- monitor.py
+|   |   |-- upload.py
+|   |   |-- users.py
 |   |-- db/
 |   |   |-- postgres.py
 |   |   |-- migrations/
 |   |-- workers/
 |   |   |-- job_worker.py
+|   |   |-- telegram_worker.py
 |-- tests/
 |   |-- conftest.py
 |   |-- test_backend_phase1.py
+|-- training/
+|   |-- cli.py
+|   |-- trainer.py
+|   |-- evaluator.py
+|   |-- processor.py
+|   |-- data/
 |-- ingestion/
 |   |-- ingest.py
 |   |-- handbook/
@@ -505,9 +765,15 @@ NURA/
 |   |   |-- pages/
 |   |   |   |-- Dashboard.jsx
 |   |   |   |-- LiveQueue.jsx
+|   |   |   |-- Cases.jsx
+|   |   |   |-- Suggestions.jsx
 |   |   |   |-- Reports.jsx
 |   |   |   |-- SessionViewer.jsx
+|   |   |   |-- KnowledgeGapQueue.jsx
+|   |   |   |-- CannedReplies.jsx
 |   |   |   |-- KnowledgeBase.jsx
+|   |   |   |-- UserManagement.jsx
+|   |   |   |-- SystemMonitor.jsx
 ```
 
 ---
@@ -518,29 +784,53 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 
 | Variable | Description |
 |---|---|
+| `APP_ENV` | Runtime environment: development/staging/production |
+| `COMPANY_NAME` | Company/support brand name injected into prompts |
+| `AGENT_NAME` | Assistant name shown to users |
+| `AGENT_TONE` | Tone hint for generated support replies |
+| `PRIMARY_LANGUAGE` | Primary support language hint |
+| `API_HOST` | API bind host inside the container |
+| `API_PORT` | API bind port inside the container |
+| `API_KEY` | Optional legacy bearer key for automation; disabled unless `ALLOW_ADMIN_API_KEY=true` |
+| `ALLOW_ADMIN_API_KEY` | Permit `API_KEY` to access admin endpoints; keep `false` for browser-facing deployments |
 | `OPENAI_API_KEY` | OpenAI API key |
 | `OPENAI_MODEL` | Model used for generated support replies |
 | `OPENAI_EMBEDDING_MODEL` | Model used for RAG embeddings |
-| `COMPANY_NAME` | Company/support brand name injected into prompts |
-| `AGENT_NAME` | Assistant name shown to users |
-| `API_KEY` | Optional legacy bearer key for automation; disabled unless `ALLOW_ADMIN_API_KEY=true` |
-| `ALLOW_ADMIN_API_KEY` | Permit `API_KEY` to access admin endpoints; keep `false` for browser-facing deployments |
+| `POSTGRES_HOST` / `POSTGRES_PORT` | PostgreSQL host and port from the API container |
+| `POSTGRES_DB` / `POSTGRES_USER` | PostgreSQL database and username |
 | `POSTGRES_PASSWORD` | PostgreSQL password |
-| `ADMIN_SECRET_KEY` | Admin/session secret |
-| `ML_REQUIRE_ARTIFACT_HASHES` | Require hashes in `models/metadata.json` before loading ML pickle artifacts |
+| `REDIS_HOST` / `REDIS_PORT` | Redis host and port from the API container |
+| `CHROMA_HOST` / `CHROMA_PORT` | ChromaDB host and port from the API container |
 | `RAG_TOP_K` | Number of handbook chunks retrieved per query |
 | `RAG_CHUNK_SIZE` | Chunk size for ingestion |
+| `RAG_CHUNK_OVERLAP` | Chunk overlap for ingestion |
+| `UNKNOWN_ANSWER_BEHAVIOR` | Behavior when confidence is low, for example `handoff` |
+| `ML_MODEL_PATH` | Local ML model path inside the container |
+| `ML_VECTORIZER_PATH` | Local ML vectorizer path inside the container |
+| `ML_CONFIDENCE_THRESHOLD` | Minimum local ML confidence for using a local answer |
+| `ML_REQUIRE_ARTIFACT_HASHES` | Require hashes in `models/metadata.json` before loading ML pickle artifacts |
+| `USE_SEMANTIC_EMBEDDINGS` | Enable optional semantic embedding model for local ML utilities |
+| `SEMANTIC_MODEL_NAME` | Sentence-transformers model name when semantic embeddings are enabled |
 | `HANDOFF_ENABLED` | Enable or disable human handoff |
 | `HANDOFF_TRIGGERS` | Comma-separated handoff trigger list |
+| `ESCALATION_WEBHOOK_URL` | Optional webhook called when escalation is queued |
+| `VOICE_CALL_ENABLED` | Enable or disable widget voice-call requests |
+| `LIVEKIT_URL` | Browser-facing LiveKit websocket URL. Use `auto` for local/LAN development so the API returns a URL based on the current request host |
+| `LIVEKIT_NODE_IP` | LAN IP advertised by the local LiveKit container for WebRTC candidates, for example `192.168.1.8` |
+| `LIVEKIT_API_KEY` | LiveKit API key used by the backend to sign room tokens |
+| `LIVEKIT_API_SECRET` | LiveKit API secret used by the backend to sign room tokens |
+| `LIVEKIT_TOKEN_TTL_SECONDS` | Lifetime for generated voice-room tokens |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token |
 | `TELEGRAM_POLLER_ENABLED` | Run Telegram polling in this process |
 | `BACKGROUND_JOBS_ENABLED` | Enable Redis-backed background job enqueueing |
 | `JOB_WORKER_ENABLED` | Run a background job worker in this process |
 | `JOB_MAX_ATTEMPTS` | Max attempts before a job is moved to the failed queue |
 | `JOB_RETRY_DELAY_SECONDS` | Delay between job retries |
+| `ADMIN_SECRET_KEY` | Admin/session secret |
 | `ADMIN_USERNAME` | Admin login username |
 | `ADMIN_PASSWORD` | Admin login password |
 | `ADMIN_TOKEN_TTL_SECONDS` | Admin token lifetime |
-| `APP_ENV` | Runtime environment: development/staging/production |
+| `DB_AUTO_INIT` | Run startup schema creation for local Docker/development |
 | `CORS_ORIGINS` | Allowed browser origins |
 
 ---
@@ -548,31 +838,40 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 ## Recently Added
 
 - Automated backend tests for message, handoff, resolve, analytics, reports, durable sessions, and job queue behavior.
-- Alembic migrations with current schema through `20260430_002`.
+- Alembic migrations with support cases, suggestions, activity notes, SLA state, admin users, and knowledge-gap reviews.
 - Async LLM intent classification.
 - Message insight logging for intents, sentiment, confidence bucket, and knowledge gaps.
 - LLM token usage and estimated cost logging.
 - Handoff reason tracking.
 - Agent accept timestamp tracking.
 - Durable PostgreSQL-backed session recovery.
+- Postgres-backed session/queue listing to avoid Redis full scans.
+- Telegram resolved-session reset so new conversations do not append forever to old resolved sessions.
 - Detailed resolve outcomes: status, category, root cause, notes, resolver, timing.
-- Extended dashboard KPIs.
+- Operations-first dashboard with attention items, queue pressure, case SLA risk, suggestions, workload, and deltas.
 - New `/v1/analytics/reports` endpoint.
-- New admin Reports page with five tabs.
+- New admin Reports page with deep analytics tabs.
+- Cases and Suggestions back-office workflows.
+- Knowledge Gap review queue.
+- Canned Replies editor.
+- Team/user management UI.
+- System Monitor page.
 - Live Queue resolve modal with outcome fields.
+- Self-hosted LiveKit voice-call MVP for widget-to-agent audio.
 - Direct human-agent path that bypasses ML when the customer asks for an agent.
 - Redis-backed background job queue for intent classification and escalation webhooks.
 - Standalone Telegram worker option.
-- Admin token login and `/auth/me`.
+- Admin token login, `/auth/me`, roles, and JWT revocation on user deactivation.
 - Request IDs, slow request logging, and `/v1/metrics`.
 - Analytics hardening indexes and daily aggregate tables.
 - Shared message pipeline for web and Telegram.
+- Shared topic tree endpoint and widget translations for Arabic, Kurdish, and English.
+- File/image uploads with session-token-protected access.
 
 ---
 
 ## Roadmap
 
-- Add full admin user-management UI and persistent admin user records.
 - Add scheduled aggregate refresh jobs.
 - Add external metrics/error tooling.
 - Convert Telegram to webhook mode if long polling becomes operationally awkward.
@@ -584,16 +883,25 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 - Better production deployment guide.
 - Scheduled PostgreSQL and ChromaDB backups.
 - Cached health checks so external model checks are not called too often.
+- End-to-end browser tests for widget language switching, upload, suggestions, handoff, and live queue.
+- More curated Arabic/Kurdish/English ML training data and regression evaluation gates.
 
 ---
 
 ## Production Checklist
 
 - Set strong values for `POSTGRES_PASSWORD` and `ADMIN_SECRET_KEY`.
+- Set a strong `ADMIN_PASSWORD` before first deployment.
 - Keep `ALLOW_ADMIN_API_KEY=false` unless a trusted automation path explicitly needs it.
 - Restrict `CORS_ORIGINS` to production domains.
 - Move secrets out of plain `.env` for production deployments.
 - Rotate any secret that was committed, pasted into logs, or shared in chat.
+- Keep `POSTGRES_HOST=postgres`, `REDIS_HOST=redis`, and `CHROMA_HOST=chromadb` inside Docker Compose.
+- Run only one Telegram poller. Use either API polling for local development or the `telegram` profile, not both.
+- If using the standalone job worker, set `JOB_WORKER_ENABLED=false` on the API process and `true` on the worker.
 - Rebuild API after Python changes: `docker compose build nura-api`.
-- Rebuild admin after frontend changes: `docker compose build nura-admin`.
+- During development, run the admin with Vite: `./start-dev.sh` or `npm --prefix admin run dev:host`.
+- Rebuild admin after frontend changes only for production-style Docker/Nginx testing: `docker compose build nura-admin`.
+- Restart after rebuilds: `docker compose up -d nura-api nura-admin`.
 - Verify `/v1/health`, `/v1/analytics/dashboard`, and `/v1/analytics/reports`.
+- Test widget embed with `data-lang="ar"`, `data-lang="ku"`, and `data-lang="en"`.

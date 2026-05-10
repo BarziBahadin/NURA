@@ -1,5 +1,6 @@
 from typing import Optional
 
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -54,15 +55,15 @@ async def create_user(body: CreateUserBody, request: Request):
     ip = request.client.host if request.client else ""
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        existing = await conn.fetchval("SELECT id FROM admin_users WHERE username = $1", body.username)
-        if existing:
+        try:
+            await conn.execute(
+                "INSERT INTO admin_users (username, password_hash, role, display_name, created_by) "
+                "VALUES ($1, $2, $3, $4, $5)",
+                body.username, hash_password(body.password), body.role,
+                body.display_name or body.username, actor,
+            )
+        except asyncpg.UniqueViolationError:
             raise HTTPException(status_code=409, detail="Username already exists")
-        await conn.execute(
-            "INSERT INTO admin_users (username, password_hash, role, display_name, created_by) "
-            "VALUES ($1, $2, $3, $4, $5)",
-            body.username, hash_password(body.password), body.role,
-            body.display_name or body.username, actor,
-        )
         await _audit(conn, actor, "user_created", body.username, body.role, ip)
     return {"ok": True, "username": body.username}
 

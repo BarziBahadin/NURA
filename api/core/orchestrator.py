@@ -106,13 +106,25 @@ def _tokens(text: str) -> set[str]:
 
 _gap_cache: list[dict] | None = None
 _gap_cache_at: float = 0.0
-_GAP_CACHE_TTL = 300  # 5 minutes — safe for multi-worker
+_GAP_CACHE_TTL = 300  # 5 minutes
+_GAP_VERSION_KEY = "cache:gap_version"
+
+
+async def _gap_redis_version() -> float:
+    """Return the Redis-stored invalidation timestamp (0.0 if unavailable)."""
+    try:
+        from core.session_manager import get_redis
+        val = await get_redis().get(_GAP_VERSION_KEY)
+        return float(val) if val else 0.0
+    except Exception:
+        return 0.0
 
 
 async def _load_gap_rows() -> list[dict]:
     global _gap_cache, _gap_cache_at
     now = time.monotonic()
-    if _gap_cache is not None and now - _gap_cache_at < _GAP_CACHE_TTL:
+    redis_version = await _gap_redis_version()
+    if _gap_cache is not None and now - _gap_cache_at < _GAP_CACHE_TTL and _gap_cache_at >= redis_version:
         return _gap_cache
     try:
         pool = await get_db_pool()
@@ -138,8 +150,25 @@ async def _load_gap_rows() -> list[dict]:
 
 
 def invalidate_gap_cache() -> None:
+    """Clear the local cache and publish an invalidation timestamp to Redis.
+
+    Other workers compare their _gap_cache_at against this timestamp and
+    reload on the next request, so no worker serves stale approved answers.
+    """
     global _gap_cache
     _gap_cache = None
+    import asyncio
+    async def _publish():
+        try:
+            from core.session_manager import get_redis
+            await get_redis().set(_GAP_VERSION_KEY, str(time.monotonic()))
+        except Exception:
+            pass
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_publish())
+    except RuntimeError:
+        pass
 
 
 async def retrieve_curated_gap_answers(message: str) -> str:

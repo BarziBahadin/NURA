@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -15,11 +16,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
+_DASHBOARD_CACHE: dict = {}
+_DASHBOARD_TTL = 60  # seconds — prevents stampede under concurrent dashboard opens
+
 ALLOWED_EVENT_TYPES = {
     "chat_open", "chat_close", "lang_switch", "send_message",
     "tree_click", "tree_back", "tree_home", "followup_yes",
     "followup_no", "feedback_good", "feedback_bad", "direct_to_agent",
-    "suggestion_open", "suggestion_submit",
+    "suggestion_open", "suggestion_submit", "voice_call_request",
 }
 
 
@@ -91,6 +95,12 @@ async def track_event(request: Request, payload: EventPayload):
 
 @router.get("/analytics/dashboard")
 async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = Depends(verify_api_key)):
+    cache_key = str(days)
+    now = time.monotonic()
+    cached = _DASHBOARD_CACHE.get(cache_key)
+    if cached and (now - cached["at"]) < _DASHBOARD_TTL:
+        return cached["result"]
+
     pool = await get_db_pool()
     now = datetime.now(timezone.utc)
     since = datetime.now(timezone.utc) - timedelta(days=days)
@@ -587,6 +597,8 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
         "suggestions": suggestions,
         "attention_items": attention_items,
     }
+    _DASHBOARD_CACHE[cache_key] = {"result": result, "at": time.monotonic()}
+    return result
 
 
 @router.get("/analytics/reports")

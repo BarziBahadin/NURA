@@ -12,6 +12,8 @@ services:
         condition: service_healthy
       chromadb:
         condition: service_started
+      livekit:
+        condition: service_started
     volumes:
       - ./ingestion/handbook:/app/handbook
       - ./ingestion:/app/ingestion
@@ -26,6 +28,29 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: nura-livekit
+    command:
+      - "--bind"
+      - "0.0.0.0"
+      - "--keys"
+      - "${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}"
+      - "--node-ip"
+      - "${LIVEKIT_NODE_IP:-127.0.0.1}"
+      - "--udp-port"
+      - "7882"
+      - "--rtc.allow_tcp_fallback"
+      - "--rtc.enable_loopback_candidate"
+      - "--rtc.use_external_ip=${LIVEKIT_RTC_USE_EXTERNAL_IP:-false}"
+    ports:
+      - "127.0.0.1:7880:7880"
+      - "127.0.0.1:7881:7881"
+      - "127.0.0.1:7882:7882/udp"
+    networks:
+      - nura_network
     restart: unless-stopped
 
   nura-worker:

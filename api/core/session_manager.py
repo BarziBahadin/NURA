@@ -257,6 +257,49 @@ async def get_pending_handoff_sessions() -> List[Session]:
     return await get_sessions_from_db(SessionStatus.pending_handoff)
 
 
+async def get_queue_sessions() -> list[Session]:
+    """Fetch only handoff/active sessions, selecting minimal columns (no history)."""
+    try:
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT session_id, customer_id, channel, status,
+                       failure_count, negative_score, metadata, created_at, updated_at,
+                       '[]'::jsonb AS history
+                FROM sessions
+                WHERE status IN ('PENDING_HANDOFF', 'HUMAN_ACTIVE')
+                ORDER BY updated_at ASC
+                LIMIT 500
+                """
+            )
+    except Exception as e:
+        logger.error(f"Failed to load queue sessions from Postgres: {e}")
+        return []
+
+    sessions: list[Session] = []
+    for row in rows:
+        try:
+            metadata = row["metadata"]
+            if isinstance(metadata, str):
+                metadata = json.loads(metadata)
+            sessions.append(Session(
+                session_id=row["session_id"],
+                customer_id=row["customer_id"],
+                channel=row["channel"],
+                status=SessionStatus(row["status"]),
+                history=[],
+                failure_count=row["failure_count"],
+                negative_score=row["negative_score"],
+                metadata=metadata,
+                created_at=row["created_at"].isoformat(),
+                updated_at=row["updated_at"].isoformat(),
+            ))
+        except Exception as e:
+            logger.warning(f"Skipping corrupt queue session {row['session_id']}: {e}")
+    return sessions
+
+
 async def get_all_sessions(status_filter: Optional[str] = None) -> List[Session]:
     return await get_sessions_from_db(status_filter)
 

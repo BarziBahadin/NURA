@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_poller_enabled: bool = True
 
+    voice_call_enabled: bool = True
+    livekit_url: str = "auto"
+    livekit_api_key: str = "devkey"
+    livekit_api_secret: str = "secret"
+    livekit_token_ttl_seconds: int = 3600
+    livekit_node_ip: str = ""
+
     background_jobs_enabled: bool = True
     job_worker_enabled: bool = True
     job_max_attempts: int = 3
@@ -78,10 +85,10 @@ class Settings(BaseSettings):
         return v
 
     @model_validator(mode="after")
-    def production_safety_checks(self):
+    def safety_checks(self):
+        if "*" in self.cors_origins_list:
+            raise ValueError("CORS_ORIGINS cannot include '*' — list specific origins instead")
         if self.app_env.lower() == "production":
-            if "*" in self.cors_origins_list:
-                raise ValueError("CORS_ORIGINS cannot include '*' in production")
             if self.allow_admin_api_key and len(self.api_key) < 32:
                 raise ValueError("API_KEY must be at least 32 characters when ALLOW_ADMIN_API_KEY=true")
         return self

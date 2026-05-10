@@ -14,7 +14,7 @@
   var brandTitle = (_s && _s.getAttribute('data-title')) || 'NURA';
   var autoOpen = (_s && _s.getAttribute('data-auto-open')) === 'true';
 
-  if (initialLang !== 'ar' && initialLang !== 'ku') initialLang = 'ar';
+  if (initialLang !== 'ar' && initialLang !== 'ku' && initialLang !== 'en') initialLang = 'ar';
   if (widgetPosition !== 'bottom-right') widgetPosition = 'bottom-left';
 
   // ── Inject styles ──────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@
     '  border: none; cursor: pointer;',
     '  box-shadow: 0 14px 34px rgba(17,24,39,0.28), 0 4px 18px rgba(249,115,22,0.36);',
     '  display: flex; align-items: center; justify-content: center;',
-    '  transition: transform 0.2s, box-shadow 0.2s; z-index: 2147483640;',
+    '  transition: transform 0.2s, box-shadow 0.2s, opacity 0.22s; z-index: 2147483640;',
     '  -webkit-tap-highlight-color: transparent;',
     '}',
     '#nura-widget-root.nura-pos-bottom-right #chat-toggle { left: auto; right: 28px; }',
@@ -55,6 +55,7 @@
     '  background: #fff; border-radius: 22px; border: 1px solid rgba(17,24,39,0.08);',
     '  box-shadow: 0 26px 78px rgba(15,23,42,0.22);',
     '  display: flex; flex-direction: column; overflow: hidden;',
+    '  overscroll-behavior: contain;',
     '  z-index: 2147483639;',
     '  transform: translate(-50%, -50%) scale(0.85);',
     '  opacity: 0; pointer-events: none;',
@@ -111,6 +112,7 @@
     '#nura-messages {',
     '  flex: 1; overflow-y: auto; padding: 16px 18px 12px; background: #fbfbfc;',
     '  display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth;',
+    '  overscroll-behavior: contain; -webkit-overflow-scrolling: touch;',
     '}',
     '#nura-messages::-webkit-scrollbar { width: 4px; }',
     '#nura-messages::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }',
@@ -185,6 +187,8 @@
     '#nura-tree-panel {',
     '  border-top: 1px solid #edf2f7; padding: 12px 14px 14px;',
     '  flex-shrink: 0; background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); max-height: 230px; overflow-y: auto;',
+    '  overscroll-behavior: contain; -webkit-overflow-scrolling: touch;',
+    '  transition: max-height 0.18s ease, padding 0.18s ease, border-color 0.18s ease, opacity 0.14s ease;',
     '}',
     '#nura-tree-panel::-webkit-scrollbar { width: 3px; }',
     '#nura-tree-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }',
@@ -211,6 +215,18 @@
     '  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;',
     '}',
     '.nura-agent-bypass-btn:hover { background: #0f172a; border-color: #f97316; transform: translateY(-1px); }',
+    '.nura-voice-btn {',
+    '  margin-top: 8px; width: 100%; padding: 11px 14px;',
+    '  background: #fff; border: 1px solid #fed7aa; border-radius: 14px;',
+    '  color: #ea580c; font-size: 13px; font-weight: 900; cursor: pointer;',
+    '  transition: background 0.15s, border-color 0.15s, transform 0.15s;',
+    '}',
+    '.nura-voice-btn:hover { background: #fff7ed; border-color: #f97316; transform: translateY(-1px); }',
+    '.nura-voice-panel { margin-top: 10px; padding: 12px; border: 1px solid #fed7aa; border-radius: 14px; background: #fff7ed; color: #9a3412; font-size: 12px; line-height: 1.5; text-align: start; }',
+    '.nura-voice-actions { display: flex; gap: 8px; margin-top: 9px; }',
+    '.nura-voice-actions button { border: 0; border-radius: 10px; padding: 8px 10px; font-size: 12px; font-weight: 900; cursor: pointer; font-family: inherit; }',
+    '.nura-voice-primary { background: #ea580c; color: #fff; }',
+    '.nura-voice-secondary { background: #fff; color: #9a3412; border: 1px solid #fed7aa !important; }',
     '.nura-suggestion-card {',
     '  background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 12px;',
     '  box-shadow: 0 6px 18px rgba(15,23,42,0.05);',
@@ -319,21 +335,25 @@
     '.nura-star-btn:hover, .nura-star-btn.lit { color: var(--nura-primary); }',
     '.nura-star-btn:hover { transform: scale(1.15); }',
 
-    '@media (max-width: 520px) {',
-    '  #chat-toggle { width: 58px; height: 58px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: 18px; }',
-    '  #nura-widget-root.nura-pos-bottom-right #chat-toggle { left: auto; right: 18px; }',
+    '@media (max-width: 600px) {',
+    '  #chat-toggle { width: 56px; height: 56px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); left: 20px; }',
+    '  #nura-widget-root.nura-pos-bottom-right #chat-toggle { left: auto; right: 20px; }',
     '  #chat-window {',
-    '    top: auto; left: 0; right: 0; bottom: 0;',
-    '    width: 100vw; height: var(--nura-viewport-height); height: min(var(--nura-viewport-height), 100dvh); max-height: none;',
-    '    border-radius: 20px 20px 0 0; border-left: none; border-right: none; border-bottom: none;',
+    '    top: 0; left: 0; right: 0; bottom: 0;',
+    '    width: 100vw; height: 100%; height: 100dvh; max-height: none; border-radius: 0; border: none;',
     '    transform: translateY(105%);',
     '  }',
     '  #chat-window.nura-open { transform: translateY(0); }',
-    '  .nura-chat-header { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }',
-    '  .nura-chat-footer { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }',
+    '  #chat-window.nura-keyboard-active { height: var(--nura-viewport-height); }',
+    '  .nura-chat-header { padding-top: calc(16px + env(safe-area-inset-top, 0px)); border-radius: 0; }',
+    '  .nura-chat-footer { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }',
     '  #nura-msg-input { font-size: 16px; }',
-    '  .nura-msg { max-width: 90%; }',
+    '  .nura-msg { max-width: 92%; }',
     '  .nura-tree-options { grid-template-columns: 1fr; }',
+    '  #nura-tree-panel { max-height: 260px; }',
+    '  #chat-window.nura-mobile-input-active #nura-tree-panel {',
+    '    max-height: 0; padding-top: 0; padding-bottom: 0; border-top-color: transparent; opacity: 0; overflow: hidden;',
+    '  }',
     '}',
     '@media (prefers-reduced-motion: reduce) {',
     '  #nura-widget-root *, #nura-widget-root *::before, #nura-widget-root *::after {',
@@ -371,6 +391,7 @@
     '    <div id="nura-lang-toggle" role="group" aria-label="Language">',
     '      <button class="nura-lang-btn active" data-lang="ar">عربي</button>',
     '      <button class="nura-lang-btn" data-lang="ku">Kurdî</button>',
+    '      <button class="nura-lang-btn" data-lang="en">EN</button>',
     '    </div>',
     '    <div class="nura-header-info">',
     '      <h3 id="nura-header-title">NURA</h3>',
@@ -418,14 +439,27 @@
       rateThanks: 'شكراً على تقييمك! نسعى دائماً للتحسين.',
       treeRoot: 'كيف يمكنني مساعدتك؟', treeBack: '← رجوع', treeHome: '🏠 الرئيسية',
       talkToAgent: '🎧 التحدث مع موظف',
+      voiceCall: '📞 مكالمة صوتية',
+      voiceReady: 'غرفة المكالمة جاهزة داخل NURA. اضغط انضمام لتفعيل الميكروفون وانتظار الموظف.',
+      voiceJoin: 'انضمام',
+      voiceMute: 'كتم',
+      voiceUnmute: 'إلغاء الكتم',
+      voiceLeave: 'إنهاء',
+      voiceConnecting: 'جاري الاتصال…',
+      voiceConnected: 'أنت داخل المكالمة',
+      voiceAccepted: '✅ قبل الموظف المكالمة الصوتية.',
+      voiceError: 'تعذر بدء المكالمة الصوتية',
       suggestionTitle: 'الشكاوى والاقتراحات',
       suggestionIntro: 'هذا القسم مخصص للملاحظات العامة، التوصيات، الشكاوى، أو الاقتراحات. اكتب رسالتك هنا وسنرسلها مباشرة إلى قسم الاقتراحات في نظام المتابعة.',
       suggestionPlaceholder: 'اكتب الشكوى أو الاقتراح هنا…',
       suggestionSubmit: 'إرسال إلى قسم الاقتراحات',
       suggestionCancel: 'إلغاء',
       suggestionMin: 'يرجى كتابة 5 أحرف على الأقل.',
+      suggestionSending: 'جارٍ الإرسال…',
       suggestionThanks: 'شكراً لك. تم إرسال ملاحظتك إلى فريقنا وسيتم مراجعتها ضمن قسم الاقتراحات.',
       suggestionCase: 'رقم المتابعة',
+      openChatAriaLabel: 'فتح المحادثة',
+      attachFirstMessage: '⚠️ اكتب رسالة أولاً قبل إرفاق ملف.',
     },
     ku: {
       dir: 'ltr', htmlLang: 'ku',
@@ -445,14 +479,67 @@
       rateThanks: 'Spas ji bo nirxandina te! Em her tim hewl didin baştir bibin.',
       treeRoot: 'Çawa dikarim alîkariya te bikim?', treeBack: '← Vegerîn', treeHome: '🏠 Serxane',
       talkToAgent: '🎧 Bi karmend re biaxive',
+      voiceCall: '📞 Banga dengî',
+      voiceReady: 'Odeya bangê di NURA de amade ye. Ji bo mikrofonê tevlî bibin û li benda karmend bimînin.',
+      voiceJoin: 'Tevlî bibe',
+      voiceMute: 'Bêdeng',
+      voiceUnmute: 'Deng veke',
+      voiceLeave: 'Bi dawî bike',
+      voiceConnecting: 'Tê girêdan…',
+      voiceConnected: 'Hûn di bangê de ne',
+      voiceAccepted: '✅ Karmendê bangê pejirand.',
+      voiceError: 'Destpêkirina banga dengî nehat kirin',
       suggestionTitle: 'Gilî û pêşniyar',
       suggestionIntro: 'Ev beş ji bo têbînî, pêşniyar, gilî, an ramanên giştî ye. Peyama xwe binivîse û em ê wê rasterast bişînin beşa pêşniyaran di pergala me de.',
       suggestionPlaceholder: 'Gilî an pêşniyara xwe li vir binivîse…',
       suggestionSubmit: 'Bişîne beşa pêşniyaran',
       suggestionCancel: 'Betal bike',
       suggestionMin: 'Ji kerema xwe herî kêm 5 tîpan binivîse.',
+      suggestionSending: 'Tê şandin…',
       suggestionThanks: 'Spas. Peyama te hate şandin û dê ji aliyê tîma me ve were nirxandin.',
       suggestionCase: 'Hejmara şopandinê',
+      openChatAriaLabel: 'Vekirina sohbetê',
+      attachFirstMessage: '⚠️ Ji kerema xwe berî pêvekirina pelê peyamek binivîse.',
+    },
+    en: {
+      dir: 'ltr', htmlLang: 'en',
+      headerTitle: 'NURA', headerStatus: 'Online now',
+      placeholder: 'Type your message here...',
+      sendAriaLabel: 'Send', closeAriaLabel: 'Close',
+      welcome: 'Welcome to Rcell digital support.\nChoose a service from the menu or type your question directly.',
+      followUpMarker: 'Can I help you with anything else?',
+      yesBtn: 'Yes, I have another question', noBtn: 'No, thank you',
+      yesReply: 'Of course. Choose a topic or type your question.',
+      noReply: 'You are welcome. We are always happy to help.\nIf you need support later, we are here for you.',
+      noUserText: 'No, thank you', errorPrefix: 'Could not connect to the server',
+      escalatingBanner: '⏳ Connecting you with a human agent...',
+      agentConnectedBanner: '✅ A human agent is online now', agentLabel: 'Agent',
+      sessionClosed: '🔒 This session has been closed. Thank you for contacting us.',
+      ratePrompt: 'How would you rate your customer support experience?',
+      rateThanks: 'Thank you for your rating. We are always working to improve.',
+      treeRoot: 'How can I help you?', treeBack: '← Back', treeHome: '🏠 Home',
+      talkToAgent: '🎧 Talk to an agent',
+      voiceCall: '📞 Voice call',
+      voiceReady: 'Your NURA call room is ready. Join to enable your microphone and wait for the agent.',
+      voiceJoin: 'Join',
+      voiceMute: 'Mute',
+      voiceUnmute: 'Unmute',
+      voiceLeave: 'Leave',
+      voiceConnecting: 'Connecting...',
+      voiceConnected: 'You are in the call',
+      voiceAccepted: '✅ The agent accepted the voice call.',
+      voiceError: 'Could not start the voice call',
+      suggestionTitle: 'Complaints and Suggestions',
+      suggestionIntro: 'This section is for general feedback, recommendations, complaints, or suggestions. Write your message here and we will send it directly to the suggestions section in our follow-up system.',
+      suggestionPlaceholder: 'Write your complaint or suggestion here...',
+      suggestionSubmit: 'Send to Suggestions',
+      suggestionCancel: 'Cancel',
+      suggestionMin: 'Please write at least 5 characters.',
+      suggestionSending: 'Sending...',
+      suggestionThanks: 'Thank you. Your feedback has been sent to our team and will be reviewed in the suggestions section.',
+      suggestionCase: 'Tracking number',
+      openChatAriaLabel: 'Open chat',
+      attachFirstMessage: '⚠️ Please send a message before attaching a file.',
     },
   };
 
@@ -522,6 +609,39 @@
     29: 'Ger karta şarjê hatibe xerabkirin:\nBi tîmê piştgiriyê re têkilî daynin û wêneyek zelal a kartê bişînin.',
   };
 
+  // ── Articles (English) ─────────────────────────────────────────────────────
+  var ARTICLES_EN = {
+    0: 'To download the Self-Care app:\n\nAndroid:\n• Google Play: https://play.google.com/store/apps/details?id=com.rcell.selfcareApp\n• Apkpure: https://apkpure.com/ar/rcell-selfcare/com.rcell.selfcareApp\n\niOS:\n• https://apps.apple.com/us/app/rselfcare/id6473144133\n\nOr visit: https://rcell.me/vas/selfcare',
+    1: 'If you cannot access the Self-Care website:\n• Make sure your browser is updated to the latest version.\n• Or clear your browser history/cache from browser settings.',
+    2: 'To activate the PIN code from the Self-Care app:\nSettings > Activate PIN code > Choose your private PIN > Enter your password > Tap "Activate PIN code".',
+    3: 'Connection checklist:\n1. Make sure Mobile Data is enabled.\n2. Check that the APN settings are correct.\n3. Make sure the network mode is set correctly, such as 4G or 3G.\n4. Make sure you have an active internet package.\n5. Check that you have not reached your data limit.\n\nAPN settings:\n• Android: Settings > Connections > Mobile Networks > Access Point Names\n• iOS: Settings > Cellular > Cellular Data Network > APN',
+    4: 'To send points from the Self-Care app:\nTap "Send" > Enter the recipient number > Enter the number of points > Tap "Send".',
+    5: 'To download the Hakki app:\n\nAndroid:\n• Google Play: https://play.google.com/store/apps/details?id=com.rcell.app\n• Apkpure: https://apkpure.com/ar/hakki/com.rcell.app\n\niOS:\n• https://apps.apple.com/us/app/hakki/id6449400694\n\nOr visit: https://rcell.me/vas/hakki',
+    6: 'To fix slow internet, follow these steps in order:\n\n1. Close all background apps.\n2. Turn off VPN.\n3. Turn off hotspot.\n4. Make sure you are using the Rcell SIM and disable other SIM cards.\n5. Turn Airplane Mode on, then off.\n6. Restart your device.\n7. Update the operating system.\n8. Run a speed test on fast.com and check if it improves.\n9. If the issue continues, change your location and try again.\n10. If it still does not improve, please submit a complaint ticket.',
+    7: 'HD Call, also known as VoLTE, is voice calling over LTE. It lets calls run over the 4G-LTE network instead of older 2G or 3G networks.',
+    8: 'HD Call (VoLTE) benefits:\n• Better voice quality: clearer and cleaner audio.\n• Faster call setup: calls connect more quickly.\n• Data + voice together: use the internet during a call without switching to 3G.',
+    9: 'To check whether your phone supports HD Call:\n• In phone settings, search for "VoLTE" or "4G Calling" under network settings.\n• Check your device specifications or phone manual.\n• Or contact the telecom provider directly.',
+    10: 'To activate HD Call (VoLTE):\n\nAndroid:\n1. Settings > Connections > Mobile Networks\n2. Enable "VoLTE calls" or "4G Calling"\n\niPhone:\n1. Settings > Cellular > Cellular Data Options\n2. Choose "Enable LTE" > "Voice & Data".',
+    11: 'After enabling HD Call, make calls as usual. Your phone will automatically use LTE if the network and your area support it.',
+    12: 'HD Call (VoLTE) troubleshooting:\n\n1. Restart your phone.\n2. Check that 4G/LTE is available in your area.\n3. Check for any announced network outage.\n4. Turn Airplane Mode on, then off.\n5. Reset network settings:\n   • Android: Settings > System > Reset > Reset network settings\n   • iPhone: Settings > General > Reset > Reset Network Settings\n6. Check APN settings.\n7. Try the SIM card in another device.',
+    13: 'If you are having trouble logging in to the Self-Care app:\n\n• Update the app and browser to the latest version.\n• Turn off VPN if you are using one.\n• Try the web version: https://my.rcell.me/\n\nIf the issue continues, contact support.',
+    14: 'To change your password in the app:\n\n1. Open the app home screen.\n2. Tap the options button at the top.\n3. Choose "Change password".\n4. Enter a new password with letters and numbers.\n5. Tap "Confirm".\n\nYou do not need to contact technical support to change your password.',
+    16: 'Package details and prices:\n\n• Sun: 1 GB daily = 4,500 SYP (3 points)\n• Pluto: 3 GB weekly = 10,500 SYP (7 points)\n• Earth: 9 GB monthly = 25,000 SYP (16 points)\n• Moon: 5 GB monthly = 20,000 SYP (11 points)\n• Mars: 20 GB monthly = 55,000 SYP (36 points)\n• Planets: 40 GB monthly = 100,000 SYP (66 points)\n\n1 point = 1,500 Syrian pounds',
+    17: 'Working hours:\n• Saturday: 8:00 AM - 4:00 PM\n• Sunday - Thursday: 8:00 AM - 10:00 PM\n• Friday: Official holiday',
+    18: 'SIM cards are currently available.\nYou can buy them from our centers and authorized points of sale in your city for 75,000 Syrian pounds.',
+    19: 'To recover your password:\nSettings > Edit profile > Tap "Recover here".',
+    20: 'Ana Platform — one account for all Rcell apps\n\nAna is a single sign-on platform that lets you access all Rcell apps with one account.\n\nSupported apps:\n• Self-Care app (Raid)\n• Hakki app\n• Future Rcell apps\n\nPlatform link: ana.rcell.me\nAvailable on: Web and Android',
+    21: 'Correct APN settings for Rcell:\n\nDelete all current APN settings, then add a new one:\n• Name: internet\n• APN: internet\n• Network type: LTE\n• Type: default\n\nAndroid steps:\nSettings > Connections > Mobile Networks > Access Point Names > Add new\n\niOS steps:\nSettings > Cellular > Cellular Data Network > APN\n\nAfter adding it, restart the device or turn Airplane Mode on for 30 seconds, then turn it off.',
+    22: 'If your internet balance finishes quickly:\n\n1. Disable automatic app updates.\n2. Check usage by app: Settings > Connections > Data Usage.\n3. Turn off background refresh/background data.\n4. If the issue continues, contact support to check the account.',
+    23: 'If your SIM card is locked and asks for a PUK code:\n\n⚠️ Warning: entering the wrong PUK 10 times permanently disables the SIM. Do not guess.\n\nTo get the PUK code:\n• Contact Rcell support directly.\n• Or visit the nearest Rcell service center with your ID.',
+    24: 'Rcell digital eSIM\n\neSIM is a digital SIM built into the device and does not require a physical SIM card.\n\nTo ask about availability or activation:\nVisit the nearest Rcell service center or contact support.',
+    25: '5G network — coming soon from Rcell\n\nRcell is in the final stages of launching 5G in Syria.\nThe official launch date will be announced soon.',
+    26: 'Rcell numbers and facts:\n\n• Coverage towers: more than 1,000 towers\n• Covered areas: more than 40 areas in Syria\n• Subscribers: more than 1.1 million subscribers\n• Customer service centers: more than 11 centers\n• Authorized points of sale: more than 2,000 points\n\nTo find the nearest center: www.rcell.me',
+    27: 'Rcell business internet\n\nFTTx fiber for businesses and multi-SIM 4G packages for companies.\n\nFor inquiries: www.rcell.me',
+    28: 'Using the Hakki app for free in emergencies\n\nThe Hakki app lets you communicate for free even after your balance runs out.\n\nTo use it:\n1. Download the Hakki app.\n2. Sign in with your Ana account.\n3. Use the app to communicate for free.',
+    29: 'If your recharge card is scratched or damaged:\n\nContact Rcell support and send a clear photo of both sides of the card.\nThe technical team will review the card and send the code if possible.',
+  };
+
   // ── Topic tree ─────────────────────────────────────────────────────────────
   var TOPIC_LABELS_KU = {
     root: 'Çawa dikarim alîkariya te bikim?',
@@ -568,7 +688,52 @@
     other_complaint: 'Pêşkêşkirina gilî an pêşniyar',
     other_agent: '🎧 Rasterast bi karmend re biaxive',
   };
-  var TOPIC_TREE = { id: 'root', label: { ar: 'كيف يمكنني مساعدتك؟', ku: TOPIC_LABELS_KU.root }, children: [] };
+  var TOPIC_LABELS_EN = {
+    root: 'How can I help you?',
+    apps: '📱 Apps',
+    selfcare: 'Self-Care App',
+    sc_dl: 'Download the app',
+    sc_login: 'Login problem',
+    sc_access: 'Cannot access the website',
+    hakki: 'Hakki App',
+    hk_dl: 'Download the app',
+    hk_sos: 'Free emergency use',
+    ana: 'Ana Platform',
+    internet: '🌐 Internet and Connectivity',
+    slow: 'Slow internet',
+    noconn: 'No connection',
+    apn: 'APN settings',
+    fiveg: '5G - Coming soon',
+    hdcall: 'HD Call (VoLTE)',
+    hd_what: 'What is HD Call?',
+    hd_why: 'Benefits',
+    hd_sup: 'Does my phone support it?',
+    hd_act: 'How do I activate it?',
+    hd_use: 'How do I use it?',
+    hd_fix: 'HD Call issue',
+    account: '🔐 Account and Security',
+    password: 'Password',
+    pw_change: 'Change password',
+    pw_recover: 'Forgot password',
+    pin: 'PIN code',
+    login_prob: 'Login problem',
+    puk: 'Locked SIM / PUK code',
+    packages: '📦 Packages and Services',
+    pkg_prices: 'Package prices',
+    sim: 'SIM card',
+    esim: 'Digital eSIM',
+    points: 'Send points',
+    fastdata: 'Balance ends quickly',
+    scratchcard: 'Scratched recharge card',
+    info: 'ℹ️ General Information',
+    hours: 'Working hours',
+    coverage: 'Company coverage and centers',
+    business: 'FTTx business internet',
+    other: '🔗 Other',
+    other_complaint: 'Submit a complaint or suggestion',
+    other_agent: '🎧 Talk directly to an agent',
+  };
+  var TOPIC_TREE = { id: 'root', label: { ar: 'كيف يمكنني مساعدتك؟', ku: TOPIC_LABELS_KU.root, en: TOPIC_LABELS_EN.root }, children: [] };
 
   // ── State ──────────────────────────────────────────────────────────────────
   var currentLang        = 'ar';
@@ -584,6 +749,12 @@
   var agentEventSource     = null;
   var agentStreamStarting  = false;
   var typingDebounceTimer  = null;
+  var voiceCall            = null;
+  var livekitPromise       = null;
+  var voiceRoom            = null;
+  var voiceTrack           = null;
+  var voiceStatus          = 'idle';
+  var voiceMuted           = false;
 
   // ── DOM refs ───────────────────────────────────────────────────────────────
   var toggle      = root.querySelector('#chat-toggle');
@@ -601,11 +772,81 @@
   var headerStatus= root.querySelector('#nura-header-status');
   var langBtns    = root.querySelectorAll('.nura-lang-btn');
   var lastFocusedEl = null;
+  var pageScrollY = 0;
+  var pageScrollLocked = false;
+  var previousBodyStyles = {};
+  var previousDocumentElementStyles = {};
 
   function updateViewportHeight() {
     var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight || 720;
     root.style.setProperty('--nura-viewport-height', h + 'px');
+    if (!isMobileViewport()) setTreeCollapsedForInput(false);
+    setPageScrollLocked(isOpen);
+    updateKeyboardSafeMode();
     if (isOpen) scrollBottom();
+  }
+
+  function isMobileViewport() {
+    return window.matchMedia ? window.matchMedia('(max-width: 600px)').matches : window.innerWidth <= 600;
+  }
+
+  function setTreeCollapsedForInput(collapsed) {
+    var shouldCollapse = collapsed && isMobileViewport();
+    win.classList.toggle('nura-mobile-input-active', shouldCollapse);
+    treePanel.setAttribute('aria-hidden', shouldCollapse ? 'true' : 'false');
+    if ('inert' in treePanel) treePanel.inert = shouldCollapse;
+    updateKeyboardSafeMode();
+  }
+
+  function updateKeyboardSafeMode() {
+    var active = shadowRoot ? shadowRoot.activeElement : document.activeElement;
+    var keyboardLikelyOpen = window.visualViewport
+      ? window.visualViewport.height < window.innerHeight - 80
+      : false;
+    var shouldUseKeyboardHeight = isOpen && isMobileViewport() && active === msgInput && keyboardLikelyOpen;
+    win.classList.toggle('nura-keyboard-active', shouldUseKeyboardHeight);
+  }
+
+  function setPageScrollLocked(locked) {
+    var shouldLock = locked && isMobileViewport();
+    if (shouldLock && !pageScrollLocked) {
+      pageScrollY = window.scrollY || window.pageYOffset || 0;
+      previousBodyStyles = {
+        position: document.body.style.position,
+        top: document.body.style.top,
+        left: document.body.style.left,
+        right: document.body.style.right,
+        width: document.body.style.width,
+        overflow: document.body.style.overflow,
+        overscrollBehavior: document.body.style.overscrollBehavior,
+      };
+      previousDocumentElementStyles = {
+        overflow: document.documentElement.style.overflow,
+        overscrollBehavior: document.documentElement.style.overscrollBehavior,
+      };
+      document.documentElement.style.overflow = 'hidden';
+      document.documentElement.style.overscrollBehavior = 'none';
+      document.body.style.position = 'fixed';
+      document.body.style.top = '-' + pageScrollY + 'px';
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+      document.body.style.overscrollBehavior = 'none';
+      pageScrollLocked = true;
+    } else if (!shouldLock && pageScrollLocked) {
+      document.documentElement.style.overflow = previousDocumentElementStyles.overflow || '';
+      document.documentElement.style.overscrollBehavior = previousDocumentElementStyles.overscrollBehavior || '';
+      document.body.style.position = previousBodyStyles.position || '';
+      document.body.style.top = previousBodyStyles.top || '';
+      document.body.style.left = previousBodyStyles.left || '';
+      document.body.style.right = previousBodyStyles.right || '';
+      document.body.style.width = previousBodyStyles.width || '';
+      document.body.style.overflow = previousBodyStyles.overflow || '';
+      document.body.style.overscrollBehavior = previousBodyStyles.overscrollBehavior || '';
+      window.scrollTo(0, pageScrollY);
+      pageScrollLocked = false;
+    }
   }
 
   updateViewportHeight();
@@ -649,7 +890,9 @@
     return (label || '').replace(/^[^A-Za-z\u00C0-\u024F\u0600-\u06FF]+/, '').trim() || label;
   }
   function chooseServiceText() {
-    return currentLang === 'ar' ? 'اختر الخدمة التي تحتاجها' : 'Xizmeta ku pêdiviya te pê heye hilbijêre';
+    if (currentLang === 'ar') return 'اختر الخدمة التي تحتاجها';
+    if (currentLang === 'en') return 'Choose the service you need';
+    return 'Xizmeta ku pêdiviya te pê heye hilbijêre';
   }
 
   function mergeSharedTopicLabels(sharedNode, localNode) {
@@ -659,6 +902,7 @@
       merged.label = {
         ar: sharedNode.label,
         ku: TOPIC_LABELS_KU[sharedNode.id] || (localNode && localNode.label && localNode.label.ku) || sharedNode.label,
+        en: TOPIC_LABELS_EN[sharedNode.id] || (localNode && localNode.label && localNode.label.en) || sharedNode.label,
       };
     }
     var localChildrenById = {};
@@ -704,6 +948,157 @@
     } catch (e) {
       console.warn('directToAgent failed:', e);
     }
+  }
+
+  function apiOrigin() {
+    return API_BASE.replace(/\/v1\/?$/, '');
+  }
+
+  function loadLiveKitClient() {
+    if (window.LivekitClient) return Promise.resolve(window.LivekitClient);
+    if (livekitPromise) return livekitPromise;
+    livekitPromise = new Promise(function (resolve, reject) {
+      var script = document.createElement('script');
+      script.src = apiOrigin() + '/vendor/livekit-client.umd.js';
+      script.async = true;
+      script.onload = function () { resolve(window.LivekitClient); };
+      script.onerror = function () { reject(new Error('LiveKit client failed to load')); };
+      document.head.appendChild(script);
+    });
+    return livekitPromise;
+  }
+
+  async function requestVoiceCall() {
+    var t = UI[currentLang];
+    if (isSessionClosed) return;
+    try {
+      track('voice_call_request', 'widget', '');
+      var headers = { 'Content-Type': 'application/json' };
+      if (sessionToken) headers['X-Session-Token'] = sessionToken;
+      var res = await fetch(API_BASE + '/voice/request', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ session_id: sessionId, customer_id: customerId, channel: 'web' }),
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) throw new Error(data.detail || t.voiceError);
+      sessionId = data.session_id || sessionId;
+      sessionToken = data.session_token || sessionToken;
+      voiceCall = data;
+      voiceStatus = 'ready';
+      startAgentStream();
+      renderTree();
+    } catch (e) {
+      var errDiv = document.createElement('div');
+      errDiv.className = 'nura-tree-level-q sub';
+      errDiv.textContent = '⚠️ ' + (e.message || t.voiceError);
+      treePanel.appendChild(errDiv);
+    }
+  }
+
+  async function joinVoiceCall() {
+    var t = UI[currentLang];
+    if (!voiceCall || voiceRoom) return;
+    voiceStatus = 'connecting';
+    renderTree();
+    try {
+      var LK = await loadLiveKitClient();
+      var room = new LK.Room({ adaptiveStream: true, dynacast: true });
+      voiceRoom = room;
+      room.on(LK.RoomEvent.Disconnected, function () {
+        if (voiceTrack) voiceTrack.stop();
+        voiceRoom = null;
+        voiceTrack = null;
+        voiceMuted = false;
+        voiceStatus = 'ended';
+        renderTree();
+      });
+      await room.connect(voiceCall.server_url, voiceCall.livekit_token);
+      voiceTrack = await LK.createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true });
+      await room.localParticipant.publishTrack(voiceTrack);
+      voiceMuted = false;
+      voiceStatus = 'connected';
+      renderTree();
+    } catch (e) {
+      console.warn('voice join failed:', e);
+      if (voiceTrack) voiceTrack.stop();
+      voiceTrack = null;
+      if (voiceRoom) voiceRoom.disconnect();
+      voiceRoom = null;
+      voiceMuted = false;
+      voiceStatus = 'error';
+      appendBotMsg(t.voiceError, null, null);
+      renderTree();
+    }
+  }
+
+  function toggleVoiceMute() {
+    if (!voiceTrack) return;
+    if (voiceMuted) voiceTrack.unmute();
+    else voiceTrack.mute();
+    voiceMuted = !voiceMuted;
+    renderTree();
+  }
+
+  async function endVoiceCallOnServer() {
+    if (!voiceCall || !voiceCall.call_id) return;
+    try {
+      var headers = {};
+      if (sessionToken) headers['X-Session-Token'] = sessionToken;
+      await fetch(API_BASE + '/voice/' + encodeURIComponent(voiceCall.call_id) + '/end', {
+        method: 'POST',
+        headers: headers,
+        keepalive: true,
+      });
+    } catch (_) {}
+  }
+
+  function leaveVoiceCall(notifyServer) {
+    if (notifyServer !== false) endVoiceCallOnServer();
+    if (voiceTrack) voiceTrack.stop();
+    voiceTrack = null;
+    if (voiceRoom) voiceRoom.disconnect();
+    voiceRoom = null;
+    voiceMuted = false;
+    voiceStatus = 'ended';
+    renderTree();
+  }
+
+  function renderVoicePanel() {
+    if (!voiceCall) return;
+    var t = UI[currentLang];
+    var panel = document.createElement('div');
+    panel.className = 'nura-voice-panel';
+    var statusText = t.voiceReady;
+    if (voiceStatus === 'connecting') statusText = t.voiceConnecting;
+    if (voiceStatus === 'connected') statusText = t.voiceConnected;
+    if (voiceStatus === 'error') statusText = t.voiceError;
+    panel.textContent = statusText;
+    var actions = document.createElement('div');
+    actions.className = 'nura-voice-actions';
+    if (voiceStatus !== 'connected') {
+      var join = document.createElement('button');
+      join.className = 'nura-voice-primary';
+      join.type = 'button';
+      join.textContent = t.voiceJoin;
+      join.addEventListener('click', joinVoiceCall);
+      actions.appendChild(join);
+    } else {
+      var mute = document.createElement('button');
+      mute.className = 'nura-voice-secondary';
+      mute.type = 'button';
+      mute.textContent = voiceMuted ? t.voiceUnmute : t.voiceMute;
+      mute.addEventListener('click', toggleVoiceMute);
+      actions.appendChild(mute);
+      var leave = document.createElement('button');
+      leave.className = 'nura-voice-primary';
+      leave.type = 'button';
+      leave.textContent = t.voiceLeave;
+      leave.addEventListener('click', leaveVoiceCall);
+      actions.appendChild(leave);
+    }
+    panel.appendChild(actions);
+    treePanel.appendChild(panel);
   }
 
   function renderTree() {
@@ -792,7 +1187,15 @@
         directToAgent();
       });
       treePanel.appendChild(agentBtn);
+
+      var voiceBtn = document.createElement('button');
+      voiceBtn.className = 'nura-voice-btn';
+      voiceBtn.type = 'button';
+      voiceBtn.textContent = UI[currentLang].voiceCall;
+      voiceBtn.addEventListener('click', requestVoiceCall);
+      treePanel.appendChild(voiceBtn);
     }
+    renderVoicePanel();
   }
 
   function renderSuggestionForm(node) {
@@ -872,7 +1275,7 @@
 
       submit.disabled = true;
       cancel.disabled = true;
-      submit.textContent = currentLang === 'ar' ? 'جارٍ الإرسال…' : 'Tê şandin…';
+      submit.textContent = t.suggestionSending || (currentLang === 'ar' ? 'جارٍ الإرسال…' : 'Tê şandin…');
       try {
         var headers = { 'Content-Type': 'application/json' };
         if (sessionToken) headers['X-Session-Token'] = sessionToken;
@@ -912,7 +1315,7 @@
   }
 
   function handleLeaf(node) {
-    var dict    = currentLang === 'ku' ? ARTICLES_KU : ARTICLES;
+    var dict    = currentLang === 'en' ? ARTICLES_EN : (currentLang === 'ku' ? ARTICLES_KU : ARTICLES);
     var content = dict[node.article];
     if (content === undefined) return;
     appendUserMsg(treeLabel(node));
@@ -939,7 +1342,7 @@
     langBtns.forEach(function (b) { b.classList.toggle('active', b.dataset.lang === lang); });
     sendBtn.setAttribute('aria-label', t.sendAriaLabel);
     closeBtn.setAttribute('aria-label', t.closeAriaLabel);
-    toggle.setAttribute('aria-label', lang === 'ar' ? 'فتح المحادثة' : 'Vekirina sohbetê');
+    toggle.setAttribute('aria-label', t.openChatAriaLabel);
     treeStack = [];
     renderTree();
     if (welcomed) {
@@ -963,16 +1366,27 @@
     win.classList.add('nura-open');
     win.setAttribute('aria-hidden', 'false');
     toggle.setAttribute('aria-expanded', 'true');
+    toggle.style.opacity = '0';
+    toggle.style.transform = 'scale(0.5)';
+    toggle.style.pointerEvents = 'none';
     badge.style.display = 'none';
     updateViewportHeight();
-    setTimeout(function () { msgInput.focus(); scrollBottom(); }, 250);
+    setTimeout(function () {
+      if (!isMobileViewport()) msgInput.focus();
+      scrollBottom();
+    }, 250);
     if (isEscalated && !isSessionClosed) startAgentStream();
   }
   function closeChat() {
     isOpen = false;
+    setPageScrollLocked(false);
+    setTreeCollapsedForInput(false);
     win.classList.remove('nura-open');
     win.setAttribute('aria-hidden', 'true');
     toggle.setAttribute('aria-expanded', 'false');
+    toggle.style.opacity = '1';
+    toggle.style.transform = '';
+    toggle.style.pointerEvents = '';
     stopAgentStream();
     if (lastFocusedEl && typeof lastFocusedEl.focus === 'function') {
       setTimeout(function () { lastFocusedEl.focus(); }, 0);
@@ -1015,7 +1429,11 @@
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
   msgInput.addEventListener('focus', function () {
+    setTreeCollapsedForInput(true);
     setTimeout(function () { updateViewportHeight(); scrollBottom(); }, 150);
+  });
+  msgInput.addEventListener('blur', function () {
+    setTimeout(function () { setTreeCollapsedForInput(false); updateViewportHeight(); }, 120);
   });
   sendBtn.addEventListener('click', sendMessage);
 
@@ -1033,9 +1451,7 @@
     if (!sessionId || !sessionToken) {
       var firstMsgErr = document.createElement('div');
       firstMsgErr.className = 'nura-error-bubble';
-      firstMsgErr.textContent = currentLang === 'ar'
-        ? '⚠️ اكتب رسالة أولاً قبل إرفاق ملف.'
-        : '⚠️ Ji kerema xwe berî pêvekirina pelê peyamek binivîse.';
+      firstMsgErr.textContent = UI[currentLang].attachFirstMessage;
       messagesEl.appendChild(firstMsgErr);
       scrollBottom();
       return;
@@ -1069,7 +1485,9 @@
           session_id: sessionId,
           channel: 'web',
           customer_id: customerId,
-          message: msgType === 'image' ? '[صورة]' : '[ملف: ' + file.name + ']',
+          message: msgType === 'image'
+            ? (currentLang === 'en' ? '[Image]' : '[صورة]')
+            : (currentLang === 'en' ? '[File: ' + file.name + ']' : '[ملف: ' + file.name + ']'),
           attachment_url: url,
           message_type: msgType,
         }),
@@ -1092,7 +1510,8 @@
 
   // ── Render helpers ─────────────────────────────────────────────────────────
   function fmtTime() {
-    return new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
+    var locale = currentLang === 'en' ? 'en' : (currentLang === 'ku' ? 'ku' : 'ar');
+    return new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   }
 
   function escHtml(str) {
@@ -1269,12 +1688,12 @@
       agentEventSource.onerror = function () {
         agentEventSource.close();
         agentEventSource = null;
-        if (!isSessionClosed && isEscalated) {
+        if (!isSessionClosed && (isEscalated || voiceCall)) {
           setTimeout(startAgentStream, 5000);
         }
       };
     } catch (e) {
-      if (!isSessionClosed && isEscalated) {
+      if (!isSessionClosed && (isEscalated || voiceCall)) {
         setTimeout(startAgentStream, 5000);
       }
     } finally {
@@ -1312,6 +1731,14 @@
       scrollBottom();
       msgInput.disabled = true;
       sendBtn.disabled  = true;
+    } else if (event.type === 'voice_call_accepted') {
+      voiceCall = Object.assign({}, voiceCall || {}, event.call || {});
+      appendBotMsg(UI[currentLang].voiceAccepted, null, null);
+      renderTree();
+    } else if (event.type === 'voice_call_ended') {
+      leaveVoiceCall(false);
+      voiceCall = null;
+      renderTree();
     }
   }
 

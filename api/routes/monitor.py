@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from core.auth import require_roles
 from db.postgres import get_db_pool
@@ -103,12 +103,20 @@ async def audit_log(
         params.append(action)
         i += 1
     if from_date:
+        try:
+            from_ts = datetime.fromisoformat(from_date.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid 'from' date format — use ISO 8601 (e.g. 2026-01-01T00:00:00Z)")
         conditions.append(f"created_at >= ${i}")
-        params.append(from_date)
+        params.append(from_ts)
         i += 1
     if to_date:
+        try:
+            to_ts = datetime.fromisoformat(to_date.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid 'to' date format — use ISO 8601 (e.g. 2026-12-31T23:59:59Z)")
         conditions.append(f"created_at <= ${i}")
-        params.append(to_date)
+        params.append(to_ts)
         i += 1
 
     where = " AND ".join(conditions)
@@ -134,7 +142,14 @@ async def activity_feed(
     since: Optional[str] = None,
 ):
     pool = await get_db_pool()
-    since_ts = since or "1970-01-01T00:00:00+00:00"
+    try:
+        since_ts = (
+            datetime.fromisoformat(since.replace("Z", "+00:00"))
+            if since
+            else datetime(1970, 1, 1, tzinfo=timezone.utc)
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid since timestamp")
 
     async with pool.acquire() as conn:
         audit_rows = await conn.fetch(
