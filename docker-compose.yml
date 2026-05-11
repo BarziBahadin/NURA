@@ -3,8 +3,10 @@ services:
     build: ./api
     container_name: nura-api
     ports:
-      - "127.0.0.1:8080:8000"
+      - "8080:8000"
     env_file: .env
+    environment:
+      LIVEKIT_NODE_IP: ${LIVEKIT_NODE_IP:-127.0.0.1}
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,9 +48,9 @@ services:
       - "--rtc.enable_loopback_candidate"
       - "--rtc.use_external_ip=${LIVEKIT_RTC_USE_EXTERNAL_IP:-false}"
     ports:
-      - "127.0.0.1:7880:7880"
-      - "127.0.0.1:7881:7881"
-      - "127.0.0.1:7882:7882/udp"
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
     networks:
       - nura_network
     restart: unless-stopped
@@ -169,7 +171,7 @@ services:
         VITE_NURA_API_BASE: /v1
     container_name: nura-admin
     ports:
-      - "127.0.0.1:3004:80"
+      - "3004:80"
     networks:
       - nura_network
     healthcheck:
@@ -177,6 +179,25 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:alpine
+    container_name: nura-caddy
+    ports:
+      - "8443:8443"
+      - "3443:3443"
+      - "7443:7443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/certs:ro
+    networks:
+      - nura_network
+    depends_on:
+      nura-api:
+        condition: service_healthy
+      nura-admin:
+        condition: service_healthy
     restart: unless-stopped
 
 networks:

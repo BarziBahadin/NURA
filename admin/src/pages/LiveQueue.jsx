@@ -757,7 +757,7 @@ export default function LiveQueue({ mode = 'chats' }) {
   const hasCalls = voiceCalls.length > 0
 
   return (
-    <div className="p-6 max-w-7xl">
+    <div className="p-6 max-w-7xl mx-auto w-full">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">

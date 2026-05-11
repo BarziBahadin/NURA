@@ -501,7 +501,7 @@ export default function Cases({
   const openCount = (stats.open || 0) + (stats.in_progress || 0) + (stats.waiting_customer || 0) + (stats.escalated || 0) + (stats.pending || 0)
 
   return (
-    <div className={`${embeddedHeader ? 'px-6 pb-6 pt-2' : 'p-6'} max-w-7xl`}>
+    <div className={`${embeddedHeader ? 'px-6 pb-6 pt-2' : 'p-6'} max-w-7xl mx-auto w-full`}>
       <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
         <div className={embeddedHeader ? 'sr-only' : ''}>
           <h1 className="text-2xl font-bold text-gray-800">{title}</h1>

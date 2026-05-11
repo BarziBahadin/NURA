@@ -87,7 +87,7 @@ function LiveFeedTab() {
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
               <th className="text-left px-4 py-2.5 text-gray-500 font-semibold uppercase tracking-wide w-36">Time</th>
-              <th className="text-left px-4 py-2.5 text-gray-500 font-semibold uppercase tracking-wide w-28">Type</th>
+              <th className="text-left px-4 py-2.5 text-gray-500 font-semibold uppercase tracking-wide w-36">Type</th>
               <th className="text-left px-4 py-2.5 text-gray-500 font-semibold uppercase tracking-wide">Actor</th>
               <th className="text-left px-4 py-2.5 text-gray-500 font-semibold uppercase tracking-wide">Description</th>
               <th className="text-left px-4 py-2.5 text-gray-500 font-semibold uppercase tracking-wide w-20">Channel</th>
@@ -99,8 +99,8 @@ function LiveFeedTab() {
                 <td className="px-4 py-2 text-gray-400 whitespace-nowrap">
                   {new Date(e.created_at).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </td>
-                <td className="px-4 py-2">
-                  <span className={`px-2 py-0.5 rounded-full font-medium ${EVENT_COLORS[e.type] || 'bg-gray-100 text-gray-600'}`}>
+                <td className="px-4 py-2 whitespace-nowrap">
+                  <span className={`inline-flex whitespace-nowrap px-2 py-0.5 rounded-full font-medium ${EVENT_COLORS[e.type] || 'bg-gray-100 text-gray-600'}`}>
                     {e.type.replace('_', ' ')}
                   </span>
                 </td>
@@ -351,7 +351,7 @@ export default function SystemMonitor() {
   }, [])
 
   return (
-    <div className="p-6 max-w-7xl">
+    <div className="p-6 max-w-7xl mx-auto w-full">
       <h1 className="text-2xl font-bold text-gray-800 mb-4">System Monitor</h1>
       <StatsBar stats={stats} />
 

@@ -26,16 +26,23 @@ Customer Website
   |-- Embeddable widget.js or standalone frontend/widget.html
   |
   v
-FastAPI Backend - port 8080
+Caddy Reverse Proxy (HTTPS termination)
+  |  :8443 → FastAPI :8000
+  |  :3443 → Admin Nginx :80
+  |  :7443 → LiveKit :7880  (WSS for voice calls)
+  |
+  v
+FastAPI Backend - port 8080 (HTTP) / 8443 (HTTPS via Caddy)
   |
   |-- Redis: session state and recent conversation history
   |-- PostgreSQL: logs, analytics, outcomes, feedback, reporting
   |-- ChromaDB: vector store for handbook retrieval
   |-- OpenAI: chat completion, embeddings, intent classification
   |-- Handoff Controller: escalation rules and agent routing
+  |-- LiveKit: self-hosted WebRTC voice calls
   |
   v
-React Admin Panel - port 3004
+React Admin Panel - port 3004 (HTTP) / 3443 (HTTPS via Caddy)
 ```
 
 ---
@@ -238,11 +245,18 @@ At minimum, set:
 
 ### Fast Admin Development With Vite
 
-For day-to-day UI work, use Vite instead of rebuilding the admin Docker image. Docker still runs the API, database, Redis, ChromaDB, and LiveKit; Vite serves the React admin with hot reload.
+For day-to-day UI work, use Vite instead of rebuilding the admin Docker image. Docker still runs the API, database, Redis, ChromaDB, LiveKit, and Caddy; Vite serves the React admin with hot reload.
 
 ```bash
 ./start-dev.sh
 ```
+
+The script automatically:
+- Detects your current LAN IP.
+- Installs `mkcert` (via Homebrew) if not present.
+- Generates trusted TLS certificates in `certs/` for `localhost`, `127.0.0.1`, and your LAN IP.
+- Starts all Docker services including Caddy for HTTPS termination.
+- Starts the Vite dev server.
 
 Open the Vite admin:
 
@@ -250,10 +264,18 @@ Open the Vite admin:
 open http://localhost:5173
 ```
 
-On another device on the same Wi-Fi, use the LAN URL printed by `start-dev.sh`, for example:
+HTTPS endpoints (require mkcert CA trusted on your machine):
 
 ```text
-http://192.168.1.8:5173
+https://localhost:8443   API
+https://localhost:3443   Admin
+```
+
+On another device on the same Wi-Fi, use the LAN URLs printed by `start-dev.sh`:
+
+```text
+https://YOUR-LAN-IP:8443/widget.html   Widget (HTTPS, required for microphone/voice)
+https://YOUR-LAN-IP:3443               Admin panel
 ```
 
 When running this way:
@@ -261,6 +283,7 @@ When running this way:
 - React/admin changes update instantly.
 - No Docker rebuild is needed for admin UI changes.
 - API requests still go through `/v1` and are proxied to `http://localhost:8080`.
+- HTTPS is required for microphone access in browsers — always use the `8443` URL for voice call testing.
 - Keep using `http://localhost:3004` only for the production-style Nginx admin container.
 
 ### Docker Stack
@@ -338,12 +361,19 @@ npm --prefix admin run build
 
 | Service | URL | Notes |
 |---|---|---|
-| API | `http://localhost:8080` | FastAPI backend |
+| API (HTTP) | `http://localhost:8080` | FastAPI backend |
+| API (HTTPS) | `https://localhost:8443` | Via Caddy, required for voice/mic |
 | API Docs | `http://localhost:8080/docs` | Swagger UI |
 | Health | `http://localhost:8080/v1/health` | Service checks |
+| Widget (HTTP) | `http://localhost:8080/widget.html` | Test page, no mic/voice |
+| Widget (HTTPS) | `https://localhost:8443/widget.html` | Full widget with mic/voice |
 | Widget Script | `http://localhost:8080/widget.js` | Embeddable widget |
 | Widget Loader | `http://localhost:8080/widget-loader.js` | Lazy one-line embed |
-| Admin Panel | `http://localhost:3004` | React admin |
+| Admin Panel (HTTP) | `http://localhost:3004` | React admin, Nginx container |
+| Admin Panel (HTTPS) | `https://localhost:3443` | Via Caddy |
+| Admin Dev (Vite) | `http://localhost:5173` | Hot-reload dev server |
+| LiveKit (WS) | `ws://localhost:7880` | WebRTC signaling, HTTP only |
+| LiveKit (WSS) | `wss://localhost:7443` | WebRTC signaling, via Caddy |
 | ChromaDB | `http://localhost:8001` | Vector store |
 | PostgreSQL | `127.0.0.1:5432` | Main reporting/logging DB |
 | Redis | `127.0.0.1:6379` | Session cache |
@@ -702,6 +732,9 @@ For local Docker, the current app still keeps startup schema creation enabled by
 ```text
 NURA/
 |-- docker-compose.yml
+|-- Caddyfile              HTTPS reverse proxy config (API :8443, Admin :3443, LiveKit :7443)
+|-- start-dev.sh           Dev launcher: auto-detects LAN IP, generates mkcert certs, starts Docker + Vite
+|-- certs/                 Generated TLS certs (git-ignored, recreated by start-dev.sh)
 |-- .env.example
 |-- .manafest/
 |   |-- articals.json
@@ -815,8 +848,8 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 | `HANDOFF_TRIGGERS` | Comma-separated handoff trigger list |
 | `ESCALATION_WEBHOOK_URL` | Optional webhook called when escalation is queued |
 | `VOICE_CALL_ENABLED` | Enable or disable widget voice-call requests |
-| `LIVEKIT_URL` | Browser-facing LiveKit websocket URL. Use `auto` for local/LAN development so the API returns a URL based on the current request host |
-| `LIVEKIT_NODE_IP` | LAN IP advertised by the local LiveKit container for WebRTC candidates, for example `192.168.1.8` |
+| `LIVEKIT_URL` | Browser-facing LiveKit websocket URL. Use `auto` for local/LAN development so the API returns a URL based on the current request host. When accessed via HTTPS, the API automatically returns `wss://hostname:7443` (via Caddy); when accessed via HTTP, it returns `ws://hostname:7880` |
+| `LIVEKIT_NODE_IP` | LAN IP advertised by the local LiveKit container for WebRTC ICE candidates. Must match your machine's current LAN IP. Run `start-dev.sh` to auto-detect and regenerate certs when you change networks |
 | `LIVEKIT_API_KEY` | LiveKit API key used by the backend to sign room tokens |
 | `LIVEKIT_API_SECRET` | LiveKit API secret used by the backend to sign room tokens |
 | `LIVEKIT_TOKEN_TTL_SECONDS` | Lifetime for generated voice-room tokens |
@@ -837,6 +870,10 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 
 ## Recently Added
 
+- HTTPS local development via mkcert and Caddy reverse proxy. `start-dev.sh` auto-detects LAN IP, installs mkcert, generates trusted certs, and starts Caddy for TLS termination on ports 8443 (API), 3443 (Admin), and 7443 (LiveKit WSS).
+- LiveKit WSS support: voice signaling now uses `wss://hostname:7443` when accessed via HTTPS, routing through Caddy TLS termination. Required for browsers to allow microphone access on non-localhost addresses.
+- Widget API base URL now derived from `window.location.origin` when not accessed directly on port 8080/8000, so tunnels (localhost.run, ngrok) and HTTPS proxy deployments work without hardcoded URLs.
+- Secure context guard in the widget voice call path: shows a user-friendly error if microphone access is unavailable due to non-HTTPS context instead of crashing.
 - Automated backend tests for message, handoff, resolve, analytics, reports, durable sessions, and job queue behavior.
 - Alembic migrations with support cases, suggestions, activity notes, SLA state, admin users, and knowledge-gap reviews.
 - Async LLM intent classification.
@@ -899,7 +936,10 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 - Keep `POSTGRES_HOST=postgres`, `REDIS_HOST=redis`, and `CHROMA_HOST=chromadb` inside Docker Compose.
 - Run only one Telegram poller. Use either API polling for local development or the `telegram` profile, not both.
 - If using the standalone job worker, set `JOB_WORKER_ENABLED=false` on the API process and `true` on the worker.
-- Rebuild API after Python changes: `docker compose build nura-api`.
+- Rebuild API after Python changes: `docker compose build nura-api && docker compose up -d --force-recreate nura-api`.
+- For voice calls to work from HTTPS, always access the widget via `https://` (port 8443 or 3443). Plain HTTP blocks microphone access in browsers.
+- When your machine changes LAN IP (switching networks), update `LIVEKIT_NODE_IP` in `.env` and rerun `./start-dev.sh` to regenerate certs and restart containers.
+- The `certs/` directory is git-ignored. Certs are regenerated on each `./start-dev.sh` run.
 - During development, run the admin with Vite: `./start-dev.sh` or `npm --prefix admin run dev:host`.
 - Rebuild admin after frontend changes only for production-style Docker/Nginx testing: `docker compose build nura-admin`.
 - Restart after rebuilds: `docker compose up -d nura-api nura-admin`.

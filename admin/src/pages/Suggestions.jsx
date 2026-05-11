@@ -53,7 +53,7 @@ export default function Suggestions() {
 
   return (
     <div>
-      <div className="p-6 max-w-7xl pb-0">
+      <div className="p-6 max-w-7xl mx-auto w-full pb-0">
         <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
           <div>
             <h1 className="text-2xl font-bold text-gray-800">Suggestions</h1>

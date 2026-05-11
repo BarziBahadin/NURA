@@ -161,6 +161,16 @@ async def serve_widget_test_page():
     )
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+@app.get("/favicon.svg", include_in_schema=False)
+async def serve_favicon():
+    return FileResponse(
+        "/app/frontend/favicon.svg",
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @app.get("/vendor/livekit-client.umd.js", include_in_schema=False)
 async def serve_livekit_client():
     return FileResponse(

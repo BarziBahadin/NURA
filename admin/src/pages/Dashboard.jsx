@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import {
   ArrowClockwise, Bell, ChartLineUp, ChatCircle, DownloadSimple,
-  FirstAidKit, Folder, Lightbulb, PuzzlePiece, Star, TrendDown,
+  FirstAidKit, Folder, Lightbulb, PhoneCall, PuzzlePiece, Star, TrendDown,
   TrendUp, UserCircle, Warning,
 } from '@phosphor-icons/react'
 import { api } from '../App.jsx'
@@ -257,7 +257,7 @@ export default function Dashboard() {
   const maxChannelSuggestions = data?.suggestions?.by_channel?.[0]?.count || 1
 
   return (
-    <div className="p-6 max-w-7xl">
+    <div className="w-full max-w-none p-6 2xl:p-8">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Operations Dashboard</h1>
@@ -299,45 +299,45 @@ export default function Dashboard() {
                 No urgent operational issues right now.
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3">
                 {data.attention_items.map(item => <ActionItem key={item.title} item={item} />)}
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] 2xl:grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-4 mb-6">
             <NowCard label="Pending Handoffs" value={formatInt(data.queue?.pending_handoffs)} sub={`oldest ${formatSeconds(data.queue?.oldest_wait_seconds)}`} Icon={Bell} tone={(data.queue?.pending_handoffs || 0) ? 'orange' : 'green'} to="/queue" />
             <NowCard label="Human Active" value={formatInt(data.queue?.human_active)} sub="live agent chats" Icon={ChatCircle} tone="blue" to="/queue" />
+            <NowCard label="Voice Calls" value={formatInt(data.voice_calls?.open)} sub={`${formatInt(data.voice_calls?.requested)} waiting`} Icon={PhoneCall} tone={(data.voice_calls?.requested || 0) ? 'orange' : (data.voice_calls?.open || 0) ? 'blue' : 'green'} to="/calls" />
             <NowCard label="Open Cases" value={formatInt(data.cases?.open)} sub={`${formatInt(data.cases?.unassigned)} unassigned`} Icon={Folder} tone={(data.cases?.unassigned || 0) ? 'orange' : 'blue'} to="/cases" />
             <NowCard label="SLA Risk" value={formatInt((data.cases?.breached || 0) + (data.cases?.at_risk || 0))} sub={`${formatInt(data.cases?.breached)} breached`} Icon={FirstAidKit} tone={(data.cases?.breached || 0) ? 'red' : (data.cases?.at_risk || 0) ? 'orange' : 'green'} to="/cases" />
             <NowCard label="Suggestions" value={formatInt(data.suggestions?.new)} sub={`${formatInt(data.suggestions?.unassigned)} unassigned`} Icon={Lightbulb} tone={(data.suggestions?.unassigned || 0) ? 'orange' : 'blue'} to="/suggestions" />
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 mb-6">
-            <div className="xl:col-span-3">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <TrendCard label="Messages" value={formatInt(data.total_messages)} delta={data.deltas?.messages} sub={`last ${days} days`} />
-                <TrendCard label="Sessions" value={formatInt(data.total_sessions)} delta={data.deltas?.sessions} sub={`${data.total_sessions > 0 ? (data.total_messages / data.total_sessions).toFixed(1) : 0} msg/session`} />
-                <TrendCard label="Escalation" value={formatPercent(data.escalation_rate)} delta={data.deltas?.escalation_rate} sub={`${formatInt(data.escalations)} escalations`} inverse />
-                <TrendCard label="Deflection" value={formatPercent(data.deflection_rate)} delta={data.deltas?.deflection_rate} sub="sessions not escalated" />
-                <TrendCard label="Feedback" value={formatPercent(data.feedback_positive_rate)} delta={data.deltas?.feedback_positive_rate} sub={`${formatInt(data.feedback_total)} answer votes`} />
-                <TrendCard label="Today Messages" value={formatInt(data.today?.messages)} delta={data.deltas?.today_messages} sub={`${formatInt(data.today?.sessions)} sessions today`} />
-                <TrendCard label="Avg Rating" value={ratings?.avg_rating != null ? ratings.avg_rating.toFixed(1) : '-'} sub={ratings?.total_rated ? `${ratings.total_rated} ratings` : 'no ratings yet'} />
-                <TrendCard label="AI Cost" value={`$${Number(data.estimated_ai_cost || 0).toFixed(4)}`} sub={`${formatInt(data.llm_total_tokens)} tokens`} inverse />
-              </div>
+          <div className="mb-6">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-4">
+              <TrendCard label="Messages" value={formatInt(data.total_messages)} delta={data.deltas?.messages} sub={`last ${days} days`} />
+              <TrendCard label="Sessions" value={formatInt(data.total_sessions)} delta={data.deltas?.sessions} sub={`${data.total_sessions > 0 ? (data.total_messages / data.total_sessions).toFixed(1) : 0} msg/session`} />
+              <TrendCard label="Escalation" value={formatPercent(data.escalation_rate)} delta={data.deltas?.escalation_rate} sub={`${formatInt(data.escalations)} escalations`} inverse />
+              <TrendCard label="Deflection" value={formatPercent(data.deflection_rate)} delta={data.deltas?.deflection_rate} sub="sessions not escalated" />
+              <TrendCard label="Feedback" value={formatPercent(data.feedback_positive_rate)} delta={data.deltas?.feedback_positive_rate} sub={`${formatInt(data.feedback_total)} answer votes`} />
+              <TrendCard label="Today Messages" value={formatInt(data.today?.messages)} delta={data.deltas?.today_messages} sub={`${formatInt(data.today?.sessions)} sessions today`} />
+              <TrendCard label="Avg Rating" value={ratings?.avg_rating != null ? ratings.avg_rating.toFixed(1) : '-'} sub={ratings?.total_rated ? `${ratings.total_rated} ratings` : 'no ratings yet'} />
+              <TrendCard label="AI Cost" value={`$${Number(data.estimated_ai_cost || 0).toFixed(4)}`} sub={`${formatInt(data.llm_total_tokens)} tokens`} inverse />
             </div>
+          </div>
 
+          <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-4 gap-4 mb-6">
             <SectionCard title="Action Queue">
               <div className="space-y-2">
                 <ActionLink to="/queue" label="Live Queue" value={`${formatInt(data.queue?.pending_handoffs)} waiting`} Icon={Bell} tone="bg-orange-50 text-orange-600" />
+                <ActionLink to="/calls" label="Call Desk" value={`${formatInt(data.voice_calls?.open)} open`} Icon={PhoneCall} tone="bg-orange-50 text-orange-600" />
                 <ActionLink to="/cases" label="Cases" value={`${formatInt(data.cases?.open)} open`} Icon={Folder} tone="bg-blue-50 text-blue-600" />
                 <ActionLink to="/suggestions" label="Suggestions" value={`${formatInt(data.suggestions?.unassigned)} unassigned`} Icon={Lightbulb} tone="bg-yellow-50 text-yellow-600" />
                 <ActionLink to="/gaps" label="Knowledge Gaps" value={`${formatInt(data.knowledge_gaps)} detected`} Icon={PuzzlePiece} tone="bg-red-50 text-red-600" />
               </div>
             </SectionCard>
-          </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
             <SectionCard title="Pain Points">
               <div className="space-y-5">
                 <div>
@@ -394,8 +394,8 @@ export default function Dashboard() {
             </SectionCard>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
-            <div className="xl:col-span-2">
+          <div className="grid grid-cols-1 xl:grid-cols-3 2xl:grid-cols-4 gap-4 mb-6">
+            <div className="xl:col-span-2 2xl:col-span-3">
               <SectionCard title="Daily Traffic">
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={data.daily_volume || []} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
@@ -427,7 +427,7 @@ export default function Dashboard() {
             </SectionCard>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-[minmax(0,2fr)_minmax(420px,1fr)] gap-4 mb-6">
             <SectionCard title="Hourly Message Distribution">
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={hourlyData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>

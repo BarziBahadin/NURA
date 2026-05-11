@@ -213,7 +213,7 @@ export default function KnowledgeGapQueue() {
   }
 
   return (
-    <div className="p-6 max-w-6xl">
+    <div className="p-6 max-w-6xl mx-auto w-full">
       <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Knowledge Gap Queue</h1>

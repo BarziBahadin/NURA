@@ -18,7 +18,7 @@ import SystemMonitor from './pages/SystemMonitor.jsx'
 import KnowledgeGapQueue from './pages/KnowledgeGapQueue.jsx'
 import CannedReplies from './pages/CannedReplies.jsx'
 import Rules from './pages/Rules.jsx'
-import { API_BASE, getToken, setToken, isTokenValid, getRole, parseToken } from './lib/api.js'
+import { API_BASE, getToken, setToken, isTokenValid, getRole, getUsername, parseToken } from './lib/api.js'
 
 // api.key is a live getter so every fetch call reads the current stored token.
 // The JWT is used for authenticated API calls, showing/hiding the login page,
@@ -112,9 +112,10 @@ function AiToggle({ role, collapsed = false }) {
   )
 }
 
-function Sidebar({ pendingCount, callCount, onLogout, role, collapsed, onToggleCollapsed, onNavClick }) {
+function Sidebar({ pendingCount, callCount, onLogout, role, username, collapsed, onToggleCollapsed, onNavClick }) {
   const { pathname } = useLocation()
   const navItems = ALL_NAV_ITEMS.filter(item => item.roles.includes(role))
+  const signedInLabel = username || role || 'User'
   return (
     <aside className="relative w-20 text-white h-screen sticky top-0 flex-shrink-0 overflow-visible z-30">
       <div className={`${collapsed ? 'w-20 shadow-none' : 'w-60 shadow-2xl shadow-gray-900/25'} absolute inset-y-0 left-0 bg-gray-900 flex flex-col transition-[width,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] overflow-hidden`}>
@@ -135,7 +136,9 @@ function Sidebar({ pendingCount, callCount, onLogout, role, collapsed, onToggleC
             </div>
             <div className="min-w-0 overflow-hidden">
               <div className="text-lg font-bold text-blue-400 whitespace-nowrap leading-tight">NURA Admin</div>
-              <div className="text-xs text-gray-400 mt-0.5 whitespace-nowrap">Customer Support</div>
+              <div className="text-xs text-gray-400 mt-0.5 whitespace-nowrap truncate" title={signedInLabel}>
+                {signedInLabel}
+              </div>
             </div>
             <button
               onClick={onToggleCollapsed}
@@ -231,11 +234,14 @@ export default function App() {
   const [callCount, setCallCount] = useState(0)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('nura_sidebar_collapsed') === 'true')
   const [role, setRole] = useState(() => getRole())
+  const [username, setUsername] = useState(() => getUsername())
   const navigate = useNavigate()
 
   function handleLogin(token) {
     setToken(token)
-    setRole(parseToken(token)?.role || '')
+    const payload = parseToken(token) || {}
+    setRole(payload.role || '')
+    setUsername(payload.sub || '')
     setAuthed(true)
     navigate('/', { replace: true })
   }
@@ -243,6 +249,7 @@ export default function App() {
   function handleLogout() {
     setToken(null)
     setRole('')
+    setUsername('')
     setAuthed(false)
     navigate('/', { replace: true })
   }
@@ -295,6 +302,7 @@ export default function App() {
         callCount={callCount}
         onLogout={handleLogout}
         role={role}
+        username={username}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={toggleSidebar}
         onNavClick={() => {
@@ -304,7 +312,7 @@ export default function App() {
           }
         }}
       />
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 min-w-0 overflow-auto">
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/queue" element={<LiveQueue mode="chats" />} />

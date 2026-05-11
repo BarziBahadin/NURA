@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <title>NURA Chat Widget</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -762,9 +763,23 @@
 </div>
 
 <script>
+  if (window.location.protocol === 'file:') {
+    document.body.innerHTML = `
+      <div style="max-width:680px;margin:48px auto;padding:24px;border:1px solid #fed7aa;border-radius:14px;background:#fff7ed;color:#9a3412;font:15px/1.6 system-ui,-apple-system,Segoe UI,sans-serif">
+        <h1 style="margin:0 0 10px;font-size:20px;color:#7c2d12">Open this widget through NURA API</h1>
+        <p style="margin:0 0 12px">Browsers block API calls, microphone access, and WebRTC from <code>file://</code> pages.</p>
+        <p style="margin:0">Use <strong>http://localhost:8080/widget.html</strong> on this Mac, or <strong>http://YOUR-LAN-IP:8080/widget.html</strong> from your phone.</p>
+      </div>
+    `;
+    throw new Error('NURA widget.html must be served over http://, not opened as file://');
+  }
+
   const API_BASE = (() => {
-    const host = window.location.hostname || 'localhost';
-    return `http://${host}:8080/v1`;
+    const loc = window.location;
+    if (loc.port === '8080' || loc.port === '8000') {
+      return `${loc.protocol}//${loc.hostname}:${loc.port}/v1`;
+    }
+    return `${loc.origin}/v1`;
   })();
 
   // ── UI strings per language ───────────────────────────────────────────────
@@ -2008,6 +2023,10 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
   async function joinVoiceCall() {
     const t = UI[currentLang];
     if (!voiceCall || voiceRoom) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      appendBotMsg('Microphone access requires a secure connection (HTTPS). Please contact support.', null, null);
+      return;
+    }
     voiceStatus = 'connecting';
     renderTree();
     try {

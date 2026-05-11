@@ -103,7 +103,8 @@ def _livekit_server_url(request: Request) -> str:
     if hostname in {"localhost", "127.0.0.1", "::1"} and settings.livekit_node_ip:
         hostname = settings.livekit_node_ip
 
-    return f"{ws_scheme}://{hostname}:7880"
+    livekit_port = 7443 if ws_scheme == "wss" else 7880
+    return f"{ws_scheme}://{hostname}:{livekit_port}"
 
 
 def _with_token(call: dict, role: str, identity: str, name: str, server_url: str) -> dict:
