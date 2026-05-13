@@ -16,6 +16,7 @@ llama-index-readers-file~=0.4
 python-multipart~=0.0.18
 sse-starlette~=1.8
 slowapi~=0.1
+sentry-sdk[fastapi]>=2.0
 bcrypt~=4.0
 pypdf~=5.0
 scikit-learn~=1.3

@@ -60,12 +60,7 @@ LAN_IP=$(detect_lan_ip)
 setup_https_certs "$LAN_IP"
 
 echo "Starting backend services in Docker..."
-if [ -n "$LAN_IP" ]; then
-  echo "Detected LAN IP: $LAN_IP"
-  LIVEKIT_NODE_IP="$LAN_IP" docker compose up -d postgres redis chromadb livekit nura-api nura-admin caddy
-else
-  docker compose up -d postgres redis chromadb livekit nura-api nura-admin caddy
-fi
+docker compose up -d postgres redis chromadb nura-api nura-admin caddy
 
 echo ""
 echo "Services running:"

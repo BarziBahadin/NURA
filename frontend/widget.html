@@ -20,20 +20,28 @@
       position: fixed;
       bottom: 28px;
       left: 28px;
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #111827, #f97316);
+      height: 52px;
+      padding: 0 20px 0 16px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #111827 0%, #1f2937 60%, #c2410c 180%);
       border: none;
       cursor: pointer;
-      box-shadow: 0 14px 34px rgba(17,24,39,0.28), 0 4px 18px rgba(249,115,22,0.36);
+      box-shadow: 0 8px 28px rgba(17,24,39,0.32), 0 3px 14px rgba(249,115,22,0.28);
       display: flex;
       align-items: center;
-      justify-content: center;
+      gap: 9px;
       transition: transform 0.2s, box-shadow 0.2s, opacity 0.22s;
       z-index: 1000;
     }
-    #chat-toggle:hover { transform: scale(1.08); box-shadow: 0 18px 42px rgba(17,24,39,0.32), 0 6px 24px rgba(249,115,22,0.48); }
+    #chat-toggle:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(17,24,39,0.34), 0 5px 20px rgba(249,115,22,0.38); }
+    #chat-toggle-text {
+      color: #fff;
+      font-size: 13.5px;
+      font-weight: 800;
+      font-family: inherit;
+      white-space: nowrap;
+      letter-spacing: 0.1px;
+    }
 
     #badge {
       position: absolute;
@@ -249,6 +257,31 @@
     .followup-btn.no { border-color: #ccc; color: #888; }
     .followup-btn.no:hover { background: #f0f2f5; color: #555; }
 
+    /* Bot avatar row */
+    .bot-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 7px;
+      align-self: flex-end;
+      max-width: 86%;
+    }
+    .bot-avatar-sm {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #111827, #c2410c);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      letter-spacing: -0.3px;
+      margin-bottom: 16px;
+    }
+    .bot-content { display: flex; flex-direction: column; min-width: 0; }
+
     /* Meta */
     .meta {
       font-size: 10px;
@@ -262,6 +295,13 @@
     .msg.user  .meta { align-self: flex-start; }
     .msg.bot   .meta { align-self: flex-end; flex-direction: row-reverse; }
     .msg.agent .meta { align-self: flex-end; flex-direction: row-reverse; }
+    .meta .msg-time { opacity: 0; transition: opacity 0.18s; }
+    .msg:hover .meta .msg-time,
+    .bot-row:hover .meta .msg-time { opacity: 1; }
+
+    /* Read tick */
+    .read-tick { font-size: 10px; color: #ccc; margin-top: 2px; align-self: flex-start; padding: 0 4px; transition: color 0.2s; }
+    .read-tick.read { color: #f97316; }
 
     .source-tag {
       font-size: 9px;
@@ -641,17 +681,32 @@
     .fb-btn.sel-bad     { border-color: #ef476f; color: #ef476f; background: rgba(239,71,111,0.1); }
     .fb-btn:disabled    { opacity: 0.45; cursor: default; }
 
-    /* Escalation banner */
+    /* Bot-row nested msg: let bot-row own the width constraint */
+    .bot-row .msg { max-width: 100%; }
+
+    /* Escalation banner — spinner card */
     .escalation-banner {
-      background: #fff3cd;
-      border: 1px solid #ffc107;
-      border-radius: 10px;
-      padding: 9px 13px;
-      font-size: 12.5px;
-      color: #856404;
-      text-align: center;
+      background: linear-gradient(135deg, #fff8ed, #fffbf2);
+      border: 1px solid #fcd34d;
+      border-radius: 14px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #92400e;
+      display: flex;
+      align-items: center;
+      gap: 10px;
       animation: fadeUp 0.2s ease;
+      box-shadow: 0 4px 12px rgba(252,211,77,0.15);
     }
+    .esc-spinner {
+      width: 18px; height: 18px;
+      border: 2.5px solid #fde68a;
+      border-top-color: #f59e0b;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     /* Error bubble */
     .error-bubble {
@@ -690,7 +745,8 @@
     .star-btn.lit   { color: #f97316; }
 
     @media (max-width: 600px) {
-      #chat-toggle { width: 56px; height: 56px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); left: 20px; }
+      #chat-toggle { width: 56px; height: 56px; padding: 0; border-radius: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); left: 20px; }
+      #chat-toggle-text { display: none; }
       #chat-window {
         top: 0; left: 0; right: 0; bottom: 0;
         width: 100vw; height: 100%; height: 100dvh; max-height: none;
@@ -724,6 +780,7 @@
   <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="white" viewBox="0 0 24 24">
     <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
   </svg>
+  <span id="chat-toggle-text">تحدث معنا</span>
   <div id="badge">1</div>
 </button>
 
@@ -1801,6 +1858,7 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
   let voiceTrack           = null;
   let voiceStatus          = 'idle';
   let voiceMuted           = false;
+  let lastUserTickEl       = null;
 
   // ── DOM ───────────────────────────────────────────────────────────────────
   const toggle      = document.getElementById('chat-toggle');
@@ -2129,6 +2187,14 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
     treePanel.appendChild(panel);
   }
 
+  const TOPIC_ICONS = {
+    0: '📱', 1: '🌐', 2: '🔒', 3: '📶', 4: '💎', 5: '📲',
+    6: '🐢', 7: '📞', 8: '⭐', 9: '📋', 10: '✅', 11: '📳',
+    12: '🛠️', 13: '🔑', 14: '🔐', 16: '💰', 17: '🕐', 18: '💳',
+    19: '🔑', 20: '🔗', 21: '⚙️', 22: '📊', 23: '🆘', 24: '📟',
+    25: '🚀', 26: 'ℹ️', 27: '🏢', 28: '🆓', 29: '⚠️', 30: '📝',
+  };
+
   function renderTree() {
     const t    = UI[currentLang];
     const node = currentTreeNode();
@@ -2188,7 +2254,8 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
     (node.children || []).forEach(child => {
       const btn = document.createElement('button');
       btn.className = 'tree-opt' + (child.children ? ' has-children' : '');
-      btn.textContent = treeLabel(child);
+      const icon = TOPIC_ICONS[child.id];
+      btn.textContent = icon ? icon + ' ' + treeLabel(child) : treeLabel(child);
       btn.addEventListener('click', () => {
         track('tree_click', treeLabel(child), child.id, { topic_id: child.id, article_id: child.article ?? null });
         if (child.action === 'agent') {
@@ -2209,14 +2276,15 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
 
     treePanel.appendChild(optsDiv);
 
-    if (treeStack.length === 0 && !isEscalated) {
-      const voiceBtn = document.createElement('button');
-      voiceBtn.className = 'voice-btn';
-      voiceBtn.type = 'button';
-      voiceBtn.textContent = t.voiceCall;
-      voiceBtn.addEventListener('click', requestVoiceCall);
-      treePanel.appendChild(voiceBtn);
+    if (!voiceCall && !isSessionClosed) {
+      const vBtn = document.createElement('button');
+      vBtn.className = 'voice-btn';
+      vBtn.type = 'button';
+      vBtn.textContent = UI[currentLang].voiceCall;
+      vBtn.addEventListener('click', requestVoiceCall);
+      treePanel.appendChild(vBtn);
     }
+
     renderVoicePanel();
 
   }
@@ -2531,12 +2599,24 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
   function appendUserMsg(text) {
     const div = document.createElement('div');
     div.className = 'msg user';
-    div.innerHTML = `<div class="bubble">${escHtml(text)}</div><div class="meta"><span>${fmtTime()}</span></div>`;
+    const tick = document.createElement('span');
+    tick.className = 'read-tick';
+    tick.textContent = '✓';
+    div.innerHTML = `<div class="bubble">${escHtml(text)}</div><div class="meta"><span class="msg-time">${fmtTime()}</span></div>`;
+    div.appendChild(tick);
+    lastUserTickEl = tick;
     messagesEl.appendChild(div);
     scrollBottom();
   }
 
   function appendBotMsg(text, confidence, source, sourceDoc) {
+    // Mark the last user message as read
+    if (lastUserTickEl) {
+      lastUserTickEl.textContent = '✓✓';
+      lastUserTickEl.classList.add('read');
+      lastUserTickEl = null;
+    }
+
     const t   = UI[currentLang];
     const div = document.createElement('div');
     div.className = 'msg bot';
@@ -2556,7 +2636,7 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
       <div class="meta">
         ${pct   ? `<span>${pct}</span>` : ''}
         ${label ? `<span class="source-tag ${tag}">${label}</span>` : ''}
-        <span>${fmtTime()}</span>
+        <span class="msg-time">${fmtTime()}</span>
       </div>`;
 
     if (source) {
@@ -2575,7 +2655,18 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
       div.appendChild(fbDiv);
     }
 
-    messagesEl.appendChild(div);
+    // Wrap in bot-row with small avatar
+    const row = document.createElement('div');
+    row.className = 'bot-row';
+    const avatar = document.createElement('div');
+    avatar.className = 'bot-avatar-sm';
+    avatar.textContent = 'NU';
+    const content = document.createElement('div');
+    content.className = 'bot-content';
+    content.appendChild(div);
+    row.appendChild(avatar);
+    row.appendChild(content);
+    messagesEl.appendChild(row);
     scrollBottom();
 
     if (hasFollowUp) {
@@ -2603,7 +2694,17 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
           showTyping();
           setTimeout(() => { hideTyping(); appendBotMsg(t.noReply, null, null); }, 800);
         });
-        messagesEl.appendChild(fDiv);
+        const fRow = document.createElement('div');
+        fRow.className = 'bot-row';
+        const fAvatar = document.createElement('div');
+        fAvatar.className = 'bot-avatar-sm';
+        fAvatar.textContent = 'NU';
+        const fContent = document.createElement('div');
+        fContent.className = 'bot-content';
+        fContent.appendChild(fDiv);
+        fRow.appendChild(fAvatar);
+        fRow.appendChild(fContent);
+        messagesEl.appendChild(fRow);
         scrollBottom();
       }, 600);
     }
@@ -2615,16 +2716,16 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
     div.className = 'msg agent';
     div.innerHTML = `
       <div class="bubble">${escHtml(text)}</div>
-      <div class="meta"><span>${escHtml(agentName || t.agentLabel)}</span><span>${fmtTime()}</span></div>`;
+      <div class="meta"><span>${escHtml(agentName || t.agentLabel)}</span><span class="msg-time">${fmtTime()}</span></div>`;
     messagesEl.appendChild(div);
     scrollBottom();
-    if (escalationBannerEl) escalationBannerEl.textContent = t.agentConnectedBanner;
+    if (escalationBannerEl) escalationBannerEl.innerHTML = `<span>${escHtml(t.agentConnectedBanner)}</span>`;
   }
 
   function showEscalationBanner() {
     escalationBannerEl = document.createElement('div');
     escalationBannerEl.className = 'escalation-banner';
-    escalationBannerEl.textContent = UI[currentLang].escalatingBanner;
+    escalationBannerEl.innerHTML = `<div class="esc-spinner"></div><span>${escHtml(UI[currentLang].escalatingBanner)}</span>`;
     messagesEl.appendChild(escalationBannerEl);
     scrollBottom();
   }

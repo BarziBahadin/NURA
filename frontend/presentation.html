@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NURA — AI Customer Support Platform</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --orange: #f97316;
+    --orange-dark: #ea6c0a;
+    --bg: #0a0f1a;
+    --surface: #111827;
+    --surface2: #1a2234;
+    --border: #1f2d42;
+    --text: #f1f5f9;
+    --muted: #6b7280;
+    --green: #22c55e;
+    --blue: #3b82f6;
+    --purple: #a855f7;
+    --yellow: #eab308;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; overflow: hidden; }
+
+  /* ── Slide engine ─────────────────────────── */
+  .deck { width: 100vw; height: 100vh; position: relative; }
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    padding: 60px;
+    opacity: 0; pointer-events: none;
+    transform: translateY(24px);
+    transition: opacity 0.45s cubic-bezier(0.22,1,0.36,1), transform 0.45s cubic-bezier(0.22,1,0.36,1);
+  }
+  .slide.active { opacity: 1; pointer-events: auto; transform: translateY(0); }
+
+  /* ── Progress bar ─────────────────────────── */
+  #progress-bar {
+    position: fixed; bottom: 0; left: 0; height: 3px;
+    background: linear-gradient(90deg, var(--orange), var(--yellow));
+    transition: width 0.4s ease;
+    z-index: 100;
+  }
+  #slide-counter {
+    position: fixed; bottom: 20px; right: 28px;
+    font-size: 12px; color: var(--muted); letter-spacing: 0.08em;
+    z-index: 100;
+  }
+  #nav-hint {
+    position: fixed; bottom: 20px; left: 28px;
+    font-size: 12px; color: var(--muted);
+    z-index: 100;
+  }
+
+  /* ── Nav buttons ──────────────────────────── */
+  .nav-btn {
+    position: fixed; top: 50%; transform: translateY(-50%);
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--muted); width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 100; font-size: 18px;
+    transition: color 0.2s, background 0.2s;
+  }
+  .nav-btn:hover { color: var(--text); background: var(--surface); }
+  #btn-prev { left: 16px; }
+  #btn-next { right: 16px; }
+
+  /* ── Typography ───────────────────────────── */
+  .tag {
+    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--orange); border: 1px solid rgba(249,115,22,0.35);
+    border-radius: 20px; padding: 4px 14px; margin-bottom: 20px;
+  }
+  h1 { font-size: clamp(2.4rem, 5vw, 4rem); font-weight: 900; line-height: 1.1; text-align: center; }
+  h2 { font-size: clamp(1.6rem, 3vw, 2.4rem); font-weight: 800; line-height: 1.15; }
+  .sub { font-size: clamp(1rem, 1.8vw, 1.25rem); color: var(--muted); line-height: 1.6; text-align: center; max-width: 640px; margin-top: 16px; }
+  .accent { color: var(--orange); }
+
+  /* ── Cards ────────────────────────────────── */
+  .card-grid { display: grid; gap: 16px; width: 100%; max-width: 1000px; }
+  .card-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .card-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .card-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: rgba(249,115,22,0.4); }
+  .card .icon { font-size: 28px; margin-bottom: 12px; }
+  .card h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .card p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  /* ── Stat cards ───────────────────────────── */
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px 24px; text-align: center;
+  }
+  .stat-card .num { font-size: 2.4rem; font-weight: 900; color: var(--orange); }
+  .stat-card .label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Architecture diagram ─────────────────── */
+  .arch {
+    display: flex; align-items: center; gap: 0;
+    width: 100%; max-width: 960px; flex-wrap: nowrap;
+  }
+  .arch-node {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px 12px; text-align: center; position: relative;
+  }
+  .arch-node .icon { font-size: 24px; }
+  .arch-node h4 { font-size: 13px; font-weight: 700; margin-top: 8px; }
+  .arch-node p { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .arch-arrow { flex-shrink: 0; width: 32px; text-align: center; color: var(--muted); font-size: 18px; }
+
+  /* ── Code snippet ─────────────────────────── */
+  .code-box {
+    background: #0d1117; border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 24px; font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 14px; line-height: 1.7; width: 100%; max-width: 700px;
+    overflow-x: auto;
+  }
+  .code-box .kw { color: #ff7b72; }
+  .code-box .str { color: #a5d6ff; }
+  .code-box .attr { color: #ffa657; }
+  .code-box .comment { color: #6e7681; }
+
+  /* ── Flow steps ───────────────────────────── */
+  .flow { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 680px; }
+  .flow-step {
+    display: flex; align-items: flex-start; gap: 16px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px 20px;
+  }
+  .flow-step .num {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(249,115,22,0.15); border: 1px solid rgba(249,115,22,0.4);
+    color: var(--orange); font-size: 12px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .flow-step h4 { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+  .flow-step p { font-size: 12px; color: var(--muted); }
+
+  /* ── Stack table ──────────────────────────── */
+  .stack-table { width: 100%; max-width: 820px; border-collapse: collapse; }
+  .stack-table th { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; padding: 10px 16px; border-bottom: 1px solid var(--border); text-align: left; }
+  .stack-table td { font-size: 13px; padding: 12px 16px; border-bottom: 1px solid rgba(31,45,66,0.5); }
+  .stack-table tr:last-child td { border-bottom: none; }
+  .pill {
+    display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+  }
+  .pill.green { background: rgba(34,197,94,0.12); color: var(--green); }
+  .pill.blue { background: rgba(59,130,246,0.12); color: var(--blue); }
+  .pill.orange { background: rgba(249,115,22,0.12); color: var(--orange); }
+  .pill.purple { background: rgba(168,85,247,0.12); color: var(--purple); }
+
+  /* ── Cover slide glow ─────────────────────── */
+  .glow-ring {
+    position: absolute; width: 520px; height: 520px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(249,115,22,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* ── Logo mark ────────────────────────────── */
+  .logo-mark {
+    width: 72px; height: 72px; border-radius: 20px;
+    background: linear-gradient(135deg, #111827, var(--orange));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; font-weight: 900; color: #fff;
+    box-shadow: 0 20px 48px rgba(249,115,22,0.35);
+    margin-bottom: 28px;
+  }
+
+  /* ── Section label ────────────────────────── */
+  .section-label {
+    position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase;
+    z-index: 100;
+  }
+
+  /* ── Two-col layout ───────────────────────── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; width: 100%; max-width: 1000px; align-items: start; }
+  .two-col h2 { margin-bottom: 20px; }
+
+  /* ── Admin panel mockup ───────────────────── */
+  .mockup-shell {
+    background: #111827; border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px; overflow: hidden; display: flex; height: 330px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.55);
+  }
+  .mockup-sidebar {
+    width: 172px; background: #111827; border-right: 1px solid rgba(255,255,255,0.06);
+    flex-shrink: 0; padding: 12px 10px; display: flex; flex-direction: column; gap: 3px;
+  }
+  .mockup-logo {
+    display: flex; align-items: center; gap: 9px;
+    padding: 6px 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 8px;
+  }
+  .mockup-logo-mark {
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    background: linear-gradient(135deg, #1d2d44, #f97316);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 900; color: #fff;
+  }
+  .mockup-logo-text { font-size: 12px; font-weight: 700; color: #60a5fa; }
+  .mockup-logo-sub { font-size: 9px; color: #4b5563; }
+  .mockup-nav {
+    height: 32px; border-radius: 9px; display: flex; align-items: center;
+    gap: 7px; padding: 0 9px; font-size: 11px; color: #6b7280;
+  }
+  .mockup-nav.active { background: #2563eb; color: #fff; }
+  .mockup-nav .badge {
+    margin-left: auto; background: #ef4444; color: #fff;
+    font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 10px;
+  }
+  .mockup-main { flex: 1; background: #f8fafc; padding: 16px 18px; overflow: hidden; }
+  .mockup-title { font-size: 14px; font-weight: 700; color: #1e293b; }
+  .mockup-kpis { display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; margin: 12px 0; }
+  .mockup-kpi { background: #fff; border-radius: 9px; padding: 9px 10px; border: 1px solid #e2e8f0; }
+  .mkpi-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+  .mkpi-label { font-size: 8px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.07em; }
+  .mkpi-icon { font-size: 12px; }
+  .mkpi-val { font-size: 17px; font-weight: 800; color: #0f172a; }
+  .mkpi-sub { font-size: 8px; color: #cbd5e1; margin-top: 1px; }
+  .mockup-charts { display: grid; grid-template-columns: 2fr 1fr; gap: 7px; margin-bottom: 10px; }
+  .mockup-chart-box {
+    background: #fff; border-radius: 9px; border: 1px solid #e2e8f0;
+    padding: 9px 11px; height: 90px; overflow: hidden;
+  }
+  .chart-title { font-size: 8px; color: #94a3b8; text-transform: uppercase; margin-bottom: 6px; }
+  .chart-bars { display: flex; align-items: flex-end; gap: 3px; height: 52px; }
+  .chart-bar { flex: 1; border-radius: 2px 2px 0 0; min-height: 4px; }
+  .chart-line-svg { width: 100%; height: 52px; }
+
+  /* ── Queue mockup ─────────────────────────── */
+  .queue-mockup {
+    background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden;
+  }
+  .queue-header {
+    background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+    padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .queue-row {
+    padding: 10px 14px; border-bottom: 1px solid #f1f5f9;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .queue-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .queue-info { flex: 1; min-width: 0; }
+  .queue-name { font-size: 12px; font-weight: 600; color: #1e293b; }
+  .queue-msg { font-size: 11px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .claim-btn {
+    background: #2563eb; color: #fff; font-size: 11px; font-weight: 700;
+    padding: 5px 12px; border-radius: 7px; cursor: default; flex-shrink: 0;
+  }
+  .canned-chip {
+    background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe;
+    font-size: 11px; padding: 4px 10px; border-radius: 20px; cursor: default;
+  }
+
+  /* ── Telegram phone mockup ────────────────── */
+  .tg-phone {
+    width: 220px; flex-shrink: 0; background: #17212b; border-radius: 20px; overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5); display: flex; flex-direction: column;
+  }
+  .tg-header {
+    background: #2b5278; padding: 10px 12px; display: flex; align-items: center; gap: 9px;
+  }
+  .tg-avatar {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, #f97316, #1e3a5f);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800; color: #fff;
+  }
+  .tg-name { font-size: 12px; font-weight: 700; color: #fff; }
+  .tg-status { font-size: 9px; color: #64b5f6; }
+  .tg-messages {
+    flex: 1; padding: 8px 8px 0; overflow: hidden; display: flex; flex-direction: column; gap: 5px;
+  }
+  .tg-msg {
+    padding: 6px 9px; border-radius: 10px; font-size: 10.5px; line-height: 1.4; max-width: 92%;
+  }
+  .tg-msg.bot { background: #2b5278; color: #e3f2fd; align-self: flex-start; }
+  .tg-msg.user { background: #1e6f8f; color: #fff; align-self: flex-end; }
+  .tg-buttons { display: flex; flex-direction: column; gap: 3px; padding: 4px 8px; }
+  .tg-btn {
+    background: #2b5278; color: #64b5f6; border-radius: 7px;
+    padding: 6px 9px; font-size: 10px; text-align: center; cursor: default;
+  }
+  .tg-footer { padding: 7px 9px; border-top: 1px solid rgba(255,255,255,0.05); }
+  .tg-input { background: #242f3d; border-radius: 18px; padding: 6px 11px; font-size: 10px; color: #6b7280; }
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <!-- ── SLIDE 1: Cover ── -->
+  <section class="slide active" id="s1">
+    <div class="glow-ring"></div>
+    <div class="logo-mark">N</div>
+    <div class="tag">Rcell Telecom — Internal Product</div>
+    <h1><span class="accent">NURA</span><br/>AI Customer Support</h1>
+    <p class="sub">A fully self-hosted, Arabic-first AI support platform — from first message to resolved case, with a human agent always one tap away.</p>
+  </section>
+
+  <!-- ── SLIDE 2: The Problem ── -->
+  <section class="slide" id="s2">
+    <span class="section-label">The Problem</span>
+    <div style="max-width:860px; width:100%">
+      <div class="tag">Why we built this</div>
+      <h2 style="margin-bottom:32px">Support at scale is <span class="accent">expensive</span> and slow</h2>
+      <div class="card-grid cols-3">
+        <div class="card">
+          <div class="icon">🕐</div>
+          <h3>Long wait times</h3>
+          <p>Customers wait minutes for answers to questions the AI can resolve in seconds.</p>
+        </div>
+        <div class="card">
+          <div class="icon">🔄</div>
+          <h3>Repetitive queries</h3>
+          <p>80% of tickets are the same questions — balance, recharge, SIM activation, packages.</p>
+        </div>
+        <div class="card">
+          <div class="icon">📊</div>
+          <h3>No visibility</h3>
+          <p>No real-time data on what customers are asking, where agents are overwhelmed, or what the AI missed.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SLIDE 3: What is NURA ── -->
+  <section class="slide" id="s3">
+    <span class="section-label">The Solution</span>
+    <div style="max-width:860px; width:100%">
+      <div class="tag">What NURA is</div>
+      <h2 style="margin-bottom:32px">One platform — <span class="accent">three layers</span></h2>
+      <div class="card-grid cols-3">
+        <div class="card" style="border-color: rgba(249,115,22,0.4);">
+          <div class="icon">🤖</div>
+          <h3>AI Layer</h3>
+          <p>GPT-powered agent trained on Rcell's knowledge base. Answers in Arabic, Kurdish, and English. Knows when it doesn't know — and escalates.</p>
+        </div>
+        <div class="card" style="border-color: rgba(59,130,246,0.4);">
+          <div class="icon">🧑‍💼</div>
+          <h3>Agent Layer</h3>
+          <p>Real-time handoff queue. Canned replies, session history, customer cases — everything in one admin panel.</p>
+        </div>
+        <div class="card" style="border-color: rgba(34,197,94,0.4);">
+          <div class="icon">📈</div>
+          <h3>Analytics Layer</h3>
+          <p>KPI dashboard, knowledge gap detection, session browser, and full audit trail. Continuously improves the AI.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SLIDE 4: Architecture ── -->
+  <section class="slide" id="s4">
+    <span class="section-label">Architecture</span>
+    <div style="max-width:960px; width:100%">
+      <div class="tag">How it's built</div>
+      <h2 style="margin-bottom:32px; text-align:center">Self-hosted, <span class="accent">zero vendor lock-in</span></h2>
+      <div class="arch">
+        <div class="arch-node">
+          <div class="icon">💬</div>
+          <h4>Widget</h4>
+          <p>One JS embed tag on any website</p>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node" style="border-color: rgba(249,115,22,0.5);">
+          <div class="icon">⚡</div>
+          <h4>FastAPI</h4>
+          <p>Python REST + WebSocket, JWT auth, rate limiting</p>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node">
+          <div class="icon">🧠</div>
+          <h4>OpenAI GPT</h4>
+          <p>LLM + embeddings, swappable model</p>
+        </div>
+        <div class="arch-arrow">+</div>
+        <div class="arch-node">
+          <div class="icon">🔍</div>
+          <h4>ChromaDB</h4>
+          <p>RAG vector search over handbooks</p>
+        </div>
+        <div class="arch-arrow">+</div>
+        <div class="arch-node">
+          <div class="icon">🗄️</div>
+          <h4>PostgreSQL</h4>
+          <p>Sessions, cases, users, analytics</p>
+        </div>
+        <div class="arch-arrow">+</div>
+        <div class="arch-node">
+          <div class="icon">⚡</div>
+          <h4>Redis</h4>
+          <p>Session state, real-time queue</p>
+        </div>
+      </div>
+      <div style="margin-top:20px; text-align:center; font-size:13px; color:var(--muted)">
+        Everything runs in Docker Compose — fully self-hosted on your infrastructure
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SLIDE 5: The Widget ── -->
+  <section class="slide" id="s5">
+    <span class="section-label">Customer Experience</span>
+    <div class="two-col">
+      <div>
+        <div class="tag">Embeds on any website</div>
+        <h2>One line of code.<br/><span class="accent">Live instantly.</span></h2>
+        <p style="color:var(--muted); font-size:14px; line-height:1.7; margin-top:16px;">
+          Drop a single script tag on Rcell's existing website. The widget loads only when the customer clicks — zero page-load cost. Arabic/Kurdish/English, RTL layout, mobile-first.
+        </p>
+        <div style="margin-top:24px; display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; gap:10px; align-items:center; font-size:13px;">
+            <span style="color:var(--green)">✓</span> <span>AI replies in &lt;1 second</span>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; font-size:13px;">
+            <span style="color:var(--green)">✓</span> <span>Topic tree for guided support</span>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; font-size:13px;">
+            <span style="color:var(--green)">✓</span> <span>Escalates to human agent when needed</span>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; font-size:13px;">
+            <span style="color:var(--green)">✓</span> <span>Voice input support</span>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; font-size:13px;">
+            <span style="color:var(--green)">✓</span> <span>File upload for receipts / screenshots</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="code-box">
+          <span class="comment">&lt;!-- Add to any page --&gt;</span><br/>
+          <span class="kw">&lt;script</span><br/>
+          &nbsp;&nbsp;<span class="attr">src</span>=<span class="str">"https://support.rcell.com/widget-loader.js"</span><br/>
+          &nbsp;&nbsp;<span class="attr">data-api</span>=<span class="str">"https://support.rcell.com/v1"</span><br/>
+          &nbsp;&nbsp;<span class="attr">data-lang</span>=<span class="str">"ar"</span><br/>
+          &nbsp;&nbsp;<span class="attr">data-position</span>=<span class="str">"bottom-left"</span><br/>
+          <span class="kw">&gt;&lt;/script&gt;</span>
+        </div>
+        <div style="margin-top:16px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px 20px; font-size:13px; color:var(--muted);">
+          <strong style="color:var(--text);">Lazy-loaded</strong> — the 113 KB widget file is fetched only when the customer clicks the launcher. Page load impact: <strong style="color:var(--green);">~3 KB</strong>.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SLIDE 6: AI Flow ── -->
+  <section class="slide" id="s6">
+    <span class="section-label">AI Intelligence</span>
+    <div style="max-width:800px; width:100%; display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:start;">
+      <div>
+        <div class="tag">How the AI answers</div>
+        <h2 style="margin-bottom:24px;">Two-layer <span class="accent">knowledge system</span></h2>
+        <div class="flow">
+          <div class="flow-step">
+            <div class="num">1</div>
+            <div>
+              <h4>Always-loaded Articles</h4>
+              <p>20 core support articles always in the AI's context — packages, billing, SIM, VoLTE.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="num">2</div>
+            <div>
+              <h4>RAG over Handbooks</h4>
+              <p>Vector search over the full call-center handbook. Top 3 relevant chunks added per message.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="num">3</div>
+            <div>
+              <h4>Confidence Threshold</h4>
+              <p>If confidence score is low, the AI flags it as a knowledge gap and escalates gracefully.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="num">4</div>
+            <div>
+              <h4>Human Handoff</h4>
+              <p>Real-time queue handoff to a live agent. Full session history transferred instantly.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="tag">Self-improvement loop</div>
+        <h2 style="margin-bottom:24px;">AI that <span class="accent">gets better</span></h2>
+        <div class="card" style="margin-bottom:14px;">
+          <div class="icon">🔍</div>
+          <h3>Knowledge Gap Detection</h3>
+          <p>Every time the AI can't answer, it logs a gap. Admins review and approve gaps in the admin panel.</p>
+        </div>
+        <div class="card" style="margin-bottom:14px;">
+          <div class="icon">🏋️</div>
+          <h3>Local ML Pipeline</h3>
+          <p>Approved gaps feed a retraining pipeline. Run locally — data never leaves your servers.</p>
+        </div>
+        <div class="card">
+          <div class="icon">📈</div>
+          <h3>Analytics Feedback</h3>
+          <p>Session ratings, escalation rates, and resolution time feed back into team decisions.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SLIDE 7: Admin Panel Explained ── -->
+  <section class="slide" id="s7">
+    <span class="section-label">Admin Panel</span>
+    <div style="max-width:1020px; width:100%;">
+      <div class="tag">React + Vite + Tailwind · 13 pages · 3 roles</div>
+      <h2 style="margin-bottom:28px; text-align:center;">A full <span class="accent">command center</span> for the support team</h2>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start;">
+
+        <!-- Left column: Real-time + Customer -->
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div style="font-size:10px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:2px;">⚡ Real-time operations</div>
+          <div class="card" style="padding:14px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="font-size:20px;flex-shrink:0;">📊</span>
+              <div><div style="font-size:13px;font-weight:700;margin-bottom:3px;">Dashboard</div><div style="font-size:12px;color:var(--muted);">KPI cards, traffic charts, escalation feed, service health — auto-refreshes every 60s.</div></div>
+            </div>
+          </div>
+          <div class="card" style="padding:14px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="font-size:20px;flex-shrink:0;">🔔</span>
+              <div><div style="font-size:13px;font-weight:700;margin-bottom:3px;">Live Queue</div><div style="font-size:12px;color:var(--muted);">Real-time handoff queue. Agent claims a session, full history loads instantly, canned replies are one click.</div></div>
+            </div>
+          </div>
+          <div class="card" style="padding:14px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="font-size:20px;flex-shrink:0;">🖥️</span>
+              <div><div style="font-size:13px;font-weight:700;margin-bottom:3px;">System Monitor</div><div style="font-size:12px;color:var(--muted);">Live health of all 5 services with API logs and error stream.</div></div>
+            </div>
+          </div>
+          <div style="font-size:10px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:0.12em;margin:6px 0 2px;">👥 Customer management</div>
+          <div class="card" style="padding:14px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="font-size:20px;flex-shrink:0;">🗂️</span>
+              <div><div style="font-size:13px;font-weight:700;margin-bottom:3px;">Cases</div><div style="font-size:12px;color:var(--muted);">Case tracking with status, SLA timers, owner assignment, notes, and department routing.</div></div>
+            </div>
+          </div>
+          <div class="card" style="padding:14px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="font-size:20px;flex-shrink:0;">💬</span>
+              <div><div style="font-size:13px;font-weight:700;margin-bottom:3px;">Session Viewer</div><div style="font-size:12px;color:var(--muted);">Full chat history browser — filter by date, channel, escalated, or rated.</div></div>
+            </div>
+          </div>
+          <div class="card" style="padding:14px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="font-size:20px;flex-shrink:0;">💡</span>
+              <div><div style="font-size:13px;font-weight:700;margin-bottom:3px;">Suggestions</div><div style="font-size:12px;color:var(--muted);">Customer-submitted suggestions tracked by channel, priority, and agent assignment.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right column: AI & Knowledge + Roles -->
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div style="font-size:10px;font-weight:700;color:#22c55e;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:2px;">🧠 AI & Knowledge</div>
+          <div class="card" style="padding:14px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="font-size:20px;flex-shrink:0;">📚</span>
+              <div><div style="font-size:13px;font-weight:700;margin-bottom:3px;">Knowledge Base</div><div style="font-size:12px;color:var(--muted);">Manage 20 core articles. Edits are reflected in the AI's system prompt immediately — no redeploy.</div></div>
+            </div>
+          </div>
+          <div class="card" style="padding:14px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="font-size:20px;flex-shrink:0;">🧩</span>
+              <div><div style="font-size:13px;font-weight:700;margin-bottom:3px;">Knowledge Gaps</div><div style="font-size:12px;color:var(--muted);">Every AI miss is logged here. Admins review, approve, and push gaps into the retraining pipeline.</div></div>
+            </div>
+          </div>
+          <div class="card" style="padding:14px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="font-size:20px;flex-shrink:0;">💬</span>
+              <div><div style="font-size:13px;font-weight:700;margin-bottom:3px;">Canned Replies</div><div style="font-size:12px;color:var(--muted);">Pre-written replies per language, per category. Agents pick from chips — zero typing for common answers.</div></div>
+            </div>
+          </div>
+          <div class="card" style="padding:14px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="font-size:20px;flex-shrink:0;">🌳</span>
+              <div><div style="font-size:13px;font-weight:700;margin-bottom:3px;">Rules Engine</div><div style="font-size:12px;color:var(--muted);">Define the topic tree. Set which topics auto-answer, which always escalate to a human, and their order.</div></div>
+            </div>
+          </div>
+
+          <!-- Role cards -->
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.12em;margin:6px 0 2px;">🔑 3 Role Levels</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+            <div style="background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.3);border-radius:12px;padding:12px;">
+              <div style="font-size:12px;font-weight:700;color:#f97316;margin-bottom:4px;">🔑 Admin</div>
+              <div style="font-size:11px;color:var(--muted);line-height:1.5;">All 13 pages + AI toggle + user management</div>
+            </div>
+            <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:12px;padding:12px;">
+              <div style="font-size:12px;font-weight:700;color:#3b82f6;margin-bottom:4px;">🧑‍💼 Agent</div>
+              <div style="font-size:11px;color:var(--muted);line-height:1.5;">Queue, cases, suggestions, canned replies, sessions</div>
+            </div>
+            <div style="background:rgba(107,114,128,0.08);border:1px solid rgba(107,114,128,0.2);border-radius:12px;padding:12px;">
+              <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;">👁 Viewer</div>
+              <div style="font-size:11px;color:var(--muted);line-height:1.5;">Dashboard, sessions, reports — read only</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SLIDE 8: Live Queue — Agent Experience ── -->
+  <section class="slide" id="s8">
+    <span class="section-label">Live Queue</span>
+    <div style="max-width:980px; width:100%; display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:start;">
+      <div>
+        <div class="tag">When the AI escalates</div>
+        <h2 style="margin-bottom:20px;">The agent <span class="accent">takes over</span> in seconds</h2>
+        <div class="flow" style="margin-bottom:20px;">
+          <div class="flow-step">
+            <div class="num">1</div>
+            <div><h4>AI flags the session</h4><p>Confidence drops below threshold or customer requests human — session enters the queue instantly.</p></div>
+          </div>
+          <div class="flow-step">
+            <div class="num">2</div>
+            <div><h4>Agent sees it live</h4><p>Badge count goes up in the sidebar. Queue shows customer's last message, channel, and how long they've been waiting.</p></div>
+          </div>
+          <div class="flow-step">
+            <div class="num">3</div>
+            <div><h4>Claim &amp; reply</h4><p>Agent claims the session. Full chat history loads instantly. Canned replies are chips — one click to insert.</p></div>
+          </div>
+          <div class="flow-step">
+            <div class="num">4</div>
+            <div><h4>Resolve &amp; log</h4><p>Agent marks resolved. Session saves to cases. The AI's knowledge gap is flagged for admin review.</p></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div class="queue-mockup">
+          <div class="queue-header">
+            <span style="font-size:12px;font-weight:700;color:#1e293b;">🔔 Live Queue</span>
+            <span style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">3 waiting</span>
+          </div>
+          <div class="queue-row">
+            <div class="queue-dot" style="background:#f97316"></div>
+            <div class="queue-info">
+              <div class="queue-name">Customer #7f3a</div>
+              <div class="queue-msg">لا أستطيع إعادة شحن رصيدي منذ ساعتين</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+              <span style="font-size:11px;color:#94a3b8">4m</span>
+              <div class="claim-btn">Claim</div>
+            </div>
+          </div>
+          <div class="queue-row">
+            <div class="queue-dot" style="background:#f59e0b"></div>
+            <div class="queue-info">
+              <div class="queue-name">Customer #2b1c</div>
+              <div class="queue-msg">VoLTE لا يعمل على هاتفي الجديد</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+              <span style="font-size:11px;color:#94a3b8">2m</span>
+              <div class="claim-btn">Claim</div>
+            </div>
+          </div>
+          <div class="queue-row" style="border-bottom:none">
+            <div class="queue-dot" style="background:#22c55e"></div>
+            <div class="queue-info">
+              <div class="queue-name">Customer #9d4e</div>
+              <div class="queue-msg">أريد معرفة تفاصيل باقتي الحالية</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+              <span style="font-size:11px;color:#94a3b8">1m</span>
+              <div class="claim-btn">Claim</div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:13px;">
+          <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:9px;">Canned Replies — one click</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            <div class="canned-chip">سأساعدك فوراً</div>
+            <div class="canned-chip">تم استلام طلبك</div>
+            <div class="canned-chip">يرجى الانتظار قليلاً</div>
+            <div class="canned-chip">تم حل المشكلة ✓</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SLIDE 9: Telegram ── -->
+  <section class="slide" id="s9">
+    <span class="section-label">Telegram Integration</span>
+    <div style="max-width:1000px; width:100%;">
+      <div class="tag">Second channel — same AI brain</div>
+      <h2 style="margin-bottom:28px; text-align:center;">Full support on <span class="accent">Telegram</span></h2>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:start;">
+
+        <!-- Left: feature explanations -->
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div class="card" style="padding:16px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="font-size:22px;flex-shrink:0;">📋</span>
+              <div>
+                <div style="font-size:13px;font-weight:700;margin-bottom:4px;">Inline topic tree</div>
+                <div style="font-size:12px;color:var(--muted);">Customers navigate support topics via Telegram keyboard buttons — the same topic tree as the web widget. No free-text typing required.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="padding:16px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="font-size:22px;flex-shrink:0;">🤖</span>
+              <div>
+                <div style="font-size:13px;font-weight:700;margin-bottom:4px;">Same AI, same knowledge base</div>
+                <div style="font-size:12px;color:var(--muted);">Every message goes through the same FastAPI → GPT → RAG pipeline. Answers are identical across web and Telegram — no separate AI to maintain.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="padding:16px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="font-size:22px;flex-shrink:0;">🧑‍💼</span>
+              <div>
+                <div style="font-size:13px;font-weight:700;margin-bottom:4px;">Handoff to the same admin queue</div>
+                <div style="font-size:12px;color:var(--muted);">Escalation from Telegram pushes the session into the exact same live queue. The agent replies from the web panel — the customer sees it in their Telegram chat.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="padding:16px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span style="font-size:22px;flex-shrink:0;">⭐</span>
+              <div>
+                <div style="font-size:13px;font-weight:700;margin-bottom:4px;">Vertical star rating keyboard</div>
+                <div style="font-size:12px;color:var(--muted);">After resolution the bot sends a 5-row star rating keyboard — one star per row so it's easy to tap on mobile. Ratings flow into the admin analytics dashboard.</div>
+              </div>
+            </div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 16px;font-size:12px;color:var(--muted);margin-top:2px;">
+            Background long-polling worker — <code style="background:rgba(255,255,255,0.07);padding:1px 6px;border-radius:4px;">telegram_worker.py</code> — no webhooks, no extra infra needed.
+          </div>
+        </div>
+
+        <!-- Right: bot handle -->
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:20px;">
+          <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#2b5278,#1a8fc1);display:flex;align-items:center;justify-content:center;font-size:36px;box-shadow:0 12px 40px rgba(26,143,193,0.35);">
+            ✈️
+          </div>
+          <div style="font-size:2rem;font-weight:900;color:#64b5f6;letter-spacing:0.01em;">@NuraRcellbot</div>
+          <div style="font-size:13px;color:var(--muted);text-align:center;max-width:260px;line-height:1.6;">Search this handle on Telegram to try the bot live right now.</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SLIDE 10: Other Integrations ── -->
+  <section class="slide" id="s10">
+    <span class="section-label">Integrations</span>
+    <div style="max-width:860px; width:100%">
+      <div class="tag">Also connected</div>
+      <h2 style="margin-bottom:32px; text-align:center;">Voice, monitoring, <span class="accent">and more</span></h2>
+      <div class="card-grid cols-3">
+        <div class="card" style="border-color: rgba(168,85,247,0.4);">
+          <div class="icon">🎙️</div>
+          <h3>Voice Input (Widget)</h3>
+          <p>Customers speak in Arabic in the web widget. LiveKit handles real-time speech-to-text — transcribed and sent to the same AI pipeline.</p>
+        </div>
+        <div class="card" style="border-color: rgba(234,179,8,0.4);">
+          <div class="icon">🚨</div>
+          <h3>Sentry Error Tracking</h3>
+          <p>FastAPI and Starlette integration. Captures crashes, slow routes, and exceptions with full stack traces. Environment-aware (dev vs prod).</p>
+        </div>
+        <div class="card" style="border-color: rgba(107,114,128,0.2); opacity: 0.55;">
+          <div class="icon">📞</div>
+          <h3>Voice Call Desk <span style="font-size:11px;font-weight:700;color:var(--muted);background:rgba(107,114,128,0.15);border-radius:20px;padding:2px 10px;margin-left:6px;">Coming Soon</span></h3>
+          <p>Full inbound call queue, agent desk, and call routing — planned for the next phase.</p>
+        </div>
+      </div>
+      <div style="margin-top:20px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px 24px; font-size:13px; color:var(--muted); text-align:center;">
+        Web widget · Telegram · Voice — all share the same AI brain, knowledge base, session store, and admin panel.
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SLIDE 9: Tech Stack ── -->
+  <section class="slide" id="s9">
+    <span class="section-label">Tech Stack</span>
+    <div style="max-width:860px; width:100%;">
+      <div class="tag">Built with</div>
+      <h2 style="margin-bottom:28px; text-align:center;">Production-grade, <span class="accent">fully open source</span> stack</h2>
+      <table class="stack-table">
+        <thead>
+          <tr><th>Layer</th><th>Technology</th><th>Role</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>API</td>
+            <td><strong>FastAPI (Python)</strong></td>
+            <td>REST + WebSocket, JWT auth, rate limiting, CORS</td>
+            <td><span class="pill green">Live</span></td>
+          </tr>
+          <tr>
+            <td>LLM</td>
+            <td><strong>OpenAI GPT</strong></td>
+            <td>Chat responses + embeddings, swappable model</td>
+            <td><span class="pill green">Live</span></td>
+          </tr>
+          <tr>
+            <td>Vector DB</td>
+            <td><strong>ChromaDB + LlamaIndex</strong></td>
+            <td>RAG over handbook PDFs, top-3 chunks per query</td>
+            <td><span class="pill green">Live</span></td>
+          </tr>
+          <tr>
+            <td>Database</td>
+            <td><strong>PostgreSQL</strong></td>
+            <td>Sessions, cases, users, analytics, audit trail</td>
+            <td><span class="pill green">Live</span></td>
+          </tr>
+          <tr>
+            <td>Cache</td>
+            <td><strong>Redis</strong></td>
+            <td>Session state, real-time queue, 100-turn history</td>
+            <td><span class="pill green">Live</span></td>
+          </tr>
+          <tr>
+            <td>Admin UI</td>
+            <td><strong>React + Vite + Tailwind</strong></td>
+            <td>Full admin panel, role-based access (admin/agent/viewer)</td>
+            <td><span class="pill green">Live</span></td>
+          </tr>
+          <tr>
+            <td>Infra</td>
+            <td><strong>Docker Compose</strong></td>
+            <td>All services containerized, one-command startup</td>
+            <td><span class="pill green">Live</span></td>
+          </tr>
+          <tr>
+            <td>Voice</td>
+            <td><strong>LiveKit</strong></td>
+            <td>Real-time speech-to-text in widget</td>
+            <td><span class="pill blue">Beta</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── SLIDE 10: Security & Privacy ── -->
+  <section class="slide" id="s10">
+    <span class="section-label">Security</span>
+    <div style="max-width:860px; width:100%">
+      <div class="tag">Built for production</div>
+      <h2 style="margin-bottom:32px; text-align:center;">Security & <span class="accent">data privacy</span></h2>
+      <div class="card-grid cols-3">
+        <div class="card">
+          <div class="icon">🔐</div>
+          <h3>JWT Authentication</h3>
+          <p>All admin routes protected with signed JWT tokens. Role-based access: admin, agent, viewer.</p>
+        </div>
+        <div class="card">
+          <div class="icon">🏠</div>
+          <h3>Self-Hosted</h3>
+          <p>Your data never leaves your servers. PostgreSQL, Redis, ChromaDB all run on your infrastructure.</p>
+        </div>
+        <div class="card">
+          <div class="icon">🛡️</div>
+          <h3>Rate Limiting</h3>
+          <p>slowapi rate limiting on all public endpoints. DDoS protection built in.</p>
+        </div>
+        <div class="card">
+          <div class="icon">📝</div>
+          <h3>Full Audit Trail</h3>
+          <p>Every session, message, escalation, and case action is logged with timestamps.</p>
+        </div>
+        <div class="card">
+          <div class="icon">🔒</div>
+          <h3>Secrets in .env</h3>
+          <p>No hardcoded credentials. All secrets via environment variables, gitignored.</p>
+        </div>
+        <div class="card">
+          <div class="icon">💾</div>
+          <h3>Automated Backups</h3>
+          <p>Daily Postgres dumps + file backups. 7-day retention, scriptable via cron.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SLIDE 11: Roadmap ── -->
+  <section class="slide" id="s11">
+    <span class="section-label">Roadmap</span>
+    <div style="max-width:860px; width:100%">
+      <div class="tag">What's next</div>
+      <h2 style="margin-bottom:32px; text-align:center;">Built to <span class="accent">grow</span></h2>
+      <div class="card-grid cols-2">
+        <div>
+          <h3 style="font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:16px;">Near term</h3>
+          <div class="flow">
+            <div class="flow-step">
+              <div class="num">→</div>
+              <div><h4>Voice calls tab</h4><p>Full phone call routing through the admin panel.</p></div>
+            </div>
+            <div class="flow-step">
+              <div class="num">→</div>
+              <div><h4>WhatsApp channel</h4><p>Same AI, same admin panel — new channel.</p></div>
+            </div>
+            <div class="flow-step">
+              <div class="num">→</div>
+              <div><h4>Production deployment</h4><p>HTTPS, CDN, monitoring dashboards, load testing.</p></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h3 style="font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:16px;">Longer term</h3>
+          <div class="flow">
+            <div class="flow-step">
+              <div class="num">→</div>
+              <div><h4>Fine-tuned model</h4><p>Replace GPT with a Rcell-specific fine-tuned model for cost reduction.</p></div>
+            </div>
+            <div class="flow-step">
+              <div class="num">→</div>
+              <div><h4>Proactive outreach</h4><p>AI-initiated messages for outages, billing reminders, promotions.</p></div>
+            </div>
+            <div class="flow-step">
+              <div class="num">→</div>
+              <div><h4>CRM integration</h4><p>Connect to existing Rcell customer database for personalized replies.</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SLIDE 12: Closing ── -->
+  <section class="slide" id="s12">
+    <div class="glow-ring"></div>
+    <div class="logo-mark">N</div>
+    <h1>NURA is <span class="accent">live.</span></h1>
+    <p class="sub">The AI is trained, the admin panel is running, and the widget is ready to embed on rcell.com — today.</p>
+    <div style="display:flex; gap:16px; margin-top:36px;">
+      <div class="stat-card" style="min-width:160px;">
+        <div class="num">5</div>
+        <div class="label">Services running</div>
+      </div>
+      <div class="stat-card" style="min-width:160px;">
+        <div class="num">13</div>
+        <div class="label">Admin pages</div>
+      </div>
+      <div class="stat-card" style="min-width:160px;">
+        <div class="num">3</div>
+        <div class="label">Languages</div>
+      </div>
+      <div class="stat-card" style="min-width:160px;">
+        <div class="num">1</div>
+        <div class="label">Line to embed</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Controls -->
+<div id="progress-bar"></div>
+<div id="slide-counter"></div>
+<div id="nav-hint">← → arrow keys or click</div>
+<button class="nav-btn" id="btn-prev">‹</button>
+<button class="nav-btn" id="btn-next">›</button>
+
+<script>
+(function () {
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  let current = 0;
+
+  function go(n) {
+    slides[current].classList.remove('active');
+    current = Math.max(0, Math.min(total - 1, n));
+    slides[current].classList.add('active');
+    document.getElementById('slide-counter').textContent = (current + 1) + ' / ' + total;
+    document.getElementById('progress-bar').style.width = ((current + 1) / total * 100) + '%';
+  }
+
+  document.getElementById('btn-prev').addEventListener('click', () => go(current - 1));
+  document.getElementById('btn-next').addEventListener('click', () => go(current + 1));
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); go(current + 1); }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); go(current - 1); }
+  });
+
+  let startX = 0;
+  document.addEventListener('touchstart', e => { startX = e.touches[0].clientX; });
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - startX;
+    if (Math.abs(dx) > 50) go(dx < 0 ? current + 1 : current - 1);
+  });
+
+  go(0);
+})();
+</script>
+</body>
+</html>

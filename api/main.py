@@ -2,6 +2,10 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
@@ -16,13 +20,23 @@ from core.observability import ObservabilityMiddleware
 from core.session_manager import close_redis
 from core.sla_monitor import run_sla_monitor
 from db.postgres import close_db_pool, init_db
-from routes import ai_control, analytics, auth, canned_replies, cases, handoff, health, knowledge, knowledge_gaps, message, monitor, rules, session, upload, users, voice
+from routes import ai_control, analytics, auth, canned_replies, cases, handoff, health, knowledge, knowledge_gaps, message, monitor, rules, session, upload, users
 from routes.auth import seed_admin_user
 from routes.cases import refresh_department_cache
 from routes.telegram import run_telegram_poller
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+        environment=settings.app_env,
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+    )
+    logger.info("Sentry enabled (env=%s)", settings.app_env)
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -130,7 +144,6 @@ app.include_router(upload.router,     prefix="/v1")
 app.include_router(monitor.router,    prefix="/v1")
 app.include_router(ai_control.router,    prefix="/v1")
 app.include_router(canned_replies.router, prefix="/v1")
-app.include_router(voice.router, prefix="/v1")
 app.include_router(rules.router,  prefix="/v1")
 
 
@@ -161,21 +174,21 @@ async def serve_widget_test_page():
     )
 
 
+@app.get("/presentation.html", include_in_schema=False)
+async def serve_presentation():
+    return FileResponse(
+        "/app/frontend/presentation.html",
+        media_type="text/html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.get("/favicon.ico", include_in_schema=False)
 @app.get("/favicon.svg", include_in_schema=False)
 async def serve_favicon():
     return FileResponse(
         "/app/frontend/favicon.svg",
         media_type="image/svg+xml",
-        headers={"Cache-Control": "public, max-age=86400"},
-    )
-
-
-@app.get("/vendor/livekit-client.umd.js", include_in_schema=False)
-async def serve_livekit_client():
-    return FileResponse(
-        "/app/frontend/vendor/livekit-client.umd.js",
-        media_type="application/javascript",
         headers={"Cache-Control": "public, max-age=86400"},
     )
 

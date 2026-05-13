@@ -6,6 +6,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sse_starlette.sse import EventSourceResponse
 
 from core.auth import has_admin_access, verify_api_key, verify_session_access
@@ -16,6 +18,7 @@ from models.session import SessionStatus
 from routes.telegram import _send as _tg_send, send_resolved_to_telegram
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 STREAM_TOKEN_TTL_SECONDS = 60 * 60
 
 
@@ -164,7 +167,8 @@ async def send_agent_message(
 
 
 @router.post("/session/{session_id}/typing")
-async def session_typing(session_id: str, request: Request, sender: str = "agent"):
+@limiter.limit("60/minute")
+async def session_typing(request: Request, session_id: str, sender: str = "agent"):
     session = await get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")

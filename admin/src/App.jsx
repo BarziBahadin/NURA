@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import {
-  ChartBar, Bell, PhoneCall, Folder, Lightbulb, ChatCircle, TrendUp,
+  ChartBar, Bell, Folder, Lightbulb, ChatCircle, TrendUp,
   PuzzlePiece, ChatCenteredText, Books, Users, Monitor, Tree,
   CaretLeft, CaretRight, SignOut,
 } from '@phosphor-icons/react'
@@ -31,7 +31,6 @@ export const api = {
 const ALL_NAV_ITEMS = [
   { path: '/',               label: 'Dashboard',      Icon: ChartBar,         roles: ['admin', 'viewer'] },
   { path: '/queue',          label: 'Live Queue',      Icon: Bell,             roles: ['admin', 'agent'] },
-  { path: '/calls',          label: 'Calls',           Icon: PhoneCall,        roles: ['admin', 'agent'] },
   { path: '/cases',          label: 'Cases',           Icon: Folder,           roles: ['admin', 'agent', 'viewer'] },
   { path: '/suggestions',    label: 'Suggestions',     Icon: Lightbulb,        roles: ['admin', 'agent', 'viewer'] },
   { path: '/sessions',       label: 'Sessions',        Icon: ChatCircle,       roles: ['admin', 'agent', 'viewer'] },
@@ -112,7 +111,7 @@ function AiToggle({ role, collapsed = false }) {
   )
 }
 
-function Sidebar({ pendingCount, callCount, onLogout, role, username, collapsed, onToggleCollapsed, onNavClick }) {
+function Sidebar({ pendingCount, onLogout, role, username, collapsed, onToggleCollapsed, onNavClick }) {
   const { pathname } = useLocation()
   const navItems = ALL_NAV_ITEMS.filter(item => item.roles.includes(role))
   const signedInLabel = username || role || 'User'
@@ -152,22 +151,25 @@ function Sidebar({ pendingCount, callCount, onLogout, role, username, collapsed,
         )}
       </div>
       <nav className={`flex-1 min-h-0 overflow-y-auto ${collapsed ? 'px-0 py-3 flex flex-col items-center' : 'p-3'}`}>
-        {navItems.map(({ path, label, Icon }) => (
-          <Link
+        {navItems.map(({ path, label, Icon }) => {
+          const isDisabled = false
+          const NavEl = Link
+          const navElProps = { to: path, onClick: onNavClick, title: collapsed ? label : undefined, 'aria-label': label }
+          return (
+          <NavEl
             key={path}
-            to={path}
-            onClick={onNavClick}
-            title={collapsed ? label : undefined}
-            aria-label={label}
-            className={`group relative grid items-center h-10 rounded-xl mb-2 text-sm overflow-hidden transition-[background-color,color,box-shadow,transform] duration-200 ease-out ${
+            {...navElProps}
+            className={`group relative grid items-center h-10 rounded-xl mb-2 text-sm overflow-hidden ${
               collapsed ? 'w-10 grid-cols-[40px]' : 'w-full grid-cols-[40px_1fr_auto]'
             } ${
-              pathname === path
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-300 hover:bg-gray-700'
+              isDisabled
+                ? 'text-gray-600 cursor-not-allowed opacity-50'
+                : pathname === path
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-300 hover:bg-gray-700 transition-[background-color,color,box-shadow,transform] duration-200 ease-out'
             } ${collapsed ? 'justify-center' : ''}`}
           >
-            <span className="w-10 h-10 flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-105">
+            <span className="w-10 h-10 flex items-center justify-center">
               <Icon size={20} />
             </span>
             <span className={`whitespace-nowrap overflow-hidden transition-[max-width,opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
@@ -185,18 +187,8 @@ function Sidebar({ pendingCount, callCount, onLogout, role, username, collapsed,
                 {pendingCount > 9 ? '9+' : pendingCount}
               </span>
             )}
-            {path === '/calls' && callCount > 0 && !collapsed && (
-              <span className="mr-3 bg-orange-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center transition-all duration-300">
-                {callCount}
-              </span>
-            )}
-            {path === '/calls' && callCount > 0 && collapsed && (
-              <span className="absolute top-1.5 right-1.5 bg-orange-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
-                {callCount > 9 ? '9+' : callCount}
-              </span>
-            )}
-          </Link>
-        ))}
+          </NavEl>
+        )})}
       </nav>
       <div className={`${collapsed ? 'px-0 py-3' : 'p-3'} border-t border-gray-700 flex-shrink-0 bg-gray-900`}>
         <AiToggle role={role} collapsed={collapsed} />
@@ -231,7 +223,6 @@ function Sidebar({ pendingCount, callCount, onLogout, role, username, collapsed,
 export default function App() {
   const [authed, setAuthed] = useState(() => isTokenValid(getToken()))
   const [pendingCount, setPendingCount] = useState(0)
-  const [callCount, setCallCount] = useState(0)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('nura_sidebar_collapsed') === 'true')
   const [role, setRole] = useState(() => getRole())
   const [username, setUsername] = useState(() => getUsername())
@@ -276,14 +267,6 @@ export default function App() {
         }
         const data = await res.json()
         setPendingCount(data.pending || 0)
-
-        const callsRes = await fetch(`${API_BASE}/voice/calls`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        })
-        if (callsRes.ok) {
-          const callsData = await callsRes.json()
-          setCallCount((callsData.calls || []).length)
-        }
       } catch {}
     }
     fetchPending()
@@ -299,7 +282,6 @@ export default function App() {
     <div className="flex min-h-screen">
       <Sidebar
         pendingCount={pendingCount}
-        callCount={callCount}
         onLogout={handleLogout}
         role={role}
         username={username}
@@ -316,7 +298,6 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/queue" element={<LiveQueue mode="chats" />} />
-          <Route path="/calls" element={<LiveQueue mode="calls" />} />
           <Route path="/cases" element={<Cases />} />
           <Route path="/suggestions" element={<Suggestions />} />
           <Route path="/sessions" element={<SessionViewer />} />

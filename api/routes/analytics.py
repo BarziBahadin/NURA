@@ -23,7 +23,7 @@ ALLOWED_EVENT_TYPES = {
     "chat_open", "chat_close", "lang_switch", "send_message",
     "tree_click", "tree_back", "tree_home", "followup_yes",
     "followup_no", "feedback_good", "feedback_bad", "direct_to_agent",
-    "suggestion_open", "suggestion_submit", "voice_call_request",
+    "suggestion_open", "suggestion_submit",
 }
 
 
@@ -438,21 +438,6 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
             WHERE status IN ('ACTIVE', 'PENDING_HANDOFF', 'HUMAN_ACTIVE')
             """
         )
-        voice_row = await conn.fetchrow(
-            """
-            SELECT
-                COUNT(*) FILTER (WHERE status = 'requested') AS requested,
-                COUNT(*) FILTER (WHERE status = 'accepted') AS accepted,
-                COUNT(*) FILTER (WHERE status = 'active') AS active,
-                COUNT(*) FILTER (WHERE status IN ('requested','accepted','active')) AS open,
-                COUNT(*) FILTER (WHERE requested_at >= $1) AS total_period,
-                COUNT(*) FILTER (WHERE status = 'ended' AND requested_at >= $1) AS ended_period,
-                COALESCE(MAX(EXTRACT(EPOCH FROM (NOW() - requested_at))) FILTER (WHERE status = 'requested'), 0) AS oldest_wait_seconds
-            FROM voice_calls
-            """,
-            since,
-        )
-
         ops_case_row = await conn.fetchrow(
             """
             SELECT
@@ -534,15 +519,6 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
         "oldest_wait_seconds": float(queue_row["oldest_wait_seconds"] or 0),
         "avg_wait_seconds": float(queue_row["avg_wait_seconds"] or 0),
     }
-    voice_calls = {
-        "requested": voice_row["requested"] or 0,
-        "accepted": voice_row["accepted"] or 0,
-        "active": voice_row["active"] or 0,
-        "open": voice_row["open"] or 0,
-        "total_period": voice_row["total_period"] or 0,
-        "ended_period": voice_row["ended_period"] or 0,
-        "oldest_wait_seconds": float(voice_row["oldest_wait_seconds"] or 0),
-    }
     cases = {
         "open": ops_case_row["open"] or 0,
         "unassigned": ops_case_row["unassigned"] or 0,
@@ -571,7 +547,6 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
         _attention_item("SLA breached", cases["breached"], "critical", "/cases", "Cases are past due"),
         _attention_item("SLA at risk", cases["at_risk"], "high", "/cases", "Cases are close to deadline"),
         _attention_item("Pending handoffs", queue["pending_handoffs"], "high", "/queue", "Customers are waiting for agents"),
-        _attention_item("Voice calls waiting", voice_calls["requested"], "high", "/calls", "Customers are waiting on voice"),
         _attention_item("Unassigned cases", cases["unassigned"], "medium", "/cases", "Cases need an owner"),
         _attention_item("Unassigned suggestions", suggestions["unassigned"], "medium", "/suggestions", "Feedback needs review"),
         _attention_item("Knowledge gaps", knowledge_gaps, "medium", "/gaps", "Questions need better answers"),
@@ -617,7 +592,6 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
         "previous_period": previous_period,
         "deltas": deltas,
         "queue": queue,
-        "voice_calls": voice_calls,
         "cases": cases,
         "suggestions": suggestions,
         "attention_items": attention_items,

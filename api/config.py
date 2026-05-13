@@ -53,13 +53,6 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_poller_enabled: bool = True
 
-    voice_call_enabled: bool = True
-    livekit_url: str = "auto"
-    livekit_api_key: str = "devkey"
-    livekit_api_secret: str = "secret"
-    livekit_token_ttl_seconds: int = 3600
-    livekit_node_ip: str = ""
-
     background_jobs_enabled: bool = True
     job_worker_enabled: bool = True
     job_max_attempts: int = 3
@@ -76,6 +69,7 @@ class Settings(BaseSettings):
     admin_token_ttl_seconds: int = 3600 * 8
 
     cors_origins: str = "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080,http://localhost:9000"
+    sentry_dsn: str = ""
 
     @field_validator("admin_secret_key")
     @classmethod
@@ -91,6 +85,15 @@ class Settings(BaseSettings):
         if self.app_env.lower() == "production":
             if self.allow_admin_api_key and len(self.api_key) < 32:
                 raise ValueError("API_KEY must be at least 32 characters when ALLOW_ADMIN_API_KEY=true")
+            localhost_origins = [o for o in self.cors_origins_list if "localhost" in o or "127.0.0.1" in o]
+            if localhost_origins:
+                raise ValueError(
+                    f"CORS_ORIGINS contains localhost entries in production: {localhost_origins}. "
+                    "Remove them and set real domain origins only."
+                )
+            if not self.sentry_dsn:
+                import logging
+                logging.getLogger(__name__).warning("SENTRY_DSN is not set — errors will not be reported to Sentry")
         return self
 
     @property

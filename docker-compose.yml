@@ -5,16 +5,12 @@ services:
     ports:
       - "8080:8000"
     env_file: .env
-    environment:
-      LIVEKIT_NODE_IP: ${LIVEKIT_NODE_IP:-127.0.0.1}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       chromadb:
-        condition: service_started
-      livekit:
         condition: service_started
     volumes:
       - ./ingestion/handbook:/app/handbook
@@ -30,29 +26,6 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
-
-  livekit:
-    image: livekit/livekit-server:latest
-    container_name: nura-livekit
-    command:
-      - "--bind"
-      - "0.0.0.0"
-      - "--keys"
-      - "${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}"
-      - "--node-ip"
-      - "${LIVEKIT_NODE_IP:-127.0.0.1}"
-      - "--udp-port"
-      - "7882"
-      - "--rtc.allow_tcp_fallback"
-      - "--rtc.enable_loopback_candidate"
-      - "--rtc.use_external_ip=${LIVEKIT_RTC_USE_EXTERNAL_IP:-false}"
-    ports:
-      - "7880:7880"
-      - "7881:7881"
-      - "7882:7882/udp"
-    networks:
-      - nura_network
     restart: unless-stopped
 
   nura-worker:
@@ -187,7 +160,6 @@ services:
     ports:
       - "8443:8443"
       - "3443:3443"
-      - "7443:7443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./certs:/certs:ro

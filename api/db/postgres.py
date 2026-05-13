@@ -363,37 +363,6 @@ async def init_db() -> None:
                 updated_at  TIMESTAMPTZ DEFAULT NOW()
             )
         """)
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS voice_calls (
-                id SERIAL PRIMARY KEY,
-                call_id TEXT UNIQUE NOT NULL,
-                session_id TEXT NOT NULL,
-                customer_id TEXT,
-                channel TEXT NOT NULL DEFAULT 'web',
-                room_name TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'requested'
-                    CHECK (status IN ('requested','accepted','active','ended','missed','cancelled')),
-                requested_at TIMESTAMPTZ DEFAULT NOW(),
-                accepted_at TIMESTAMPTZ,
-                ended_at TIMESTAMPTZ,
-                accepted_by TEXT,
-                metadata JSONB NOT NULL DEFAULT '{}'::jsonb
-            )
-        """)
-        await conn.execute("ALTER TABLE voice_calls ADD COLUMN IF NOT EXISTS room_name TEXT")
-        await conn.execute("ALTER TABLE voice_calls ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb")
-        await conn.execute("ALTER TABLE voice_calls ALTER COLUMN room_name DROP NOT NULL")
-        await conn.execute("""
-            DO $$
-            BEGIN
-                IF EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'voice_calls' AND column_name = 'join_url'
-                ) THEN
-                    ALTER TABLE voice_calls ALTER COLUMN join_url DROP NOT NULL;
-                END IF;
-            END $$;
-        """)
 
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_cl_created  ON conversation_logs(created_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_cl_session   ON conversation_logs(session_id)")
@@ -428,5 +397,3 @@ async def init_db() -> None:
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_lu_created  ON llm_usage_logs(created_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_lu_created_operation ON llm_usage_logs(created_at, operation)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_created ON admin_audit_logs(created_at)")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_voice_calls_status_created ON voice_calls(status, requested_at DESC)")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_voice_calls_session ON voice_calls(session_id)")

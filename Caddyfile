@@ -11,8 +11,3 @@
 	tls /certs/cert.pem /certs/key.pem
 	reverse_proxy nura-admin:80
 }
-
-:7443 {
-	tls /certs/cert.pem /certs/key.pem
-	reverse_proxy nura-livekit:7880
-}
