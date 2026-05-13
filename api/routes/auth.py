@@ -38,7 +38,7 @@ async def login(body: LoginBody, request: Request):
     except Exception as exc:
         logger.warning("Failed to update last_login for %s: %s", body.username, exc)
 
-    token = create_admin_token(body.username, role=user["role"])
+    token = create_admin_token(body.username, role=user["role"], token_version=user.get("token_version", 0))
     await log_security_event("admin_login_success", body.username, ip)
     return {"access_token": token, "token_type": "bearer", "role": user["role"]}
 

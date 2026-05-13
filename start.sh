@@ -1,16 +1,32 @@
 #!/bin/bash
-# Kill anything on NURA ports, then start all services
+# Start all services. Port cleanup is opt-in to avoid killing unrelated processes.
+
+set -e
 
 PORTS=(8080 8001 5432 6379 3004 9000)
 
-echo "Freeing ports..."
-for PORT in "${PORTS[@]}"; do
-  PIDS=$(lsof -ti tcp:$PORT 2>/dev/null)
-  if [ -n "$PIDS" ]; then
-    echo "  killing port $PORT (PIDs: $PIDS)"
-    echo "$PIDS" | xargs kill -9 2>/dev/null
+if [ "${NURA_FORCE_FREE_PORTS:-0}" = "1" ]; then
+  echo "Freeing NURA ports..."
+  for PORT in "${PORTS[@]}"; do
+    PIDS=$(lsof -ti tcp:$PORT 2>/dev/null || true)
+    if [ -n "$PIDS" ]; then
+      echo "  stopping port $PORT (PIDs: $PIDS)"
+      echo "$PIDS" | xargs kill 2>/dev/null || true
+    fi
+  done
+else
+  BUSY_PORTS=()
+  for PORT in "${PORTS[@]}"; do
+    if lsof -ti tcp:$PORT >/dev/null 2>&1; then
+      BUSY_PORTS+=("$PORT")
+    fi
+  done
+  if [ "${#BUSY_PORTS[@]}" -gt 0 ]; then
+    echo "Ports already in use: ${BUSY_PORTS[*]}"
+    echo "Stop those services, or rerun with NURA_FORCE_FREE_PORTS=1 to send a normal SIGTERM."
+    exit 1
   fi
-done
+fi
 
 echo "Starting Docker services..."
 cd "$(dirname "$0")"

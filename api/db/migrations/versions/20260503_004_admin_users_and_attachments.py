@@ -26,10 +26,15 @@ def upgrade() -> None:
                          CHECK (role IN ('admin','agent','viewer')),
             display_name VARCHAR(128),
             is_active    BOOLEAN      NOT NULL DEFAULT TRUE,
+            token_version INT         NOT NULL DEFAULT 0,
             created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
             last_login   TIMESTAMPTZ,
             created_by   VARCHAR(128)
         )
+    """)
+    op.execute("""
+        ALTER TABLE admin_users
+        ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 0
     """)
     op.execute("CREATE INDEX IF NOT EXISTS idx_admin_users_username ON admin_users(username)")
 

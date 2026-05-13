@@ -5,8 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from core.auth import get_admin_identity, hash_password, require_roles
-from core.session_manager import get_redis
-from config import settings
 from db.postgres import get_db_pool
 
 router = APIRouter()
@@ -80,16 +78,17 @@ async def update_user(username: str, body: UpdateUserBody, request: Request):
         if body.role is not None:
             if body.role not in ("admin", "agent", "viewer"):
                 raise HTTPException(status_code=400, detail="Invalid role")
-            await conn.execute("UPDATE admin_users SET role = $1 WHERE username = $2", body.role, username)
+            await conn.execute(
+                "UPDATE admin_users SET role = $1, token_version = token_version + 1 WHERE username = $2",
+                body.role, username,
+            )
         if body.display_name is not None:
             await conn.execute("UPDATE admin_users SET display_name = $1 WHERE username = $2", body.display_name, username)
         if body.is_active is not None:
-            await conn.execute("UPDATE admin_users SET is_active = $1 WHERE username = $2", body.is_active, username)
-            r = get_redis()
-            if body.is_active is False:
-                await r.setex(f"auth:revoked:{username}", settings.admin_token_ttl_seconds, "1")
-            else:
-                await r.delete(f"auth:revoked:{username}")
+            await conn.execute(
+                "UPDATE admin_users SET is_active = $1, token_version = token_version + 1 WHERE username = $2",
+                body.is_active, username,
+            )
         detail = f"role={body.role},active={body.is_active}"
         await _audit(conn, actor, "user_updated", username, detail, ip)
     return {"ok": True}
@@ -105,7 +104,7 @@ async def reset_password(username: str, body: ResetPasswordBody, request: Reques
         if not row:
             raise HTTPException(status_code=404, detail="User not found")
         await conn.execute(
-            "UPDATE admin_users SET password_hash = $1 WHERE username = $2",
+            "UPDATE admin_users SET password_hash = $1, token_version = token_version + 1 WHERE username = $2",
             hash_password(body.new_password), username,
         )
         await _audit(conn, actor, "password_reset", username, "", ip)
@@ -123,8 +122,9 @@ async def deactivate_user(username: str, request: Request):
         row = await conn.fetchrow("SELECT id FROM admin_users WHERE username = $1", username)
         if not row:
             raise HTTPException(status_code=404, detail="User not found")
-        await conn.execute("UPDATE admin_users SET is_active = FALSE WHERE username = $1", username)
-        r = get_redis()
-        await r.setex(f"auth:revoked:{username}", settings.admin_token_ttl_seconds, "1")
+        await conn.execute(
+            "UPDATE admin_users SET is_active = FALSE, token_version = token_version + 1 WHERE username = $1",
+            username,
+        )
         await _audit(conn, actor, "user_deactivated", username, "", ip)
     return {"ok": True}

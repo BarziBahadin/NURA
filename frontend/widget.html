@@ -478,45 +478,6 @@
     }
     .agent-bypass-btn:hover { background: #0f172a; border-color: #f97316; transform: translateY(-1px); }
 
-    .voice-btn {
-      margin-top: 8px;
-      width: 100%;
-      padding: 11px 14px;
-      background: #fff;
-      border: 1px solid #fed7aa;
-      border-radius: 14px;
-      color: #ea580c;
-      font-size: 13px;
-      font-weight: 900;
-      cursor: pointer;
-      font-family: inherit;
-      transition: background 0.15s, border-color 0.15s, transform 0.15s;
-    }
-    .voice-btn:hover { background: #fff7ed; border-color: #f97316; transform: translateY(-1px); }
-    .voice-panel {
-      margin-top: 10px;
-      padding: 12px;
-      border: 1px solid #fed7aa;
-      border-radius: 14px;
-      background: #fff7ed;
-      color: #9a3412;
-      font-size: 12px;
-      line-height: 1.5;
-      text-align: start;
-    }
-    .voice-actions { display: flex; gap: 8px; margin-top: 9px; }
-    .voice-actions button {
-      border: 0;
-      border-radius: 10px;
-      padding: 8px 10px;
-      font-size: 12px;
-      font-weight: 900;
-      cursor: pointer;
-      font-family: inherit;
-    }
-    .voice-primary { background: #ea580c; color: #fff; }
-    .voice-secondary { background: #fff; color: #9a3412; border: 1px solid #fed7aa !important; }
-
     .suggestion-card {
       background: #fff;
       border: 1px solid #e5e7eb;
@@ -824,7 +785,7 @@
     document.body.innerHTML = `
       <div style="max-width:680px;margin:48px auto;padding:24px;border:1px solid #fed7aa;border-radius:14px;background:#fff7ed;color:#9a3412;font:15px/1.6 system-ui,-apple-system,Segoe UI,sans-serif">
         <h1 style="margin:0 0 10px;font-size:20px;color:#7c2d12">Open this widget through NURA API</h1>
-        <p style="margin:0 0 12px">Browsers block API calls, microphone access, and WebRTC from <code>file://</code> pages.</p>
+        <p style="margin:0 0 12px">Browsers block API calls from <code>file://</code> pages.</p>
         <p style="margin:0">Use <strong>http://localhost:8080/widget.html</strong> on this Mac, or <strong>http://YOUR-LAN-IP:8080/widget.html</strong> from your phone.</p>
       </div>
     `;
@@ -864,16 +825,6 @@
       treeBack: '← رجوع',
       treeHome: '🏠 الرئيسية',
       talkToAgent: '🎧 التحدث مع موظف',
-      voiceCall: '📞 مكالمة صوتية',
-      voiceReady: 'غرفة المكالمة جاهزة داخل NURA. اضغط انضمام لتفعيل الميكروفون وانتظار الموظف.',
-      voiceJoin: 'انضمام',
-      voiceMute: 'كتم',
-      voiceUnmute: 'إلغاء الكتم',
-      voiceLeave: 'إنهاء',
-      voiceConnecting: 'جاري الاتصال…',
-      voiceConnected: 'أنت داخل المكالمة',
-      voiceAccepted: '✅ قبل الموظف المكالمة الصوتية.',
-      voiceError: 'تعذر بدء المكالمة الصوتية',
       sessionClosed: '🔒 تم إغلاق هذه الجلسة. شكراً لتواصلك معنا.',
       ratePrompt: 'كيف تقيّم تجربتك مع خدمة العملاء؟',
       rateThanks: 'شكراً على تقييمك! نسعى دائماً للتحسين.',
@@ -914,16 +865,6 @@
       treeBack: '← Vegerîn',
       treeHome: '🏠 Serxane',
       talkToAgent: '🎧 Bi karmend re biaxive',
-      voiceCall: '📞 Banga dengî',
-      voiceReady: 'Odeya bangê di NURA de amade ye. Ji bo mikrofonê tevlî bibin û li benda karmend bimînin.',
-      voiceJoin: 'Tevlî bibe',
-      voiceMute: 'Bêdeng',
-      voiceUnmute: 'Deng veke',
-      voiceLeave: 'Bi dawî bike',
-      voiceConnecting: 'Tê girêdan…',
-      voiceConnected: 'Hûn di bangê de ne',
-      voiceAccepted: '✅ Karmendê bangê pejirand.',
-      voiceError: 'Destpêkirina banga dengî nehat kirin',
       sessionClosed: '🔒 Ev rûniştgeha hate girtin. Spas ji bo têkiliya we.',
       ratePrompt: 'Hûn xizmetguzariya xerîdar çawa dinirxînin?',
       rateThanks: 'Spas ji bo nirxandina te! Em her tim hewl didin baştir bibin.',
@@ -964,16 +905,6 @@
       treeBack: '← Back',
       treeHome: '🏠 Home',
       talkToAgent: '🎧 Talk to an agent',
-      voiceCall: '📞 Voice call',
-      voiceReady: 'Your NURA call room is ready. Join to enable your microphone and wait for the agent.',
-      voiceJoin: 'Join',
-      voiceMute: 'Mute',
-      voiceUnmute: 'Unmute',
-      voiceLeave: 'Leave',
-      voiceConnecting: 'Connecting...',
-      voiceConnected: 'You are in the call',
-      voiceAccepted: '✅ The agent accepted the voice call.',
-      voiceError: 'Could not start the voice call',
       sessionClosed: '🔒 This session has been closed. Thank you for contacting us.',
       ratePrompt: 'How would you rate your customer support experience?',
       rateThanks: 'Thank you for your rating. We are always working to improve.',
@@ -1852,12 +1783,6 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
   let escalationBannerEl   = null;
   let treeStack            = [];
   let typingDebounceTimer  = null;
-  let voiceCall            = null;
-  let livekitPromise       = null;
-  let voiceRoom            = null;
-  let voiceTrack           = null;
-  let voiceStatus          = 'idle';
-  let voiceMuted           = false;
   let lastUserTickEl       = null;
 
   // ── DOM ───────────────────────────────────────────────────────────────────
@@ -2032,161 +1957,6 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
     }
   }
 
-  function apiOrigin() {
-    return API_BASE.replace(/\/v1\/?$/, '');
-  }
-
-  function loadLiveKitClient() {
-    if (window.LivekitClient) return Promise.resolve(window.LivekitClient);
-    if (livekitPromise) return livekitPromise;
-    livekitPromise = new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = `${apiOrigin()}/vendor/livekit-client.umd.js`;
-      script.async = true;
-      script.onload = () => resolve(window.LivekitClient);
-      script.onerror = () => reject(new Error('LiveKit client failed to load'));
-      document.head.appendChild(script);
-    });
-    return livekitPromise;
-  }
-
-  async function requestVoiceCall() {
-    const t = UI[currentLang];
-    if (isSessionClosed) return;
-    try {
-      track('voice_call_request', 'widget', '');
-      const headers = { 'Content-Type': 'application/json' };
-      if (sessionToken) headers['X-Session-Token'] = sessionToken;
-      const res = await fetch(`${API_BASE}/voice/request`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ session_id: sessionId, customer_id: customerId, channel: 'web' }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || t.voiceError);
-      sessionId = data.session_id || sessionId;
-      sessionToken = data.session_token || sessionToken;
-      voiceCall = data;
-      voiceStatus = 'ready';
-      startAgentStream();
-      renderTree();
-    } catch (e) {
-      const errDiv = document.createElement('div');
-      errDiv.className = 'tree-level-q sub';
-      errDiv.textContent = '⚠️ ' + (e.message || t.voiceError);
-      treePanel.appendChild(errDiv);
-    }
-  }
-
-  async function joinVoiceCall() {
-    const t = UI[currentLang];
-    if (!voiceCall || voiceRoom) return;
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      appendBotMsg('Microphone access requires a secure connection (HTTPS). Please contact support.', null, null);
-      return;
-    }
-    voiceStatus = 'connecting';
-    renderTree();
-    try {
-      const LK = await loadLiveKitClient();
-      const room = new LK.Room({ adaptiveStream: true, dynacast: true });
-      voiceRoom = room;
-      room.on(LK.RoomEvent.Disconnected, () => {
-        if (voiceTrack) voiceTrack.stop();
-        voiceRoom = null;
-        voiceTrack = null;
-        voiceMuted = false;
-        voiceStatus = 'ended';
-        renderTree();
-      });
-      await room.connect(voiceCall.server_url, voiceCall.livekit_token);
-      voiceTrack = await LK.createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true });
-      await room.localParticipant.publishTrack(voiceTrack);
-      voiceMuted = false;
-      voiceStatus = 'connected';
-      renderTree();
-    } catch (e) {
-      console.warn('voice join failed:', e);
-      if (voiceTrack) voiceTrack.stop();
-      voiceTrack = null;
-      if (voiceRoom) voiceRoom.disconnect();
-      voiceRoom = null;
-      voiceMuted = false;
-      voiceStatus = 'error';
-      appendBotMsg(t.voiceError, null, null);
-      renderTree();
-    }
-  }
-
-  function toggleVoiceMute() {
-    if (!voiceTrack) return;
-    if (voiceMuted) voiceTrack.unmute();
-    else voiceTrack.mute();
-    voiceMuted = !voiceMuted;
-    renderTree();
-  }
-
-  async function endVoiceCallOnServer() {
-    if (!voiceCall || !voiceCall.call_id) return;
-    try {
-      const headers = {};
-      if (sessionToken) headers['X-Session-Token'] = sessionToken;
-      await fetch(`${API_BASE}/voice/${encodeURIComponent(voiceCall.call_id)}/end`, {
-        method: 'POST',
-        headers,
-        keepalive: true,
-      });
-    } catch (_) {}
-  }
-
-  function leaveVoiceCall(notifyServer = true) {
-    if (notifyServer) endVoiceCallOnServer();
-    if (voiceTrack) voiceTrack.stop();
-    voiceTrack = null;
-    if (voiceRoom) voiceRoom.disconnect();
-    voiceRoom = null;
-    voiceMuted = false;
-    voiceStatus = 'ended';
-    renderTree();
-  }
-
-  function renderVoicePanel() {
-    if (!voiceCall) return;
-    const t = UI[currentLang];
-    const panel = document.createElement('div');
-    panel.className = 'voice-panel';
-    let statusText = t.voiceReady;
-    if (voiceStatus === 'connecting') statusText = t.voiceConnecting;
-    if (voiceStatus === 'connected') statusText = t.voiceConnected;
-    if (voiceStatus === 'error') statusText = t.voiceError;
-    panel.textContent = statusText;
-    const actions = document.createElement('div');
-    actions.className = 'voice-actions';
-    if (voiceStatus !== 'connected') {
-      const join = document.createElement('button');
-      join.className = 'voice-primary';
-      join.type = 'button';
-      join.textContent = t.voiceJoin;
-      join.addEventListener('click', joinVoiceCall);
-      actions.appendChild(join);
-    } else {
-      const mute = document.createElement('button');
-      mute.className = 'voice-secondary';
-      mute.type = 'button';
-      mute.textContent = voiceMuted ? t.voiceUnmute : t.voiceMute;
-      mute.addEventListener('click', toggleVoiceMute);
-      actions.appendChild(mute);
-      const leave = document.createElement('button');
-      leave.className = 'voice-primary';
-      leave.type = 'button';
-      leave.textContent = t.voiceLeave;
-      leave.addEventListener('click', leaveVoiceCall);
-      actions.appendChild(leave);
-    }
-    panel.appendChild(actions);
-    treePanel.appendChild(panel);
-  }
-
   const TOPIC_ICONS = {
     0: '📱', 1: '🌐', 2: '🔒', 3: '📶', 4: '💎', 5: '📲',
     6: '🐢', 7: '📞', 8: '⭐', 9: '📋', 10: '✅', 11: '📳',
@@ -2275,17 +2045,6 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
     });
 
     treePanel.appendChild(optsDiv);
-
-    if (!voiceCall && !isSessionClosed) {
-      const vBtn = document.createElement('button');
-      vBtn.className = 'voice-btn';
-      vBtn.type = 'button';
-      vBtn.textContent = UI[currentLang].voiceCall;
-      vBtn.addEventListener('click', requestVoiceCall);
-      treePanel.appendChild(vBtn);
-    }
-
-    renderVoicePanel();
 
   }
 
@@ -2772,10 +2531,10 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
       agentEventSource.onerror = function () {
         agentEventSource.close();
         agentEventSource = null;
-        if (!isSessionClosed && (isEscalated || voiceCall)) setTimeout(startAgentStream, 5000);
+        if (!isSessionClosed && isEscalated) setTimeout(startAgentStream, 5000);
       };
     } catch (e) {
-      if (!isSessionClosed && (isEscalated || voiceCall)) setTimeout(startAgentStream, 5000);
+      if (!isSessionClosed && isEscalated) setTimeout(startAgentStream, 5000);
     } finally {
       agentStreamStarting = false;
     }
@@ -2806,14 +2565,6 @@ Your complaint or suggestion will be reviewed as soon as possible.`,
       scrollBottom();
       msgInput.disabled = true;
       sendBtn.disabled  = true;
-    } else if (event.type === 'voice_call_accepted') {
-      voiceCall = { ...(voiceCall || {}), ...(event.call || {}) };
-      appendBotMsg(UI[currentLang].voiceAccepted, null, null);
-      renderTree();
-    } else if (event.type === 'voice_call_ended') {
-      leaveVoiceCall(false);
-      voiceCall = null;
-      renderTree();
     }
   }
 

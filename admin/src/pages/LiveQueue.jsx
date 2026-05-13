@@ -306,6 +306,7 @@ function ActiveChatCard({ s, onResolved }) {
   const [resolving, setResolving] = useState(false)
   const [showResolve, setShowResolve] = useState(false)
   const [customerTyping, setCustomerTyping] = useState(false)
+  const [customerTypingText, setCustomerTypingText] = useState('')
   const [showAllCanned, setShowAllCanned] = useState(false)
   const cannedReplies = useCannedReplies()
   const inputRef = useRef(null)
@@ -360,8 +361,12 @@ function ActiveChatCard({ s, onResolved }) {
             if (event.type === 'turn') appendTurn(event.turn)
             else if (event.type === 'typing' && event.sender === 'customer') {
               setCustomerTyping(true)
+              setCustomerTypingText(event.text || '')
               clearTimeout(customerTypingTimerRef.current)
-              customerTypingTimerRef.current = setTimeout(() => setCustomerTyping(false), 3000)
+              customerTypingTimerRef.current = setTimeout(() => {
+                setCustomerTyping(false)
+                setCustomerTypingText('')
+              }, 3000)
             }
           } catch (_) {}
         }
@@ -486,8 +491,16 @@ function ActiveChatCard({ s, onResolved }) {
 
         {/* Customer typing indicator */}
         {customerTyping && (
-          <div className="text-xs text-gray-400 italic mt-1 mb-1 pr-1 text-right">
-            العميل يكتب…
+          <div className="flex gap-2 mt-2 mb-2">
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-gray-200 text-gray-600">
+              C
+            </div>
+            <div className="flex flex-col">
+              <div className="px-3 py-2 rounded-2xl text-sm max-w-xs bg-gray-200 text-gray-600 rounded-tl-sm italic opacity-75">
+                {customerTypingText || 'يكتب...'}
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">typing…</div>
+            </div>
           </div>
         )}
 

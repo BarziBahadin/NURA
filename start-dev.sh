@@ -40,7 +40,10 @@ setup_https_certs() {
   local lan_ip="$1"
 
   if ! command -v mkcert &>/dev/null; then
-    echo "mkcert not found — installing via Homebrew..."
+    echo "mkcert not found. Install it first, or rerun with INSTALL_MKCERT=1 to install via Homebrew."
+    if [ "${INSTALL_MKCERT:-0}" != "1" ]; then
+      exit 1
+    fi
     brew install mkcert
   fi
 

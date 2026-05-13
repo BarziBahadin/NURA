@@ -149,6 +149,27 @@ async def init_db() -> None:
             )
         """)
 
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS admin_users (
+                id            SERIAL PRIMARY KEY,
+                username      VARCHAR(128) UNIQUE NOT NULL,
+                password_hash VARCHAR(256) NOT NULL,
+                role          VARCHAR(32)  NOT NULL DEFAULT 'agent'
+                              CHECK (role IN ('admin','agent','viewer')),
+                display_name  VARCHAR(128),
+                is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
+                token_version INT          NOT NULL DEFAULT 0,
+                created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                last_login    TIMESTAMPTZ,
+                created_by    VARCHAR(128)
+            )
+        """)
+        await conn.execute("""
+            ALTER TABLE admin_users
+            ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 0
+        """)
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_admin_users_username ON admin_users(username)")
+
         # message_feedback — per-turn thumbs up/down from customers
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS message_feedback (

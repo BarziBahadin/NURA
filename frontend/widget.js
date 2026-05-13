@@ -215,18 +215,6 @@
     '  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;',
     '}',
     '.nura-agent-bypass-btn:hover { background: #0f172a; border-color: #f97316; transform: translateY(-1px); }',
-    '.nura-voice-btn {',
-    '  margin-top: 8px; width: 100%; padding: 11px 14px;',
-    '  background: #fff; border: 1px solid #fed7aa; border-radius: 14px;',
-    '  color: #ea580c; font-size: 13px; font-weight: 900; cursor: pointer;',
-    '  transition: background 0.15s, border-color 0.15s, transform 0.15s;',
-    '}',
-    '.nura-voice-btn:hover { background: #fff7ed; border-color: #f97316; transform: translateY(-1px); }',
-    '.nura-voice-panel { margin-top: 10px; padding: 12px; border: 1px solid #fed7aa; border-radius: 14px; background: #fff7ed; color: #9a3412; font-size: 12px; line-height: 1.5; text-align: start; }',
-    '.nura-voice-actions { display: flex; gap: 8px; margin-top: 9px; }',
-    '.nura-voice-actions button { border: 0; border-radius: 10px; padding: 8px 10px; font-size: 12px; font-weight: 900; cursor: pointer; font-family: inherit; }',
-    '.nura-voice-primary { background: #ea580c; color: #fff; }',
-    '.nura-voice-secondary { background: #fff; color: #9a3412; border: 1px solid #fed7aa !important; }',
     '.nura-suggestion-card {',
     '  background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 12px;',
     '  box-shadow: 0 6px 18px rgba(15,23,42,0.05);',
@@ -439,16 +427,6 @@
       rateThanks: 'شكراً على تقييمك! نسعى دائماً للتحسين.',
       treeRoot: 'كيف يمكنني مساعدتك؟', treeBack: '← رجوع', treeHome: '🏠 الرئيسية',
       talkToAgent: '🎧 التحدث مع موظف',
-      voiceCall: '📞 مكالمة صوتية',
-      voiceReady: 'غرفة المكالمة جاهزة داخل NURA. اضغط انضمام لتفعيل الميكروفون وانتظار الموظف.',
-      voiceJoin: 'انضمام',
-      voiceMute: 'كتم',
-      voiceUnmute: 'إلغاء الكتم',
-      voiceLeave: 'إنهاء',
-      voiceConnecting: 'جاري الاتصال…',
-      voiceConnected: 'أنت داخل المكالمة',
-      voiceAccepted: '✅ قبل الموظف المكالمة الصوتية.',
-      voiceError: 'تعذر بدء المكالمة الصوتية',
       suggestionTitle: 'الشكاوى والاقتراحات',
       suggestionIntro: 'هذا القسم مخصص للملاحظات العامة، التوصيات، الشكاوى، أو الاقتراحات. اكتب رسالتك هنا وسنرسلها مباشرة إلى قسم الاقتراحات في نظام المتابعة.',
       suggestionPlaceholder: 'اكتب الشكوى أو الاقتراح هنا…',
@@ -479,16 +457,6 @@
       rateThanks: 'Spas ji bo nirxandina te! Em her tim hewl didin baştir bibin.',
       treeRoot: 'Çawa dikarim alîkariya te bikim?', treeBack: '← Vegerîn', treeHome: '🏠 Serxane',
       talkToAgent: '🎧 Bi karmend re biaxive',
-      voiceCall: '📞 Banga dengî',
-      voiceReady: 'Odeya bangê di NURA de amade ye. Ji bo mikrofonê tevlî bibin û li benda karmend bimînin.',
-      voiceJoin: 'Tevlî bibe',
-      voiceMute: 'Bêdeng',
-      voiceUnmute: 'Deng veke',
-      voiceLeave: 'Bi dawî bike',
-      voiceConnecting: 'Tê girêdan…',
-      voiceConnected: 'Hûn di bangê de ne',
-      voiceAccepted: '✅ Karmendê bangê pejirand.',
-      voiceError: 'Destpêkirina banga dengî nehat kirin',
       suggestionTitle: 'Gilî û pêşniyar',
       suggestionIntro: 'Ev beş ji bo têbînî, pêşniyar, gilî, an ramanên giştî ye. Peyama xwe binivîse û em ê wê rasterast bişînin beşa pêşniyaran di pergala me de.',
       suggestionPlaceholder: 'Gilî an pêşniyara xwe li vir binivîse…',
@@ -519,16 +487,6 @@
       rateThanks: 'Thank you for your rating. We are always working to improve.',
       treeRoot: 'How can I help you?', treeBack: '← Back', treeHome: '🏠 Home',
       talkToAgent: '🎧 Talk to an agent',
-      voiceCall: '📞 Voice call',
-      voiceReady: 'Your NURA call room is ready. Join to enable your microphone and wait for the agent.',
-      voiceJoin: 'Join',
-      voiceMute: 'Mute',
-      voiceUnmute: 'Unmute',
-      voiceLeave: 'Leave',
-      voiceConnecting: 'Connecting...',
-      voiceConnected: 'You are in the call',
-      voiceAccepted: '✅ The agent accepted the voice call.',
-      voiceError: 'Could not start the voice call',
       suggestionTitle: 'Complaints and Suggestions',
       suggestionIntro: 'This section is for general feedback, recommendations, complaints, or suggestions. Write your message here and we will send it directly to the suggestions section in our follow-up system.',
       suggestionPlaceholder: 'Write your complaint or suggestion here...',
@@ -749,12 +707,6 @@
   var agentEventSource     = null;
   var agentStreamStarting  = false;
   var typingDebounceTimer  = null;
-  var voiceCall            = null;
-  var livekitPromise       = null;
-  var voiceRoom            = null;
-  var voiceTrack           = null;
-  var voiceStatus          = 'idle';
-  var voiceMuted           = false;
 
   // ── DOM refs ───────────────────────────────────────────────────────────────
   var toggle      = root.querySelector('#chat-toggle');
@@ -950,157 +902,6 @@
     }
   }
 
-  function apiOrigin() {
-    return API_BASE.replace(/\/v1\/?$/, '');
-  }
-
-  function loadLiveKitClient() {
-    if (window.LivekitClient) return Promise.resolve(window.LivekitClient);
-    if (livekitPromise) return livekitPromise;
-    livekitPromise = new Promise(function (resolve, reject) {
-      var script = document.createElement('script');
-      script.src = apiOrigin() + '/vendor/livekit-client.umd.js';
-      script.async = true;
-      script.onload = function () { resolve(window.LivekitClient); };
-      script.onerror = function () { reject(new Error('LiveKit client failed to load')); };
-      document.head.appendChild(script);
-    });
-    return livekitPromise;
-  }
-
-  async function requestVoiceCall() {
-    var t = UI[currentLang];
-    if (isSessionClosed) return;
-    try {
-      track('voice_call_request', 'widget', '');
-      var headers = { 'Content-Type': 'application/json' };
-      if (sessionToken) headers['X-Session-Token'] = sessionToken;
-      var res = await fetch(API_BASE + '/voice/request', {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify({ session_id: sessionId, customer_id: customerId, channel: 'web' }),
-      });
-      var data = await res.json().catch(function () { return {}; });
-      if (!res.ok) throw new Error(data.detail || t.voiceError);
-      sessionId = data.session_id || sessionId;
-      sessionToken = data.session_token || sessionToken;
-      voiceCall = data;
-      voiceStatus = 'ready';
-      startAgentStream();
-      renderTree();
-    } catch (e) {
-      var errDiv = document.createElement('div');
-      errDiv.className = 'nura-tree-level-q sub';
-      errDiv.textContent = '⚠️ ' + (e.message || t.voiceError);
-      treePanel.appendChild(errDiv);
-    }
-  }
-
-  async function joinVoiceCall() {
-    var t = UI[currentLang];
-    if (!voiceCall || voiceRoom) return;
-    voiceStatus = 'connecting';
-    renderTree();
-    try {
-      var LK = await loadLiveKitClient();
-      var room = new LK.Room({ adaptiveStream: true, dynacast: true });
-      voiceRoom = room;
-      room.on(LK.RoomEvent.Disconnected, function () {
-        if (voiceTrack) voiceTrack.stop();
-        voiceRoom = null;
-        voiceTrack = null;
-        voiceMuted = false;
-        voiceStatus = 'ended';
-        renderTree();
-      });
-      await room.connect(voiceCall.server_url, voiceCall.livekit_token);
-      voiceTrack = await LK.createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true });
-      await room.localParticipant.publishTrack(voiceTrack);
-      voiceMuted = false;
-      voiceStatus = 'connected';
-      renderTree();
-    } catch (e) {
-      console.warn('voice join failed:', e);
-      if (voiceTrack) voiceTrack.stop();
-      voiceTrack = null;
-      if (voiceRoom) voiceRoom.disconnect();
-      voiceRoom = null;
-      voiceMuted = false;
-      voiceStatus = 'error';
-      appendBotMsg(t.voiceError, null, null);
-      renderTree();
-    }
-  }
-
-  function toggleVoiceMute() {
-    if (!voiceTrack) return;
-    if (voiceMuted) voiceTrack.unmute();
-    else voiceTrack.mute();
-    voiceMuted = !voiceMuted;
-    renderTree();
-  }
-
-  async function endVoiceCallOnServer() {
-    if (!voiceCall || !voiceCall.call_id) return;
-    try {
-      var headers = {};
-      if (sessionToken) headers['X-Session-Token'] = sessionToken;
-      await fetch(API_BASE + '/voice/' + encodeURIComponent(voiceCall.call_id) + '/end', {
-        method: 'POST',
-        headers: headers,
-        keepalive: true,
-      });
-    } catch (_) {}
-  }
-
-  function leaveVoiceCall(notifyServer) {
-    if (notifyServer !== false) endVoiceCallOnServer();
-    if (voiceTrack) voiceTrack.stop();
-    voiceTrack = null;
-    if (voiceRoom) voiceRoom.disconnect();
-    voiceRoom = null;
-    voiceMuted = false;
-    voiceStatus = 'ended';
-    renderTree();
-  }
-
-  function renderVoicePanel() {
-    if (!voiceCall) return;
-    var t = UI[currentLang];
-    var panel = document.createElement('div');
-    panel.className = 'nura-voice-panel';
-    var statusText = t.voiceReady;
-    if (voiceStatus === 'connecting') statusText = t.voiceConnecting;
-    if (voiceStatus === 'connected') statusText = t.voiceConnected;
-    if (voiceStatus === 'error') statusText = t.voiceError;
-    panel.textContent = statusText;
-    var actions = document.createElement('div');
-    actions.className = 'nura-voice-actions';
-    if (voiceStatus !== 'connected') {
-      var join = document.createElement('button');
-      join.className = 'nura-voice-primary';
-      join.type = 'button';
-      join.textContent = t.voiceJoin;
-      join.addEventListener('click', joinVoiceCall);
-      actions.appendChild(join);
-    } else {
-      var mute = document.createElement('button');
-      mute.className = 'nura-voice-secondary';
-      mute.type = 'button';
-      mute.textContent = voiceMuted ? t.voiceUnmute : t.voiceMute;
-      mute.addEventListener('click', toggleVoiceMute);
-      actions.appendChild(mute);
-      var leave = document.createElement('button');
-      leave.className = 'nura-voice-primary';
-      leave.type = 'button';
-      leave.textContent = t.voiceLeave;
-      leave.addEventListener('click', leaveVoiceCall);
-      actions.appendChild(leave);
-    }
-    panel.appendChild(actions);
-    treePanel.appendChild(panel);
-  }
-
   function renderTree() {
     var t    = UI[currentLang];
     var node = currentTreeNode();
@@ -1188,14 +989,7 @@
       });
       treePanel.appendChild(agentBtn);
 
-      var voiceBtn = document.createElement('button');
-      voiceBtn.className = 'nura-voice-btn';
-      voiceBtn.type = 'button';
-      voiceBtn.textContent = UI[currentLang].voiceCall;
-      voiceBtn.addEventListener('click', requestVoiceCall);
-      treePanel.appendChild(voiceBtn);
     }
-    renderVoicePanel();
   }
 
   function renderSuggestionForm(node) {
@@ -1416,12 +1210,15 @@
     msgInput.style.height = 'auto';
     msgInput.style.height = Math.min(msgInput.scrollHeight, 100) + 'px';
     sendBtn.disabled = msgInput.value.trim() === '';
-    if (isEscalated && !isSessionClosed && sessionId && sessionToken) {
+    if (!isSessionClosed && sessionId && sessionToken) {
       clearTimeout(typingDebounceTimer);
       typingDebounceTimer = setTimeout(function () {
-        fetch(API_BASE + '/session/' + encodeURIComponent(sessionId) +
-          '/typing?sender=customer',
-          { method: 'POST', headers: { 'X-Session-Token': sessionToken } }).catch(function () {});
+        fetch(API_BASE + '/session/' + encodeURIComponent(sessionId) + '/typing',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken },
+            body: JSON.stringify({ sender: 'customer', text: msgInput.value.trim() })
+          }).catch(function () {});
       }, 500);
     }
   });
@@ -1688,12 +1485,12 @@
       agentEventSource.onerror = function () {
         agentEventSource.close();
         agentEventSource = null;
-        if (!isSessionClosed && (isEscalated || voiceCall)) {
+        if (!isSessionClosed && isEscalated) {
           setTimeout(startAgentStream, 5000);
         }
       };
     } catch (e) {
-      if (!isSessionClosed && (isEscalated || voiceCall)) {
+      if (!isSessionClosed && isEscalated) {
         setTimeout(startAgentStream, 5000);
       }
     } finally {
@@ -1731,14 +1528,6 @@
       scrollBottom();
       msgInput.disabled = true;
       sendBtn.disabled  = true;
-    } else if (event.type === 'voice_call_accepted') {
-      voiceCall = Object.assign({}, voiceCall || {}, event.call || {});
-      appendBotMsg(UI[currentLang].voiceAccepted, null, null);
-      renderTree();
-    } else if (event.type === 'voice_call_ended') {
-      leaveVoiceCall(false);
-      voiceCall = null;
-      renderTree();
     }
   }
 

@@ -20,6 +20,34 @@ def make_session(session_id="s1", customer_id="cust-1", channel="web", status=Se
     )
 
 
+def test_production_requires_ml_artifact_hashes(monkeypatch):
+    from config import Settings
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "test-postgres-password")
+    monkeypatch.setenv("ADMIN_SECRET_KEY", "test-admin-secret-with-32-characters")
+    monkeypatch.setenv("ADMIN_PASSWORD", "strong-admin-password")
+    monkeypatch.setenv("CORS_ORIGINS", "https://admin.example.com")
+    monkeypatch.setenv("ML_REQUIRE_ARTIFACT_HASHES", "false")
+
+    with pytest.raises(ValueError, match="ML_REQUIRE_ARTIFACT_HASHES"):
+        Settings()
+
+
+def test_production_rejects_weak_admin_password(monkeypatch):
+    from config import Settings
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "test-postgres-password")
+    monkeypatch.setenv("ADMIN_SECRET_KEY", "test-admin-secret-with-32-characters")
+    monkeypatch.setenv("ADMIN_PASSWORD", "password")
+    monkeypatch.setenv("CORS_ORIGINS", "https://admin.example.com")
+    monkeypatch.setenv("ML_REQUIRE_ARTIFACT_HASHES", "true")
+
+    with pytest.raises(ValueError, match="ADMIN_PASSWORD"):
+        Settings()
+
+
 def test_message_endpoint_generates_response_without_external_services(monkeypatch, build_app):
     from routes import message as message_route
 
@@ -190,7 +218,7 @@ def test_customer_session_token_allows_message_access(monkeypatch, build_app):
 
 def test_admin_login_and_me(monkeypatch, build_app):
     from routes import auth as auth_route
-    from core import session_manager
+    from db import postgres
 
     monkeypatch.setattr(
         auth_route,
@@ -200,9 +228,15 @@ def test_admin_login_and_me(monkeypatch, build_app):
             "role": "admin",
             "display_name": "Admin",
             "is_active": True,
+            "token_version": 0,
         }),
     )
-    monkeypatch.setattr(session_manager, "get_redis", lambda: FakeAuthRedis())
+    monkeypatch.setattr(postgres, "get_db_pool", lambda: _async_value(FakeAdminAuthPool({
+        "role": "admin",
+        "display_name": "Admin",
+        "is_active": True,
+        "token_version": 0,
+    })))
     monkeypatch.setattr(auth_route, "log_security_event", lambda *_, **__: _async_none())
     client = TestClient(build_app(auth_route.router))
     login = client.post("/v1/auth/login", json={"username": "admin", "password": "password"})
@@ -213,6 +247,61 @@ def test_admin_login_and_me(monkeypatch, build_app):
     me = client.get("/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert me.status_code == 200
     assert me.json()["role"] == "admin"
+
+
+@pytest.mark.asyncio
+async def test_admin_token_fails_after_version_role_or_active_change(monkeypatch):
+    from core.auth import create_admin_token, verify_admin_token
+    from db import postgres
+
+    user_row = {
+        "role": "admin",
+        "display_name": "Admin",
+        "is_active": True,
+        "token_version": 0,
+    }
+    monkeypatch.setattr(postgres, "get_db_pool", lambda: _async_value(FakeAdminAuthPool(user_row)))
+
+    token = create_admin_token("admin", role="admin", token_version=0)
+    assert await verify_admin_token(token)
+
+    user_row["token_version"] = 1
+    assert await verify_admin_token(token) is None
+
+    user_row["token_version"] = 0
+    user_row["role"] = "viewer"
+    assert await verify_admin_token(token) is None
+
+    user_row["role"] = "admin"
+    user_row["is_active"] = False
+    assert await verify_admin_token(token) is None
+
+
+def test_user_role_active_and_password_changes_bump_token_version(monkeypatch, build_app):
+    from core.auth import create_admin_token
+    from db import postgres
+    from routes import users as users_route
+
+    pool = FakeUserAdminPool()
+    monkeypatch.setattr(users_route, "get_db_pool", lambda: _async_value(pool))
+    monkeypatch.setattr(postgres, "get_db_pool", lambda: _async_value(pool))
+    monkeypatch.setattr(users_route, "hash_password", lambda password: f"hashed:{password}")
+
+    headers = {"Authorization": f"Bearer {create_admin_token('admin', role='admin', token_version=0)}"}
+    client = TestClient(build_app(users_route.router))
+    role_response = client.patch("/v1/users/agent1", headers=headers, json={"role": "viewer"})
+    active_response = client.patch("/v1/users/agent1", headers=headers, json={"is_active": False})
+    password_response = client.post(
+        "/v1/users/agent1/password",
+        headers=headers,
+        json={"new_password": "new-password"},
+    )
+
+    assert role_response.status_code == 200
+    assert active_response.status_code == 200
+    assert password_response.status_code == 200
+    bump_queries = [query for query, _ in pool.conn.executed if "token_version = token_version + 1" in query]
+    assert len(bump_queries) == 3
 
 
 def test_public_suggestion_endpoint_creates_case(monkeypatch, build_app):
@@ -364,6 +453,61 @@ async def test_enqueue_job_pushes_json_to_redis(monkeypatch):
     assert stored["id"] == job_id
     assert stored["type"] == job_queue.JOB_INTENT_CLASSIFICATION
     assert stored["payload"]["session_id"] == "s1"
+
+
+@pytest.mark.asyncio
+async def test_recover_stale_jobs_requeues_abandoned_processing_job(monkeypatch):
+    from core import job_queue
+
+    redis = FakeRedis()
+    now = datetime.now(timezone.utc)
+    raw = json.dumps({
+        "id": "job-stale",
+        "type": job_queue.JOB_INTENT_CLASSIFICATION,
+        "payload": {"session_id": "s1"},
+        "attempts": 0,
+        "max_attempts": 3,
+        "processing_started_at": (now - timedelta(minutes=20)).isoformat(),
+        "processing_worker": "standalone-worker",
+    })
+    redis.lists[job_queue.JOB_PROCESSING_KEY] = [raw]
+    monkeypatch.setattr(job_queue, "get_redis", lambda: redis)
+
+    recovered = await job_queue.recover_stale_jobs(stale_after_seconds=60, now=now)
+
+    assert recovered == 1
+    assert redis.lists[job_queue.JOB_PROCESSING_KEY] == []
+    queued = json.loads(redis.lists[job_queue.JOB_QUEUE_KEY][0])
+    assert queued["id"] == "job-stale"
+    assert queued["attempts"] == 1
+    assert "processing_started_at" not in queued
+    assert "processing_worker" not in queued
+
+
+@pytest.mark.asyncio
+async def test_recover_stale_jobs_timestamps_unmarked_processing_job(monkeypatch):
+    from core import job_queue
+
+    redis = FakeRedis()
+    now = datetime.now(timezone.utc)
+    raw = json.dumps({
+        "id": "job-unmarked",
+        "type": job_queue.JOB_INTENT_CLASSIFICATION,
+        "payload": {"session_id": "s1"},
+        "attempts": 0,
+        "max_attempts": 3,
+    })
+    redis.lists[job_queue.JOB_PROCESSING_KEY] = [raw]
+    monkeypatch.setattr(job_queue, "get_redis", lambda: redis)
+
+    recovered = await job_queue.recover_stale_jobs(stale_after_seconds=60, now=now)
+
+    assert recovered == 0
+    assert job_queue.JOB_QUEUE_KEY not in redis.lists
+    processing = json.loads(redis.lists[job_queue.JOB_PROCESSING_KEY][0])
+    assert processing["id"] == "job-unmarked"
+    assert processing["processing_started_at"] == now.isoformat()
+    assert processing["processing_worker"] == "unknown"
 
 
 @pytest.mark.asyncio
@@ -657,6 +801,15 @@ class FakeRedis:
         self.lists.setdefault(destination, []).insert(0, value)
         return value
 
+    async def blmove(self, source, destination, timeout=0, src="RIGHT", dest="LEFT"):
+        return await self.brpoplpush(source, destination, timeout=timeout)
+
+    async def lrange(self, key, start, end):
+        values = self.lists.get(key) or []
+        if end == -1:
+            return values[start:]
+        return values[start:end + 1]
+
     async def lrem(self, key, count, value):
         values = self.lists.get(key) or []
         removed = 0
@@ -703,6 +856,48 @@ class FakeTelegramRedis:
 class FakeAuthRedis:
     async def exists(self, key):
         return 0
+
+
+class FakeAdminAuthPool(FakePool):
+    def __init__(self, row):
+        self.conn = FakeAdminAuthConn(row)
+
+
+class FakeAdminAuthConn:
+    def __init__(self, row):
+        self.row = row
+        self.executed = []
+
+    async def fetchrow(self, query, *args):
+        return self.row
+
+    async def execute(self, query, *args):
+        self.executed.append((query, args))
+        return "UPDATE 1"
+
+
+class FakeUserAdminPool(FakePool):
+    def __init__(self):
+        self.conn = FakeUserAdminConn()
+
+
+class FakeUserAdminConn:
+    def __init__(self):
+        self.executed = []
+
+    async def fetchrow(self, query, *args):
+        if "SELECT role, display_name, is_active, token_version" in query:
+            return {
+                "role": "admin",
+                "display_name": "Admin",
+                "is_active": True,
+                "token_version": 0,
+            }
+        return {"id": 1}
+
+    async def execute(self, query, *args):
+        self.executed.append((query, args))
+        return "UPDATE 1"
 
 
 class FakeSessionPool(FakePool):

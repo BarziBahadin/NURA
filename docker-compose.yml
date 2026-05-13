@@ -51,7 +51,7 @@ services:
     networks:
       - nura_network
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import redis, os; r=redis.Redis(host=os.environ.get('REDIS_HOST','redis'), port=int(os.environ.get('REDIS_PORT','6379'))); raise SystemExit(0 if r.exists('health:job_worker:api-worker') else 1)\""]
+      test: ["CMD-SHELL", "python -c \"import redis, os; r=redis.Redis(host=os.environ.get('REDIS_HOST','redis'), port=int(os.environ.get('REDIS_PORT','6379'))); raise SystemExit(0 if r.exists('health:job_worker:standalone-worker') else 1)\""]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -152,24 +152,6 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
-
-  caddy:
-    image: caddy:alpine
-    container_name: nura-caddy
-    ports:
-      - "8443:8443"
-      - "3443:3443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./certs:/certs:ro
-    networks:
-      - nura_network
-    depends_on:
-      nura-api:
-        condition: service_healthy
-      nura-admin:
-        condition: service_healthy
     restart: unless-stopped
 
 networks:

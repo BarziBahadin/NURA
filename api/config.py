@@ -2,6 +2,19 @@ from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
 from typing import List
 
+_WEAK_ADMIN_PASSWORDS = {
+    "",
+    "admin",
+    "password",
+    "changeme",
+    "change-me",
+    "change_me",
+    "admin123",
+    "password123",
+    "nura",
+    "nuraadmin",
+}
+
 
 class Settings(BaseSettings):
     app_env: str = "development"
@@ -83,6 +96,17 @@ class Settings(BaseSettings):
         if "*" in self.cors_origins_list:
             raise ValueError("CORS_ORIGINS cannot include '*' — list specific origins instead")
         if self.app_env.lower() == "production":
+            if len(self.admin_secret_key.strip()) < 32:
+                raise ValueError("ADMIN_SECRET_KEY must be at least 32 characters in production")
+            if not self.ml_require_artifact_hashes:
+                raise ValueError("ML_REQUIRE_ARTIFACT_HASHES must be true in production")
+            password = self.admin_password.strip()
+            if len(password) < 12:
+                raise ValueError("ADMIN_PASSWORD must be at least 12 characters in production")
+            if password.lower() in _WEAK_ADMIN_PASSWORDS:
+                raise ValueError("ADMIN_PASSWORD is too weak for production")
+            if password == self.admin_username or password.lower() == self.admin_username.lower():
+                raise ValueError("ADMIN_PASSWORD cannot match ADMIN_USERNAME in production")
             if self.allow_admin_api_key and len(self.api_key) < 32:
                 raise ValueError("API_KEY must be at least 32 characters when ALLOW_ADMIN_API_KEY=true")
             localhost_origins = [o for o in self.cors_origins_list if "localhost" in o or "127.0.0.1" in o]

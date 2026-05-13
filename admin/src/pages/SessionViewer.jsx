@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { ArrowClockwise, CaretUp, CaretDown, User, Robot, EnvelopeOpen, File } from '@phosphor-icons/react'
 import { api } from '../App.jsx'
 
@@ -25,7 +25,7 @@ function timeAgo(iso) {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
-function HistoryPanel({ history }) {
+function HistoryPanel({ history, typingText }) {
   if (!history || history.length === 0)
     return <div className="text-center text-gray-400 text-xs py-4">No messages</div>
   return (
@@ -61,6 +61,19 @@ function HistoryPanel({ history }) {
           </div>
         </div>
       ))}
+      {typingText && (
+        <div className="flex gap-2 flex-row-reverse">
+          <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-gray-200 text-gray-600">
+            C
+          </div>
+          <div className="flex flex-col items-end">
+            <div className="px-3 py-2 rounded-2xl text-sm max-w-xs bg-gray-200 text-gray-600 rounded-tr-sm italic opacity-75">
+              {typingText}
+            </div>
+            <div className="text-xs text-gray-400 mt-0.5">typing…</div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -74,6 +87,8 @@ export default function SessionViewer() {
   const [resolving, setResolving] = useState({})
   const [creatingCase, setCreatingCase] = useState({})
   const [search, setSearch] = useState('')
+  const [typingState, setTypingState] = useState({})
+  const typingTimersRef = useRef({})
 
   const fetchSessions = useCallback(async () => {
     setLoading(true)
@@ -97,6 +112,61 @@ export default function SessionViewer() {
     setExpanded(null)
     fetchSessions()
   }, [fetchSessions])
+
+  useEffect(() => {
+    if (!expanded) {
+      setTypingState({})
+      Object.values(typingTimersRef.current).forEach(timer => clearTimeout(timer))
+      typingTimersRef.current = {}
+      return
+    }
+
+    let es = null
+    let cancelled = false
+
+    const startStream = async () => {
+      try {
+        const tokenRes = await fetch(`${api.base}/session/${expanded}/stream-token`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${api.key}` },
+        })
+        const tokenData = await tokenRes.json()
+        if (!tokenRes.ok || !tokenData.stream_token || cancelled) return
+
+        es = new EventSource(
+          `${api.base}/session/${expanded}/stream?stream_token=${encodeURIComponent(tokenData.stream_token)}`
+        )
+
+        es.onmessage = (e) => {
+          try {
+            const event = JSON.parse(e.data)
+            if (event.type === 'typing' && event.sender === 'customer') {
+              setTypingState(t => ({ ...t, [expanded]: event.text || '' }))
+              clearTimeout(typingTimersRef.current[expanded])
+              typingTimersRef.current[expanded] = setTimeout(() => {
+                setTypingState(t => ({ ...t, [expanded]: '' }))
+              }, 3000)
+            }
+          } catch (_) {}
+        }
+
+        es.onerror = () => {
+          es?.close()
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+
+    startStream()
+
+    return () => {
+      cancelled = true
+      es?.close()
+      clearTimeout(typingTimersRef.current[expanded])
+      delete typingTimersRef.current[expanded]
+    }
+  }, [expanded, api.base, api.key])
 
   async function resolveSession(sessionId) {
     setResolving(r => ({ ...r, [sessionId]: true }))
@@ -261,7 +331,7 @@ export default function SessionViewer() {
                       <span>Customer: <span className="text-gray-600">{s.customer_id}</span></span>
                       <span>Started: {new Date(s.created_at).toLocaleString('en')}</span>
                     </div>
-                    <HistoryPanel history={s.history} />
+                    <HistoryPanel history={s.history} typingText={typingState[s.session_id] || ''} />
                   </div>
                 )}
               </div>

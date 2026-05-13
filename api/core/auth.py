@@ -19,11 +19,12 @@ def _unb64(data: str) -> bytes:
     return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
 
 
-def create_admin_token(username: str, role: str = "admin") -> str:
+def create_admin_token(username: str, role: str = "admin", token_version: int = 0) -> str:
     now = int(time.time())
     payload = {
         "sub": username,
         "role": role,
+        "token_version": int(token_version or 0),
         "iat": now,
         "exp": now + settings.admin_token_ttl_seconds,
     }
@@ -49,15 +50,29 @@ async def verify_admin_token(token: str) -> dict[str, Any] | None:
     payload = _verify_admin_token_signature(token)
     if not payload:
         return None
+    sub = payload.get("sub", "")
+    if not sub:
+        return None
     try:
-        from core.session_manager import get_redis
-        sub = payload.get("sub", "")
-        if sub and await get_redis().exists(f"auth:revoked:{sub}"):
+        from db.postgres import get_db_pool
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT role, display_name, is_active, token_version "
+                "FROM admin_users WHERE username = $1",
+                sub,
+            )
+        if not row or not row["is_active"]:
             return None
     except Exception as exc:
         import logging as _logging
-        _logging.getLogger(__name__).error("Redis revocation check failed, denying auth: %s", exc)
+        _logging.getLogger(__name__).error("Admin token DB validation failed, denying auth: %s", exc)
         return None
+    if int(payload.get("token_version", 0) or 0) != int(row["token_version"] or 0):
+        return None
+    if payload.get("role") != row["role"]:
+        return None
+    payload["display_name"] = row["display_name"] or ""
     return payload
 
 
@@ -111,7 +126,8 @@ async def verify_session_access(request: Request, session) -> None:
     if await has_admin_access(request):
         return
     supplied = request.query_params.get("session_token") or request.headers.get("X-Session-Token", "")
-    expected = session.metadata.get("customer_token", "")
+    metadata = session.metadata or {}
+    expected = metadata.get("customer_token", "")
     if not expected or not hmac.compare_digest(supplied, expected):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -127,7 +143,7 @@ async def verify_db_password(username: str, password: str) -> dict | None:
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT username, password_hash, role, display_name, is_active "
+            "SELECT username, password_hash, role, display_name, is_active, token_version "
             "FROM admin_users WHERE username = $1",
             username,
         )

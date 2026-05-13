@@ -166,18 +166,30 @@ async def send_agent_message(
     return {"ok": True}
 
 
+class TypingBody(BaseModel):
+    sender: str = Field(default="customer", max_length=32)
+    text: str = Field(default="", max_length=500)
+
+
 @router.post("/session/{session_id}/typing")
 @limiter.limit("60/minute")
-async def session_typing(request: Request, session_id: str, sender: str = "agent"):
+async def session_typing(request: Request, session_id: str, body: TypingBody):
     session = await get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+
+    sender = body.sender
+
     if sender == "agent":
         if not await has_admin_access(request):
             raise HTTPException(status_code=401, detail="Unauthorized")
     else:
         await verify_session_access(request, session)
-    await publish_session_event(session_id, {"type": "typing", "sender": sender})
+
+    event_data = {"type": "typing", "sender": sender}
+    if body.text:
+        event_data["text"] = body.text
+    await publish_session_event(session_id, event_data)
     return {"ok": True}
 
 

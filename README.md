@@ -26,23 +26,16 @@ Customer Website
   |-- Embeddable widget.js or standalone frontend/widget.html
   |
   v
-Caddy Reverse Proxy (HTTPS termination)
-  |  :8443 → FastAPI :8000
-  |  :3443 → Admin Nginx :80
-  |  :7443 → LiveKit :7880  (WSS for voice calls)
-  |
-  v
-FastAPI Backend - port 8080 (HTTP) / 8443 (HTTPS via Caddy)
+FastAPI Backend - port 8080 (HTTP)
   |
   |-- Redis: session state and recent conversation history
   |-- PostgreSQL: logs, analytics, outcomes, feedback, reporting
   |-- ChromaDB: vector store for handbook retrieval
   |-- OpenAI: chat completion, embeddings, intent classification
   |-- Handoff Controller: escalation rules and agent routing
-  |-- LiveKit: self-hosted WebRTC voice calls
   |
   v
-React Admin Panel - port 3004 (HTTP) / 3443 (HTTPS via Caddy)
+React Admin Panel - port 3004 (HTTP)
 ```
 
 ---
@@ -84,7 +77,6 @@ Still planned:
 - Per-answer confidence and source labels.
 - Thumbs up/down feedback.
 - Direct human-agent request button.
-- Self-hosted voice-call request button powered by NURA's local LiveKit service.
 - File/image upload after a session token exists.
 - Suggestions and complaints form that creates back-office suggestion cases.
 - Human handoff banner and live session continuation.
@@ -126,7 +118,7 @@ The admin panel is built with React, Vite, and Tailwind.
 Pages:
 
 - **Dashboard**: operations command center for queue pressure, SLA risk, open cases, suggestions, attention items, trends, workload, and recent conversations.
-- **Live Queue**: three-column pending/active handoff workflow, self-hosted voice-call requests, agent replies, canned responses, accept/resolve flow.
+- **Live Queue**: three-column pending/active handoff workflow, agent replies, canned responses, accept/resolve flow.
 - **Cases**: support case tracking with owner, department, priority, SLA state, status, notes, and activity.
 - **Suggestions**: dedicated queue for customer suggestions, complaints, recommendations, and general feedback.
 - **Sessions**: conversation history search and review.
@@ -239,23 +231,20 @@ cp .env.example .env
 At minimum, set:
 
 - `POSTGRES_PASSWORD`
-- `ADMIN_SECRET_KEY`
-- `ADMIN_PASSWORD`
+- `ADMIN_SECRET_KEY` (production requires at least 32 characters)
+- `ADMIN_PASSWORD` (production rejects blank, common, username-matching, or shorter-than-12-character values)
 - `OPENAI_API_KEY` if OpenAI replies/RAG embeddings should run
 
 ### Fast Admin Development With Vite
 
-For day-to-day UI work, use Vite instead of rebuilding the admin Docker image. Docker still runs the API, database, Redis, ChromaDB, LiveKit, and Caddy; Vite serves the React admin with hot reload.
+For day-to-day UI work, use Vite instead of rebuilding the admin Docker image. Docker still runs the API, database, Redis, and ChromaDB; Vite serves the React admin with hot reload.
 
 ```bash
 ./start-dev.sh
 ```
 
 The script automatically:
-- Detects your current LAN IP.
-- Installs `mkcert` (via Homebrew) if not present.
-- Generates trusted TLS certificates in `certs/` for `localhost`, `127.0.0.1`, and your LAN IP.
-- Starts all Docker services including Caddy for HTTPS termination.
+- Starts all Docker services (API, PostgreSQL, Redis, ChromaDB).
 - Starts the Vite dev server.
 
 Open the Vite admin:
@@ -264,26 +253,19 @@ Open the Vite admin:
 open http://localhost:5173
 ```
 
-HTTPS endpoints (require mkcert CA trusted on your machine):
+Local endpoints:
 
 ```text
-https://localhost:8443   API
-https://localhost:3443   Admin
+http://localhost:8080/v1       API base
+http://localhost:5173          Admin panel (Vite dev)
+http://localhost:3004          Admin (Docker/production-style)
 ```
 
-On another device on the same Wi-Fi, use the LAN URLs printed by `start-dev.sh`:
-
-```text
-https://YOUR-LAN-IP:8443/widget.html   Widget (HTTPS, required for microphone/voice)
-https://YOUR-LAN-IP:3443               Admin panel
-```
-
-When running this way:
+When running with Vite:
 
 - React/admin changes update instantly.
 - No Docker rebuild is needed for admin UI changes.
-- API requests still go through `/v1` and are proxied to `http://localhost:8080`.
-- HTTPS is required for microphone access in browsers — always use the `8443` URL for voice call testing.
+- API requests go through `/v1` and are proxied to `http://localhost:8080`.
 - Keep using `http://localhost:3004` only for the production-style Nginx admin container.
 
 ### Docker Stack
@@ -293,6 +275,8 @@ Start the full production-style stack:
 ```bash
 docker compose up -d
 ```
+
+The helper `./start.sh` refuses to kill processes on NURA ports by default. If you intentionally want it to stop listeners on those ports first, run `NURA_FORCE_FREE_PORTS=1 ./start.sh`.
 
 Check containers:
 
@@ -361,22 +345,17 @@ npm --prefix admin run build
 
 | Service | URL | Notes |
 |---|---|---|
-| API (HTTP) | `http://localhost:8080` | FastAPI backend |
-| API (HTTPS) | `https://localhost:8443` | Via Caddy, required for voice/mic |
+| API | `http://localhost:8080` | FastAPI backend |
 | API Docs | `http://localhost:8080/docs` | Swagger UI |
 | Health | `http://localhost:8080/v1/health` | Service checks |
-| Widget (HTTP) | `http://localhost:8080/widget.html` | Test page, no mic/voice |
-| Widget (HTTPS) | `https://localhost:8443/widget.html` | Full widget with mic/voice |
+| Widget Test | `http://localhost:8080/widget.html` | Test page |
 | Widget Script | `http://localhost:8080/widget.js` | Embeddable widget |
 | Widget Loader | `http://localhost:8080/widget-loader.js` | Lazy one-line embed |
-| Admin Panel (HTTP) | `http://localhost:3004` | React admin, Nginx container |
-| Admin Panel (HTTPS) | `https://localhost:3443` | Via Caddy |
+| Admin Panel (Docker) | `http://localhost:3004` | React admin, Nginx container |
 | Admin Dev (Vite) | `http://localhost:5173` | Hot-reload dev server |
-| LiveKit (WS) | `ws://localhost:7880` | WebRTC signaling, HTTP only |
-| LiveKit (WSS) | `wss://localhost:7443` | WebRTC signaling, via Caddy |
-| ChromaDB | `http://localhost:8001` | Vector store |
-| PostgreSQL | `127.0.0.1:5432` | Main reporting/logging DB |
-| Redis | `127.0.0.1:6379` | Session cache |
+| ChromaDB | `http://localhost:8001` | Vector store (internal) |
+| PostgreSQL | `127.0.0.1:5432` | Main reporting/logging DB (internal) |
+| Redis | `127.0.0.1:6379` | Session cache (internal) |
 | Worker | optional Compose profile | Redis-backed background jobs |
 | Telegram Worker | optional Compose profile | Standalone Telegram polling |
 
@@ -732,9 +711,7 @@ For local Docker, the current app still keeps startup schema creation enabled by
 ```text
 NURA/
 |-- docker-compose.yml
-|-- Caddyfile              HTTPS reverse proxy config (API :8443, Admin :3443, LiveKit :7443)
-|-- start-dev.sh           Dev launcher: auto-detects LAN IP, generates mkcert certs, starts Docker + Vite
-|-- certs/                 Generated TLS certs (git-ignored, recreated by start-dev.sh)
+|-- start-dev.sh           Dev launcher: starts Docker services and Vite dev server
 |-- .env.example
 |-- .manafest/
 |   |-- articals.json
@@ -841,27 +818,21 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 | `ML_MODEL_PATH` | Local ML model path inside the container |
 | `ML_VECTORIZER_PATH` | Local ML vectorizer path inside the container |
 | `ML_CONFIDENCE_THRESHOLD` | Minimum local ML confidence for using a local answer |
-| `ML_REQUIRE_ARTIFACT_HASHES` | Require hashes in `models/metadata.json` before loading ML pickle artifacts |
+| `ML_REQUIRE_ARTIFACT_HASHES` | Require hashes in `models/metadata.json` before loading ML pickle artifacts; must be `true` in production |
 | `USE_SEMANTIC_EMBEDDINGS` | Enable optional semantic embedding model for local ML utilities |
 | `SEMANTIC_MODEL_NAME` | Sentence-transformers model name when semantic embeddings are enabled |
 | `HANDOFF_ENABLED` | Enable or disable human handoff |
 | `HANDOFF_TRIGGERS` | Comma-separated handoff trigger list |
 | `ESCALATION_WEBHOOK_URL` | Optional webhook called when escalation is queued |
-| `VOICE_CALL_ENABLED` | Enable or disable widget voice-call requests |
-| `LIVEKIT_URL` | Browser-facing LiveKit websocket URL. Use `auto` for local/LAN development so the API returns a URL based on the current request host. When accessed via HTTPS, the API automatically returns `wss://hostname:7443` (via Caddy); when accessed via HTTP, it returns `ws://hostname:7880` |
-| `LIVEKIT_NODE_IP` | LAN IP advertised by the local LiveKit container for WebRTC ICE candidates. Must match your machine's current LAN IP. Run `start-dev.sh` to auto-detect and regenerate certs when you change networks |
-| `LIVEKIT_API_KEY` | LiveKit API key used by the backend to sign room tokens |
-| `LIVEKIT_API_SECRET` | LiveKit API secret used by the backend to sign room tokens |
-| `LIVEKIT_TOKEN_TTL_SECONDS` | Lifetime for generated voice-room tokens |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token |
 | `TELEGRAM_POLLER_ENABLED` | Run Telegram polling in this process |
 | `BACKGROUND_JOBS_ENABLED` | Enable Redis-backed background job enqueueing |
 | `JOB_WORKER_ENABLED` | Run a background job worker in this process |
 | `JOB_MAX_ATTEMPTS` | Max attempts before a job is moved to the failed queue |
 | `JOB_RETRY_DELAY_SECONDS` | Delay between job retries |
-| `ADMIN_SECRET_KEY` | Admin/session secret |
+| `ADMIN_SECRET_KEY` | Admin/session secret; production requires at least 32 characters |
 | `ADMIN_USERNAME` | Admin login username |
-| `ADMIN_PASSWORD` | Admin login password |
+| `ADMIN_PASSWORD` | Admin login password; production rejects blank, common, username-matching, or shorter-than-12-character values |
 | `ADMIN_TOKEN_TTL_SECONDS` | Admin token lifetime |
 | `DB_AUTO_INIT` | Run startup schema creation for local Docker/development |
 | `CORS_ORIGINS` | Allowed browser origins |
@@ -870,10 +841,8 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 
 ## Recently Added
 
-- HTTPS local development via mkcert and Caddy reverse proxy. `start-dev.sh` auto-detects LAN IP, installs mkcert, generates trusted certs, and starts Caddy for TLS termination on ports 8443 (API), 3443 (Admin), and 7443 (LiveKit WSS).
-- LiveKit WSS support: voice signaling now uses `wss://hostname:7443` when accessed via HTTPS, routing through Caddy TLS termination. Required for browsers to allow microphone access on non-localhost addresses.
-- Widget API base URL now derived from `window.location.origin` when not accessed directly on port 8080/8000, so tunnels (localhost.run, ngrok) and HTTPS proxy deployments work without hardcoded URLs.
-- Secure context guard in the widget voice call path: shows a user-friendly error if microphone access is unavailable due to non-HTTPS context instead of crashing.
+- Real-time typing indicator feature: customers can see in the admin panel what the user is typing before they send a message, displayed live in both LiveQueue active chat and SessionViewer components.
+- Widget API base URL now derived from `window.location.origin` when not accessed directly on port 8080/8000, so tunnels (localhost.run, ngrok) and proxy deployments work without hardcoded URLs.
 - Automated backend tests for message, handoff, resolve, analytics, reports, durable sessions, and job queue behavior.
 - Alembic migrations with support cases, suggestions, activity notes, SLA state, admin users, and knowledge-gap reviews.
 - Async LLM intent classification.
@@ -894,7 +863,6 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 - Team/user management UI.
 - System Monitor page.
 - Live Queue resolve modal with outcome fields.
-- Self-hosted LiveKit voice-call MVP for widget-to-agent audio.
 - Direct human-agent path that bypasses ML when the customer asks for an agent.
 - Redis-backed background job queue for intent classification and escalation webhooks.
 - Standalone Telegram worker option.
@@ -929,6 +897,7 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 
 - Set strong values for `POSTGRES_PASSWORD` and `ADMIN_SECRET_KEY`.
 - Set a strong `ADMIN_PASSWORD` before first deployment.
+- Set `ML_REQUIRE_ARTIFACT_HASHES=true` and deploy `models/metadata.json` with SHA-256 hashes for both pickle artifacts.
 - Keep `ALLOW_ADMIN_API_KEY=false` unless a trusted automation path explicitly needs it.
 - Restrict `CORS_ORIGINS` to production domains.
 - Move secrets out of plain `.env` for production deployments.
@@ -937,10 +906,7 @@ Copy `.env.example` to `.env` and set deployment-specific values.
 - Run only one Telegram poller. Use either API polling for local development or the `telegram` profile, not both.
 - If using the standalone job worker, set `JOB_WORKER_ENABLED=false` on the API process and `true` on the worker.
 - Rebuild API after Python changes: `docker compose build nura-api && docker compose up -d --force-recreate nura-api`.
-- For voice calls to work from HTTPS, always access the widget via `https://` (port 8443 or 3443). Plain HTTP blocks microphone access in browsers.
-- When your machine changes LAN IP (switching networks), update `LIVEKIT_NODE_IP` in `.env` and rerun `./start-dev.sh` to regenerate certs and restart containers.
-- The `certs/` directory is git-ignored. Certs are regenerated on each `./start-dev.sh` run.
-- During development, run the admin with Vite: `./start-dev.sh` or `npm --prefix admin run dev:host`.
+- During development, run the admin with Vite: `./start-dev.sh` or `npm --prefix admin run dev`.
 - Rebuild admin after frontend changes only for production-style Docker/Nginx testing: `docker compose build nura-admin`.
 - Restart after rebuilds: `docker compose up -d nura-api nura-admin`.
 - Verify `/v1/health`, `/v1/analytics/dashboard`, and `/v1/analytics/reports`.

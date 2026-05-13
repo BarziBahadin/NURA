@@ -2,8 +2,10 @@ import hashlib
 import json
 import pickle
 import logging
+import re
 from difflib import SequenceMatcher
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 from rank_bm25 import BM25Okapi
@@ -12,6 +14,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from core.ml.arabic_normalizer import normalize_arabic
 
 logger = logging.getLogger(__name__)
+_SHA256_RE = re.compile(r"^[a-fA-F0-9]{64}$")
 
 _ST_AVAILABLE = False
 try:
@@ -57,6 +60,12 @@ class LocalModelService:
         return digest.hexdigest()
 
     def _verify_artifact_hashes(self) -> None:
+        missing_files = [
+            str(path) for path in (self.model_path, self.vectorizer_path) if not path.exists()
+        ]
+        if missing_files:
+            raise RuntimeError(f"ML artifact files not found: {', '.join(missing_files)}")
+
         metadata_path = self.model_path.parent / "metadata.json"
         if not metadata_path.exists():
             message = "ML metadata.json not found; cannot verify pickle artifact hashes."
@@ -68,9 +77,18 @@ class LocalModelService:
         with open(metadata_path, "r", encoding="utf-8") as f:
             metadata = json.load(f)
         artifacts = metadata.get("artifacts", {})
+        if not isinstance(artifacts, dict):
+            raise RuntimeError("ML metadata artifacts must be an object")
+
+        def artifact_hash(name: str) -> Optional[str]:
+            entry = artifacts.get(name, {})
+            if not isinstance(entry, dict):
+                return None
+            return entry.get("sha256")
+
         expected = {
-            self.model_path.name: artifacts.get(self.model_path.name, {}).get("sha256"),
-            self.vectorizer_path.name: artifacts.get(self.vectorizer_path.name, {}).get("sha256"),
+            self.model_path.name: artifact_hash(self.model_path.name),
+            self.vectorizer_path.name: artifact_hash(self.vectorizer_path.name),
         }
         missing = [name for name, value in expected.items() if not value]
         if missing:
@@ -79,10 +97,13 @@ class LocalModelService:
                 raise RuntimeError(message)
             logger.warning(message)
             return
+        invalid = [name for name, value in expected.items() if not _SHA256_RE.fullmatch(value)]
+        if invalid:
+            raise RuntimeError(f"ML metadata contains invalid SHA-256 hashes for: {', '.join(invalid)}")
 
         for path in (self.model_path, self.vectorizer_path):
             actual = self._sha256(path)
-            if actual != expected[path.name]:
+            if actual != expected[path.name].lower():
                 raise RuntimeError(f"ML artifact hash mismatch for {path.name}")
 
     def _load(self):
