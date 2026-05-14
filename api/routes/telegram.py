@@ -1,6 +1,8 @@
 import asyncio
 import json
 import logging
+import os
+import socket
 import time
 from typing import Optional
 
@@ -17,6 +19,23 @@ from routes.cases import create_suggestion_case
 logger = logging.getLogger(__name__)
 
 _TG_BASE = "https://api.telegram.org/bot{token}/{method}"
+
+# Shared client — reuses TCP connections across all Telegram API calls.
+_http_client: Optional[httpx.AsyncClient] = None
+
+
+def _get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(timeout=35.0)
+    return _http_client
+
+
+async def close_http_client() -> None:
+    global _http_client
+    if _http_client and not _http_client.is_closed:
+        await _http_client.aclose()
+        _http_client = None
 
 WELCOME_AR = (
     "مرحبًا بك في خدمة عملاء {company}! 👋\n"
@@ -129,9 +148,9 @@ def _build_keyboard(node: dict) -> dict:
 
 async def _call(method: str, http_timeout: float = 10.0, **kwargs) -> dict:
     url = _TG_BASE.format(token=settings.telegram_bot_token, method=method)
-    async with httpx.AsyncClient(timeout=http_timeout) as client:
-        r = await client.post(url, json=kwargs)
-        return r.json()
+    client = _get_http_client()
+    r = await client.post(url, json=kwargs, timeout=http_timeout)
+    return r.json()
 
 
 async def _send(chat_id: int, text: str, **kwargs) -> None:
@@ -374,6 +393,10 @@ async def _handle_update(update: dict) -> None:
 
 # ── Long-polling loop ─────────────────────────────────────────────────────
 
+_POLLER_LOCK_KEY = "telegram:poller:lock"
+_POLLER_LOCK_TTL = 45  # seconds — renewed every ~30s poll cycle
+
+
 async def run_telegram_poller() -> None:
     if not settings.telegram_poller_enabled:
         logger.info("Telegram polling disabled by TELEGRAM_POLLER_ENABLED")
@@ -382,12 +405,24 @@ async def run_telegram_poller() -> None:
         logger.info("TELEGRAM_BOT_TOKEN not set — Telegram polling disabled")
         return
 
+    r = get_redis()
+    instance_id = f"{socket.gethostname()}:{os.getpid()}"
+
+    # Wait to acquire the distributed lock — prevents two instances polling simultaneously
+    while True:
+        acquired = await r.set(_POLLER_LOCK_KEY, instance_id, nx=True, ex=_POLLER_LOCK_TTL)
+        if acquired:
+            break
+        logger.info("Telegram poller: another instance holds the lock, waiting 10s...")
+        await asyncio.sleep(10)
+
     logger.info("Telegram long-polling started")
     offset = 0
-    r = get_redis()
 
     while True:
         try:
+            # Renew the lock and health heartbeat each cycle
+            await r.set(_POLLER_LOCK_KEY, instance_id, ex=_POLLER_LOCK_TTL)
             await r.setex("health:telegram_worker", 90, str(int(time.time())))
             data = await _call(
                 "getUpdates",
@@ -402,6 +437,7 @@ async def run_telegram_poller() -> None:
                     fire_task(_handle_update(update), label="tg:handle_update")
         except asyncio.CancelledError:
             logger.info("Telegram poller cancelled")
+            await r.delete(_POLLER_LOCK_KEY)
             break
         except Exception as e:
             logger.warning(f"Telegram polling error: {e}")

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { ArrowClockwise, CaretUp, CaretDown, User, Robot, EnvelopeOpen, File } from '@phosphor-icons/react'
 import { api } from '../App.jsx'
+import { apiGet, apiPost } from '../lib/apiFetch.js'
+import { Button, EmptyState, LoadingState, PageHeader, useToast } from '../components/ui.jsx'
 
 const TABS = [
   { label: 'All', value: null },
@@ -79,6 +81,7 @@ function HistoryPanel({ history, typingText }) {
 }
 
 export default function SessionViewer() {
+  const toast = useToast()
   const [activeTab, setActiveTab] = useState(null)
   const [sessions, setSessions] = useState([])
   const [total, setTotal] = useState(0)
@@ -95,14 +98,11 @@ export default function SessionViewer() {
     try {
       const params = new URLSearchParams({ limit: 100 })
       if (activeTab) params.set('status', activeTab)
-      const res = await fetch(`${api.base}/sessions/list?${params}`, {
-        headers: { Authorization: `Bearer ${api.key}` },
-      })
-      const data = await res.json()
+      const data = await apiGet(`/sessions/list?${params}`)
       setSessions(data.sessions || [])
       setTotal(data.total || 0)
     } catch (e) {
-      console.error(e)
+      toast.error(e.message)
     } finally {
       setLoading(false)
     }
@@ -171,14 +171,12 @@ export default function SessionViewer() {
   async function resolveSession(sessionId) {
     setResolving(r => ({ ...r, [sessionId]: true }))
     try {
-      await fetch(`${api.base}/session/${sessionId}/resolve`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${api.key}` },
-      })
+      await apiPost(`/session/${sessionId}/resolve`)
+      toast.success('Session resolved')
       await fetchSessions()
       if (expanded === sessionId) setExpanded(null)
     } catch (e) {
-      console.error(e)
+      toast.error(e.message)
     } finally {
       setResolving(r => ({ ...r, [sessionId]: false }))
     }
@@ -187,14 +185,11 @@ export default function SessionViewer() {
   async function createCaseFromSession(sessionId) {
     setCreatingCase(c => ({ ...c, [sessionId]: true }))
     try {
-      const res = await fetch(`${api.base}/cases/from-session/${sessionId}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${api.key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priority: 'normal', department: 'general' }),
-      })
-      if (res.ok) window.location.assign('/cases')
+      await apiPost(`/cases/from-session/${sessionId}`, { priority: 'normal', department: 'general' })
+      toast.success('Case created')
+      window.location.assign('/cases')
     } catch (e) {
-      console.error(e)
+      toast.error(e.message)
     } finally {
       setCreatingCase(c => ({ ...c, [sessionId]: false }))
     }
@@ -208,15 +203,11 @@ export default function SessionViewer() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-gray-800">Sessions</h1>
-        <button
-          onClick={fetchSessions}
-          className="text-sm bg-white border border-gray-200 hover:bg-gray-50 text-gray-500 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5"
-        >
-          <ArrowClockwise size={28} />Refresh
-        </button>
-      </div>
+      <PageHeader
+        title="Sessions"
+        subtitle="Review customer conversations, create cases, and close resolved sessions."
+        actions={<Button variant="secondary" onClick={fetchSessions}><ArrowClockwise size={16} />Refresh</Button>}
+      />
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
@@ -253,12 +244,9 @@ export default function SessionViewer() {
 
       {/* Session list */}
       {loading ? (
-        <div className="text-center text-gray-400 py-20 text-sm">Loading...</div>
+        <LoadingState label="Loading sessions..." />
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow p-12 text-center text-gray-400">
-          <EnvelopeOpen size={28} className="mx-auto mb-3 text-gray-300" />
-          <div>No sessions found</div>
-        </div>
+        <EmptyState icon={<EnvelopeOpen size={22} />} title="No sessions found" description="Try another status tab or search term." />
       ) : (
         <div className="space-y-2">
           {filtered.map(s => {

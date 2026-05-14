@@ -6,9 +6,18 @@ from core.ml.arabic_normalizer import normalize_arabic
 logger = logging.getLogger(__name__)
 
 _GREETINGS_AR = {
-    'مرحبا', 'مرحباً', 'مرحبه', 'هلا', 'هلاً', 'اهلا', 'أهلاً', 'أهلا', 'اهلاً',
-    'السلام عليكم', 'سلام', 'صباح الخير', 'مساء الخير', 'صباح النور', 'مساء النور',
-    'هاي', 'هي', 'hello', 'hi', 'hey', 'good morning', 'good evening',
+    'السلام عليكم', 'السلام عليكم ورحمة الله', 'السلام عليكم ورحمة الله وبركاته',
+    'وعليكم السلام', 'وعليكم السلام ورحمة الله', 'وعليكم السلام ورحمة الله وبركاته',
+    'سلام', 'سلام عليكم', 'سلامات',
+    'مرحبا', 'مرحباً', 'مرحبه', 'مرحبتين', 'مراحب',
+    'اهلا', 'أهلاً', 'أهلا', 'اهلاً', 'اهلين', 'اهلًا وسهلًا', 'اهلا وسهلا',
+    'هلا', 'هلاً', 'هلا والله', 'هلا بيك', 'هلا بيكم', 'ياهلا', 'يا هلا',
+    'صباح الخير', 'صباح النور', 'يسعد صباحك', 'يسعد صباحكم',
+    'مساء الخير', 'مساء النور', 'يسعد مساك', 'يسعد مساكم',
+    'شلونك', 'شلونكم', 'شخبارك', 'شخباركم', 'اخبارك', 'اخباركم',
+    'كيفك', 'كيفكم', 'كيف الحال', 'كيف حالك', 'كيف حالكم',
+    'هلو', 'الو', 'هاي', 'هي',
+    'hello', 'hi', 'hey', 'good morning', 'good evening',
 }
 
 _GREETING_RE = re.compile(
@@ -65,7 +74,12 @@ _INTENT_KEYWORDS: dict[str, list[str]] = {
 
 
 def is_greeting(text: str) -> bool:
-    return bool(_GREETING_RE.match(normalize_arabic(text).strip()))
+    cleaned = normalize_arabic(text).strip()
+    if _GREETING_RE.match(cleaned):
+        return True
+    if len(cleaned.split()) <= 5:
+        return any(cleaned.startswith(normalize_arabic(g) + " ") for g in _GREETINGS_AR)
+    return False
 
 
 def is_gratitude(text: str) -> bool:
@@ -108,7 +122,12 @@ class ConversationService:
 
     def process(self, message: str) -> dict:
         if is_greeting(message):
-            return {"response": "", "confidence": 0.0, "category": "Greeting", "source": "conversation"}
+            return {
+                "response": "أهلاً بك، كيف يمكنني مساعدتك؟",
+                "confidence": 1.0,
+                "category": "Greeting",
+                "source": "conversation",
+            }
 
         if is_gratitude(message):
             return {
@@ -118,14 +137,25 @@ class ConversationService:
                 "source": "conversation",
             }
 
+        candidates = []
+        keyword_query = None
+        if hasattr(self.model, "keyword_query"):
+            keyword_query = self.model.keyword_query(message)
+            if keyword_query:
+                logger.debug(f"ML keyword query extracted: {keyword_query!r}")
+                candidates.append(keyword_query)
+
         intent_query = extract_intent(message)
         if intent_query != message:
             logger.debug(f"Intent extracted: {intent_query!r}")
+            candidates.append(intent_query)
+        candidates.append(message)
 
-        result = self._generate(intent_query)
-
-        if result["confidence"] < self.threshold and intent_query != message:
-            alt = self._generate(message)
+        result = self._generate(candidates[0])
+        for candidate in candidates[1:]:
+            if result["confidence"] >= self.threshold and result["response"]:
+                break
+            alt = self._generate(candidate)
             if alt["confidence"] > result["confidence"]:
                 result = alt
 

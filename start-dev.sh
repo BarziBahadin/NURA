@@ -63,17 +63,30 @@ LAN_IP=$(detect_lan_ip)
 setup_https_certs "$LAN_IP"
 
 echo "Starting backend services in Docker..."
-docker compose up -d postgres redis chromadb nura-api nura-admin caddy
+docker compose up -d postgres redis chromadb nura-api nura-admin
 
 echo ""
 echo "Services running:"
-echo "  API  (HTTP):  http://localhost:8080"
-echo "  API  (HTTPS): https://localhost:8443"
-echo "  Admin(HTTP):  http://localhost:3004"
-echo "  Admin(HTTPS): https://localhost:3443"
+echo "  API:   http://localhost:8080"
+echo "  Admin: http://localhost:3004"
 if [ -n "$LAN_IP" ]; then
-  echo "  API  (LAN):   https://$LAN_IP:8443"
-  echo "  Admin(LAN):   https://$LAN_IP:3443"
+  echo "  API  (LAN): http://$LAN_IP:8080"
+  echo "  Admin(LAN): http://$LAN_IP:3004"
+fi
+echo ""
+echo "Installing frontend deps if needed..."
+npm --prefix frontend install --silent
+
+echo "Starting widget dev server (background)..."
+npm --prefix frontend run dev:host &
+WIDGET_PID=$!
+trap "kill $WIDGET_PID 2>/dev/null; echo 'Widget dev server stopped.'" EXIT
+
+echo ""
+echo "Widget dev server:"
+echo "  Local: http://localhost:9000"
+if [ -n "$LAN_IP" ]; then
+  echo "  LAN:   http://$LAN_IP:9000"
 fi
 echo ""
 echo "Starting Vite admin dev server..."

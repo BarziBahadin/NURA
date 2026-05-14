@@ -176,6 +176,17 @@ function TrendCard({ label, value, delta, sub, inverse = false, Icon, tone = 'bl
   )
 }
 
+function QualityMiniCard({ label, value, sub, tone = 'blue' }) {
+  const t = ICON_TONES[tone] || ICON_TONES.blue
+  return (
+    <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+      <div className={`text-lg font-bold ${t.text}`}>{value}</div>
+      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-0.5">{label}</div>
+      {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
+    </div>
+  )
+}
+
 const SEVERITY_ICONS = {
   critical: XCircle,
   high: Warning,
@@ -328,11 +339,12 @@ export default function Dashboard() {
   const maxEventCount = data?.event_breakdown?.[0]?.count || 1
   const maxOwnerCases = data?.cases?.by_owner?.[0]?.count || 1
   const maxChannelSuggestions = data?.suggestions?.by_channel?.[0]?.count || 1
+  const maxSourceQualityMessages = data?.quality?.source_quality?.[0]?.messages || 1
 
   const allServicesOk = health && Object.values(health.services || {}).every(s => s === 'ok' || s === 'inactive' || s === 'missing')
 
   return (
-    <div className="w-full max-w-none p-6 2xl:p-8">
+    <div className="w-full max-w-none p-3 md:p-6 2xl:p-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
@@ -352,14 +364,14 @@ export default function Dashboard() {
         <div className="flex items-center gap-2">
           {[7, 30, 90].map(d => (
             <button key={d} onClick={() => setDays(d)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+              className={`px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-all duration-150 ${
                 days === d ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
               }`}>
               {d}d
             </button>
           ))}
           <button onClick={fetchData}
-            className="px-3 py-1.5 rounded-lg text-sm bg-white border border-gray-200 hover:bg-gray-50 text-gray-500 flex items-center gap-1.5 transition-all duration-150">
+            className="px-3 py-2.5 min-h-[44px] rounded-lg text-sm bg-white border border-gray-200 hover:bg-gray-50 text-gray-500 flex items-center gap-1.5 transition-all duration-150">
             <ArrowClockwise size={16} />Refresh
           </button>
         </div>
@@ -416,6 +428,62 @@ export default function Dashboard() {
               <TrendCard label="Avg Rating" value={ratings?.avg_rating != null ? ratings.avg_rating.toFixed(1) : '—'} sub={ratings?.total_rated ? `${ratings.total_rated} ratings` : 'no ratings yet'} Icon={Star} tone="orange" />
               <TrendCard label="AI Cost" value={`$${Number(data.estimated_ai_cost || 0).toFixed(4)}`} sub={`${formatInt(data.llm_total_tokens)} tokens`} Icon={CurrencyDollar} tone="gray" inverse />
             </div>
+          </div>
+
+          {/* Quality & automation */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
+            <SectionCard title="Quality & Automation" Icon={Robot} iconTone="teal">
+              <div className="grid grid-cols-2 gap-3">
+                <QualityMiniCard label="Automation" value={formatPercent(data.quality?.automation_rate)} sub="non-escalated messages" tone="green" />
+                <QualityMiniCard label="OpenAI Fallback" value={formatPercent(data.quality?.openai_fallback_rate)} sub="messages using OpenAI" tone="purple" />
+                <QualityMiniCard label="ML Share" value={formatPercent(data.quality?.ml_rate)} sub="local model answers" tone="teal" />
+                <QualityMiniCard label="Rules Share" value={formatPercent(data.quality?.rules_rate)} sub="deterministic articles" tone="orange" />
+                <QualityMiniCard label="Low Confidence" value={formatPercent(data.quality?.low_confidence_rate)} sub={`${formatInt(data.quality?.low_confidence_messages)} messages`} tone="red" />
+                <QualityMiniCard label="Gap Rate" value={`${Number(data.quality?.knowledge_gap_rate_per_100 || 0).toFixed(1)}`} sub="per 100 messages" tone="yellow" />
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Source Quality" Icon={ChartBar} iconTone="purple">
+              <div className="space-y-3">
+                {(data.quality?.source_quality || []).length === 0
+                  ? <div className="text-xs text-gray-300 py-8 text-center">No source quality data</div>
+                  : data.quality.source_quality.map(row => (
+                      <div key={row.source} className="rounded-xl border border-gray-100 p-3">
+                        <div className="flex items-center justify-between gap-3 mb-2">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                            style={{ background: srcColor(row.source) + '20', color: srcColor(row.source) }}>
+                            {srcLabel(row.source)}
+                          </span>
+                          <span className="text-xs text-gray-400">{formatInt(row.messages)} messages</span>
+                        </div>
+                        <HorizBar label="Volume" count={row.messages} max={maxSourceQualityMessages} color={srcColor(row.source)} />
+                        <div className="grid grid-cols-3 gap-2 text-xs mt-2">
+                          <div><span className="text-gray-400">Conf</span><div className="font-bold text-gray-700">{Math.round((row.avg_confidence || 0) * 100)}%</div></div>
+                          <div><span className="text-gray-400">Low</span><div className="font-bold text-red-500">{formatPercent(row.low_confidence_rate)}</div></div>
+                          <div><span className="text-gray-400">Bad</span><div className="font-bold text-orange-500">{formatInt(row.feedback_bad)}</div></div>
+                        </div>
+                      </div>
+                    ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Top Failed Questions" Icon={Warning} iconTone="red">
+              <div className="space-y-2">
+                {(data.quality?.top_failed_questions || []).length === 0
+                  ? <div className="text-xs text-gray-300 py-8 text-center">No low-confidence or escalated questions</div>
+                  : data.quality.top_failed_questions.map((row, i) => (
+                      <div key={`${row.session_id}-${i}`} className="rounded-xl border border-gray-100 px-3 py-2">
+                        <div className="text-sm text-gray-700 truncate">{row.customer_message}</div>
+                        <div className="flex items-center justify-between gap-2 mt-1">
+                          <span className="text-xs text-gray-400">{srcLabel(row.source || 'unknown')}</span>
+                          <span className={`text-xs font-semibold ${row.escalated ? 'text-red-500' : 'text-orange-500'}`}>
+                            {row.escalated ? 'Escalated' : `${Math.round((row.confidence || 0) * 100)}%`}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+              </div>
+            </SectionCard>
           </div>
 
           {/* Action panels */}

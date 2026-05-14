@@ -1,11 +1,24 @@
-import React, { useState, useEffect } from 'react'
-import { X } from '@phosphor-icons/react'
-import { api } from '../App.jsx'
+import React, { useEffect, useState } from 'react'
+import { Users } from '@phosphor-icons/react'
+import { apiGet, apiPatch, apiPost } from '../lib/apiFetch.js'
+import {
+  Badge,
+  Button,
+  Card,
+  ConfirmDialog,
+  EmptyState,
+  Field,
+  LoadingState,
+  Modal,
+  PageHeader,
+  inputClass,
+  useToast,
+} from '../components/ui.jsx'
 
-const ROLE_COLORS = {
-  admin: 'bg-blue-100 text-blue-700',
-  agent: 'bg-green-100 text-green-700',
-  viewer: 'bg-gray-100 text-gray-600',
+const ROLE_TONE = {
+  admin: 'blue',
+  agent: 'green',
+  viewer: 'gray',
 }
 
 function timeAgo(iso) {
@@ -17,87 +30,76 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString('en')
 }
 
-function Modal({ title, children, onClose }) {
-  return (
-    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-800">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={28} /></button>
-        </div>
-        {children}
-      </div>
-    </div>
-  )
-}
-
 function CreateModal({ onClose, onCreated }) {
+  const toast = useToast()
   const [form, setForm] = useState({ username: '', password: '', confirm: '', role: 'agent', display_name: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const set = (key, value) => setForm(current => ({ ...current, [key]: value }))
 
   async function submit(e) {
     e.preventDefault()
-    if (form.password !== form.confirm) { setError('Passwords do not match'); return }
-    setBusy(true); setError('')
+    if (form.password !== form.confirm) {
+      setError('Passwords do not match')
+      return
+    }
+    setBusy(true)
+    setError('')
     try {
-      const res = await fetch(`${api.base}/users`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${api.key}` },
-        body: JSON.stringify({ username: form.username, password: form.password, role: form.role, display_name: form.display_name }),
+      await apiPost('/users', {
+        username: form.username,
+        password: form.password,
+        role: form.role,
+        display_name: form.display_name,
       })
-      const data = await res.json()
-      if (!res.ok) { setError(data.detail || 'Failed'); return }
+      toast.success('Team member created')
       onCreated()
-    } finally { setBusy(false) }
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
-    <Modal title="Add Team Member" onClose={onClose}>
-      <form onSubmit={submit} className="space-y-3">
-        <label className="block text-xs text-gray-500">
-          Username
-          <input value={form.username} onChange={e => set('username', e.target.value)} required
-            className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="agent1" />
-        </label>
-        <label className="block text-xs text-gray-500">
-          Display Name
-          <input value={form.display_name} onChange={e => set('display_name', e.target.value)}
-            className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="John Smith" />
-        </label>
-        <label className="block text-xs text-gray-500">
-          Role
-          <select value={form.role} onChange={e => set('role', e.target.value)}
-            className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+    <Modal
+      title="Add Team Member"
+      onClose={onClose}
+      footer={(
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button type="submit" form="create-user-form" disabled={busy}>{busy ? 'Creating...' : 'Create'}</Button>
+        </>
+      )}
+    >
+      <form id="create-user-form" onSubmit={submit} className="space-y-3">
+        {error && <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+        <Field label="Username">
+          <input value={form.username} onChange={e => set('username', e.target.value)} required className={inputClass} placeholder="agent1" />
+        </Field>
+        <Field label="Display Name">
+          <input value={form.display_name} onChange={e => set('display_name', e.target.value)} className={inputClass} placeholder="John Smith" />
+        </Field>
+        <Field label="Role">
+          <select value={form.role} onChange={e => set('role', e.target.value)} className={inputClass}>
             <option value="agent">Agent</option>
             <option value="viewer">Viewer</option>
             <option value="admin">Admin</option>
           </select>
-        </label>
-        <label className="block text-xs text-gray-500">
-          Password
-          <input type="password" value={form.password} onChange={e => set('password', e.target.value)} required minLength={8}
-            className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-        </label>
-        <label className="block text-xs text-gray-500">
-          Confirm Password
-          <input type="password" value={form.confirm} onChange={e => set('confirm', e.target.value)} required
-            className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-        </label>
-        {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</div>}
-        <div className="flex justify-end gap-2 pt-1">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200">Cancel</button>
-          <button type="submit" disabled={busy} className="px-4 py-2 text-sm rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
-            {busy ? 'Creating...' : 'Create'}
-          </button>
-        </div>
+        </Field>
+        <Field label="Password">
+          <input type="password" value={form.password} onChange={e => set('password', e.target.value)} required minLength={8} className={inputClass} />
+        </Field>
+        <Field label="Confirm Password">
+          <input type="password" value={form.confirm} onChange={e => set('confirm', e.target.value)} required className={inputClass} />
+        </Field>
       </form>
     </Modal>
   )
 }
 
 function ResetPasswordModal({ username, onClose, onDone }) {
+  const toast = useToast()
   const [pwd, setPwd] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
@@ -105,60 +107,97 @@ function ResetPasswordModal({ username, onClose, onDone }) {
 
   async function submit(e) {
     e.preventDefault()
-    if (pwd !== confirm) { setError('Passwords do not match'); return }
-    setBusy(true); setError('')
+    if (pwd !== confirm) {
+      setError('Passwords do not match')
+      return
+    }
+    setBusy(true)
+    setError('')
     try {
-      const res = await fetch(`${api.base}/users/${username}/password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${api.key}` },
-        body: JSON.stringify({ new_password: pwd }),
-      })
-      if (!res.ok) { const d = await res.json(); setError(d.detail || 'Failed'); return }
+      await apiPost(`/users/${username}/password`, { new_password: pwd })
+      toast.success('Password reset')
       onDone()
-    } finally { setBusy(false) }
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
-    <Modal title={`Reset Password — ${username}`} onClose={onClose}>
-      <form onSubmit={submit} className="space-y-3">
-        <label className="block text-xs text-gray-500">
-          New Password
-          <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} required minLength={8}
-            className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-        </label>
-        <label className="block text-xs text-gray-500">
-          Confirm Password
-          <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required
-            className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-        </label>
-        {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</div>}
-        <div className="flex justify-end gap-2 pt-1">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200">Cancel</button>
-          <button type="submit" disabled={busy} className="px-4 py-2 text-sm rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
-            {busy ? 'Saving...' : 'Save'}
-          </button>
-        </div>
+    <Modal
+      title={`Reset Password - ${username}`}
+      onClose={onClose}
+      footer={(
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button type="submit" form="reset-password-form" disabled={busy}>{busy ? 'Saving...' : 'Save'}</Button>
+        </>
+      )}
+    >
+      <form id="reset-password-form" onSubmit={submit} className="space-y-3">
+        {error && <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+        <Field label="New Password">
+          <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} required minLength={8} className={inputClass} />
+        </Field>
+        <Field label="Confirm Password">
+          <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required className={inputClass} />
+        </Field>
       </form>
     </Modal>
   )
 }
 
+function UserCard({ user, onRoleChange, onToggleActive, onReset }) {
+  return (
+    <Card className="p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-semibold text-gray-900">{user.display_name || user.username}</div>
+          <div className="text-xs text-gray-500">@{user.username}</div>
+        </div>
+        <Badge tone={user.is_active ? 'green' : 'red'}>{user.is_active ? 'Active' : 'Inactive'}</Badge>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <Field label="Role">
+          <select value={user.role} onChange={e => onRoleChange(user, e.target.value)} className={inputClass}>
+            <option value="admin">admin</option>
+            <option value="agent">agent</option>
+            <option value="viewer">viewer</option>
+          </select>
+        </Field>
+        <div>
+          <div className="text-xs font-semibold text-gray-500">Last Login</div>
+          <div className="mt-2 text-sm text-gray-700">{timeAgo(user.last_login)}</div>
+        </div>
+        <div className="flex items-end gap-2 sm:justify-end">
+          <Button variant="secondary" size="sm" onClick={() => onReset(user.username)}>Reset</Button>
+          <Button variant={user.is_active ? 'danger' : 'primary'} size="sm" onClick={() => onToggleActive(user)}>
+            {user.is_active ? 'Deactivate' : 'Activate'}
+          </Button>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
 export default function UserManagement() {
+  const toast = useToast()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [resetTarget, setResetTarget] = useState(null)
+  const [confirm, setConfirm] = useState(null)
 
   async function fetchUsers() {
     setLoading(true)
+    setError('')
     try {
-      const res = await fetch(`${api.base}/users`, {
-        headers: { Authorization: `Bearer ${api.key}` },
-      })
-      const data = await res.json()
+      const data = await apiGet('/users')
       setUsers(data.users || [])
     } catch (e) {
-      console.error(e)
+      setError(e.message)
     } finally {
       setLoading(false)
     }
@@ -166,97 +205,106 @@ export default function UserManagement() {
 
   useEffect(() => { fetchUsers() }, [])
 
-  async function toggleActive(username, current) {
-    await fetch(`${api.base}/users/${username}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${api.key}` },
-      body: JSON.stringify({ is_active: !current }),
+  function requestRoleChange(user, role) {
+    if (role === user.role) return
+    setConfirm({
+      title: 'Change Role',
+      message: `Change ${user.username} from ${user.role} to ${role}? Their current session will be invalidated.`,
+      confirmLabel: 'Change Role',
+      onConfirm: async () => {
+        await apiPatch(`/users/${user.username}`, { role })
+        toast.success('Role updated')
+        setConfirm(null)
+        fetchUsers()
+      },
     })
-    fetchUsers()
   }
 
-  async function changeRole(username, role) {
-    await fetch(`${api.base}/users/${username}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${api.key}` },
-      body: JSON.stringify({ role }),
+  function requestToggleActive(user) {
+    setConfirm({
+      title: user.is_active ? 'Deactivate User' : 'Activate User',
+      message: `${user.is_active ? 'Deactivate' : 'Activate'} ${user.username}?`,
+      confirmLabel: user.is_active ? 'Deactivate' : 'Activate',
+      danger: user.is_active,
+      onConfirm: async () => {
+        await apiPatch(`/users/${user.username}`, { is_active: !user.is_active })
+        toast.success(user.is_active ? 'User deactivated' : 'User activated')
+        setConfirm(null)
+        fetchUsers()
+      },
     })
-    fetchUsers()
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Team Members</h1>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-xl transition"
-        >
-          + Add Member
-        </button>
-      </div>
+    <div className="mx-auto w-full max-w-6xl p-4 md:p-6">
+      <PageHeader
+        title="Team Members"
+        subtitle="Manage admin, agent, and viewer access."
+        actions={<Button onClick={() => setShowCreate(true)}>Add Member</Button>}
+      />
+
+      {error && <div className="mb-4 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
       {loading ? (
-        <div className="text-center text-gray-400 py-20">Loading...</div>
+        <LoadingState label="Loading team..." />
+      ) : users.length === 0 ? (
+        <EmptyState icon={<Users size={22} />} title="No team members yet" action={<Button onClick={() => setShowCreate(true)}>Add Member</Button>} />
       ) : (
-        <div className="bg-white rounded-2xl shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Member</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Last Login</th>
-                <th className="px-5 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {users.map(u => (
-                <tr key={u.username} className="hover:bg-gray-50 transition">
-                  <td className="px-5 py-3">
-                    <div className="font-medium text-gray-800">{u.display_name || u.username}</div>
-                    <div className="text-xs text-gray-400">@{u.username}</div>
-                  </td>
-                  <td className="px-5 py-3">
-                    <select
-                      value={u.role}
-                      onChange={e => changeRole(u.username, e.target.value)}
-                      className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer ${ROLE_COLORS[u.role]}`}
-                    >
-                      <option value="admin">admin</option>
-                      <option value="agent">agent</option>
-                      <option value="viewer">viewer</option>
-                    </select>
-                  </td>
-                  <td className="px-5 py-3">
-                    <button
-                      onClick={() => toggleActive(u.username, u.is_active)}
-                      className={`text-xs font-medium px-2.5 py-1 rounded-full transition ${
-                        u.is_active
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                          : 'bg-red-100 text-red-600 hover:bg-red-200'
-                      }`}
-                    >
-                      {u.is_active ? 'Active' : 'Inactive'}
-                    </button>
-                  </td>
-                  <td className="px-5 py-3 text-xs text-gray-400">{timeAgo(u.last_login)}</td>
-                  <td className="px-5 py-3 text-right">
-                    <button
-                      onClick={() => setResetTarget(u.username)}
-                      className="text-xs text-blue-600 hover:underline"
-                    >
-                      Reset Password
-                    </button>
-                  </td>
+        <>
+          <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm md:block">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Member</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Role</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Last Login</th>
+                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {users.length === 0 && (
-            <div className="text-center text-gray-400 py-12">No team members yet</div>
-          )}
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {users.map(user => (
+                  <tr key={user.username} className="hover:bg-gray-50">
+                    <td className="px-5 py-3">
+                      <div className="font-medium text-gray-900">{user.display_name || user.username}</div>
+                      <div className="text-xs text-gray-500">@{user.username}</div>
+                    </td>
+                    <td className="px-5 py-3">
+                      <select value={user.role} onChange={e => requestRoleChange(user, e.target.value)} className={`${inputClass} max-w-32 py-1`}>
+                        <option value="admin">admin</option>
+                        <option value="agent">agent</option>
+                        <option value="viewer">viewer</option>
+                      </select>
+                    </td>
+                    <td className="px-5 py-3">
+                      <Badge tone={user.is_active ? 'green' : 'red'}>{user.is_active ? 'Active' : 'Inactive'}</Badge>
+                    </td>
+                    <td className="px-5 py-3 text-gray-500">{timeAgo(user.last_login)}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex justify-end gap-2">
+                        <Button variant="secondary" size="sm" onClick={() => setResetTarget(user.username)}>Reset</Button>
+                        <Button variant={user.is_active ? 'danger' : 'primary'} size="sm" onClick={() => requestToggleActive(user)}>
+                          {user.is_active ? 'Deactivate' : 'Activate'}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="grid gap-3 md:hidden">
+            {users.map(user => (
+              <UserCard
+                key={user.username}
+                user={user}
+                onRoleChange={requestRoleChange}
+                onToggleActive={requestToggleActive}
+                onReset={setResetTarget}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {showCreate && (
@@ -269,7 +317,24 @@ export default function UserManagement() {
         <ResetPasswordModal
           username={resetTarget}
           onClose={() => setResetTarget(null)}
-          onDone={() => setResetTarget(null)}
+          onDone={() => { setResetTarget(null); fetchUsers() }}
+        />
+      )}
+      {confirm && (
+        <ConfirmDialog
+          title={confirm.title}
+          message={confirm.message}
+          confirmLabel={confirm.confirmLabel}
+          danger={confirm.danger}
+          onCancel={() => setConfirm(null)}
+          onConfirm={async () => {
+            try {
+              await confirm.onConfirm()
+            } catch (e) {
+              toast.error(e.message)
+              setConfirm(null)
+            }
+          }}
         />
       )}
     </div>

@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     ml_model_path: str = "/app/ml_models/local_model.pkl"
     ml_vectorizer_path: str = "/app/ml_models/vectorizer.pkl"
     ml_confidence_threshold: float = 0.70
-    ml_require_artifact_hashes: bool = False
+    ml_require_artifact_hashes: bool = True
     use_semantic_embeddings: bool = False
     semantic_model_name: str = "paraphrase-multilingual-MiniLM-L12-v2"
 

@@ -31,6 +31,23 @@ _BM25_W = 0.5
 _SEM_TFIDF_W = 0.3
 _SEM_BM25_W = 0.2
 _SEM_W = 0.5
+_TOKEN_RE = re.compile(r"\w+")
+_KEYWORD_STOPWORDS = {
+    "انا", "انت", "انتم", "نحن", "هو", "هي", "هم", "هذا", "هذه",
+    "في", "من", "على", "الى", "عن", "مع", "بعد", "قبل", "هل", "ما",
+    "كيف", "متى", "اين", "اريد", "ممكن", "يمكن", "عندي", "لدي",
+    "the", "and", "or", "for", "with", "from", "this", "that", "can",
+    "could", "please", "want", "need", "how", "what", "where", "when",
+}
+
+
+def _keyword_tokens(text: str) -> set[str]:
+    normalized = normalize_arabic(text)
+    return {
+        token
+        for token in _TOKEN_RE.findall(normalized)
+        if len(token) >= 3 and token not in _KEYWORD_STOPWORDS
+    }
 
 
 class LocalModelService:
@@ -123,6 +140,7 @@ class LocalModelService:
         self.question_vectors = self.vectorizer.transform(normalized)
         self.bm25 = BM25Okapi([q.split() for q in normalized])
         self._normalized_questions = normalized
+        self._question_token_sets = [_keyword_tokens(q) for q in self.customer_questions]
 
         self.question_embeddings = model.get("question_embeddings")
         if self.use_semantic and _ST_AVAILABLE:
@@ -135,6 +153,41 @@ class LocalModelService:
             logger.warning("use_semantic=True but sentence-transformers not installed.")
 
         logger.info(f"ML model loaded: {model['n_samples']} training samples")
+
+    def keyword_query(self, text: str) -> str | None:
+        """Return the closest known training question by keyword overlap.
+
+        This helps when users paste long chats/imported text containing a short
+        known intent buried inside extra words.
+        """
+        msg_tokens = _keyword_tokens(text)
+        if len(msg_tokens) < 2:
+            return None
+
+        best_idx = -1
+        best_score = 0.0
+        best_hits = 0
+        for idx, question_tokens in enumerate(self._question_token_sets):
+            if not question_tokens:
+                continue
+            hits = len(msg_tokens & question_tokens)
+            if hits < 2:
+                continue
+            query_coverage = hits / len(msg_tokens)
+            question_coverage = hits / len(question_tokens)
+            score = (0.35 * query_coverage) + (0.65 * question_coverage)
+            if score > best_score:
+                best_idx = idx
+                best_score = score
+                best_hits = hits
+
+        if best_idx >= 0 and best_score >= 0.38:
+            logger.debug(
+                "ML keyword query matched training question "
+                f"(hits={best_hits}, score={best_score:.2f})"
+            )
+            return self.customer_questions[best_idx]
+        return None
 
     def _fuzzy_fallback(self, normalized_q: str) -> tuple[int, float]:
         best_idx, best_ratio = 0, 0.0

@@ -165,8 +165,9 @@ async def persist_session(session: Session) -> None:
                 datetime.fromisoformat(session.updated_at),
             )
     except Exception as e:
+        # Redis already holds the session, so the user request can continue.
+        # The next save_session call will retry Postgres automatically.
         logger.exception(f"Failed to persist session {session.session_id} to Postgres: {e}")
-        raise
 
 
 async def load_session_from_db(session_id: str) -> Optional[Session]:
@@ -312,25 +313,18 @@ async def get_sessions_from_db(
     try:
         pool = await get_db_pool()
         async with pool.acquire() as conn:
+            _COLS = """
+                session_id, customer_id, channel, status, history,
+                failure_count, negative_score, metadata, created_at, updated_at
+            """
             if status_filter is None:
                 rows = await conn.fetch(
-                    """
-                    SELECT *
-                    FROM sessions
-                    ORDER BY updated_at DESC
-                    LIMIT 500
-                    """
+                    f"SELECT {_COLS} FROM sessions ORDER BY updated_at DESC LIMIT 500"
                 )
             else:
                 status = status_filter.value if isinstance(status_filter, SessionStatus) else status_filter
                 rows = await conn.fetch(
-                    """
-                    SELECT *
-                    FROM sessions
-                    WHERE status = $1
-                    ORDER BY updated_at DESC
-                    LIMIT 500
-                    """,
+                    f"SELECT {_COLS} FROM sessions WHERE status = $1 ORDER BY updated_at DESC LIMIT 500",
                     status,
                 )
     except Exception as e:

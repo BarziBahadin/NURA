@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { X, Timer, File, CaretRight, CheckCircle } from '@phosphor-icons/react'
 import { api } from '../App.jsx'
+import { apiGet, apiPost } from '../lib/apiFetch.js'
+import { Button, ConfirmDialog, EmptyState, LoadingState, PageHeader, useToast } from '../components/ui.jsx'
 
 function playBeep() {
   try {
@@ -106,7 +108,7 @@ function ChatHistory({ turns }) {
     return <div className="text-center text-gray-400 text-xs py-3">No messages yet</div>
 
   return (
-    <div className="space-y-2 max-h-64 overflow-y-auto p-3 bg-gray-50 rounded-xl">
+    <div className="space-y-2 max-h-96 overflow-y-auto p-3 bg-gray-50 rounded-xl">
       {turns.map((t, i) => (
         <div key={i} className={`flex gap-2 ${t.role === 'customer' ? '' : 'flex-row-reverse'}`}>
           <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
@@ -236,7 +238,7 @@ function PreviewModal({ session, onClose, onAccept, accepting }) {
   )
 }
 
-function PendingHandoffCard({ s, onPreview, onResolve, resolving }) {
+function PendingHandoffCard({ s, onPreview, onResolve, resolving, onLoadPreview }) {
   const history = s.history || []
   const customerTurns = history.filter(t => t.role === 'customer')
   const lastCustomer = [...customerTurns].reverse().find(t => t.message)
@@ -280,15 +282,15 @@ function PendingHandoffCard({ s, onPreview, onResolve, resolving }) {
         </div>
         <div className="flex flex-col gap-2 flex-shrink-0">
           <button
-            onClick={() => onPreview(s)}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-xl transition whitespace-nowrap"
+            onClick={() => onLoadPreview(s.session_id)}
+            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 min-h-[44px] rounded-xl transition whitespace-nowrap"
           >
             Preview & Accept
           </button>
           <button
             onClick={() => onResolve(s)}
             disabled={resolving}
-            className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm px-3 py-2 rounded-xl transition disabled:opacity-50 whitespace-nowrap"
+            className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm px-3 py-2 min-h-[44px] rounded-xl transition disabled:opacity-50 whitespace-nowrap"
           >
             {resolving ? '...' : 'Resolve'}
           </button>
@@ -300,6 +302,7 @@ function PendingHandoffCard({ s, onPreview, onResolve, resolving }) {
 
 
 function ActiveChatCard({ s, onResolved }) {
+  const toast = useToast()
   const [turns, setTurns] = useState(s.history || [])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -317,13 +320,10 @@ function ActiveChatCard({ s, onResolved }) {
 
   async function fetchAllMessages() {
     try {
-      const res = await fetch(`${api.base}/session/${s.session_id}/messages`, {
-        headers: { Authorization: `Bearer ${api.key}` },
-      })
-      const data = await res.json()
+      const data = await apiGet(`/session/${s.session_id}/messages`)
       if (data.turns) setTurns(data.turns)
     } catch (e) {
-      console.error(e)
+      toast.error(e.message)
     }
   }
 
@@ -404,15 +404,11 @@ function ActiveChatCard({ s, onResolved }) {
     if (!text || sending) return
     setSending(true)
     try {
-      await fetch(`${api.base}/session/${s.session_id}/agent-message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${api.key}` },
-        body: JSON.stringify({ message: text, agent_name: 'Agent' }),
-      })
+      await apiPost(`/session/${s.session_id}/agent-message`, { message: text, agent_name: 'Agent' })
       setInput('')
       await fetchAllMessages()
     } catch (e) {
-      console.error(e)
+      toast.error(e.message)
     } finally {
       setSending(false)
       inputRef.current?.focus()
@@ -423,9 +419,10 @@ function ActiveChatCard({ s, onResolved }) {
     setInput(e.target.value)
     clearTimeout(typingDebounceRef.current)
     typingDebounceRef.current = setTimeout(() => {
-      fetch(`${api.base}/session/${s.session_id}/typing?sender=agent`, {
+      fetch(`${api.base}/session/${s.session_id}/typing`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${api.key}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${api.key}` },
+        body: JSON.stringify({ sender: 'agent' }),
       }).catch(() => {})
     }, 500)
   }
@@ -442,14 +439,11 @@ function ActiveChatCard({ s, onResolved }) {
     esRef.current?.close()
     clearInterval(fallbackRef.current)
     try {
-      await fetch(`${api.base}/session/${s.session_id}/resolve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${api.key}` },
-        body: JSON.stringify(outcome),
-      })
+      await apiPost(`/session/${s.session_id}/resolve`, outcome)
+      toast.success('Session resolved')
       onResolved()
     } catch (e) {
-      console.error(e)
+      toast.error(e.message)
       setResolving(false)
     }
   }
@@ -525,7 +519,7 @@ function ActiveChatCard({ s, onResolved }) {
                     setInput(prev => prev ? prev + '\n' + r.body : r.body)
                     inputRef.current?.focus()
                   }}
-                  className="text-xs px-2.5 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition whitespace-nowrap max-w-[220px] truncate"
+                  className="text-xs px-2.5 py-2.5 min-h-[40px] rounded-full border border-gray-200 bg-gray-50 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition whitespace-nowrap max-w-[220px] truncate"
                   style={{ direction: 'auto' }}
                   title={r.body}
                 >
@@ -558,7 +552,7 @@ function ActiveChatCard({ s, onResolved }) {
           <button
             onClick={sendMessage}
             disabled={sending || !input.trim()}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-xl transition disabled:opacity-50 self-end whitespace-nowrap"
+            className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-3 min-h-[44px] rounded-xl transition disabled:opacity-50 self-end whitespace-nowrap"
           >
             {sending ? '...' : 'Send'}
           </button>
@@ -569,20 +563,22 @@ function ActiveChatCard({ s, onResolved }) {
 }
 
 export default function LiveQueue({ mode = 'chats' }) {
+  const toast = useToast()
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [accepting, setAccepting] = useState({})
   const [resolving, setResolving] = useState({})
   const [resolveTarget, setResolveTarget] = useState(null)
   const [previewTarget, setPreviewTarget] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [confirmResolve, setConfirmResolve] = useState(null)
   const prevPendingRef = useRef(null)
 
   async function fetchQueue() {
     try {
-      const res = await fetch(`${api.base}/queue`, {
-        headers: { Authorization: `Bearer ${api.key}` },
-      })
-      const data = await res.json()
+      setError('')
+      const data = await apiGet('/queue')
       const incoming = data.sessions || []
       const newPending = incoming.filter(s => s.status === 'PENDING_HANDOFF').length
       if (prevPendingRef.current !== null && newPending > prevPendingRef.current) {
@@ -591,23 +587,33 @@ export default function LiveQueue({ mode = 'chats' }) {
       prevPendingRef.current = newPending
       setSessions(incoming)
     } catch (e) {
-      console.error(e)
+      setError(e.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadSessionForPreview(sessionId) {
+    setPreviewLoading(true)
+    try {
+      const fullSession = await apiGet(`/session/${sessionId}`)
+      setPreviewTarget(fullSession)
+    } catch (e) {
+      toast.error(e.message || 'Failed to load session details')
+    } finally {
+      setPreviewLoading(false)
     }
   }
 
   async function acceptSession(sessionId) {
     setAccepting(a => ({ ...a, [sessionId]: true }))
     try {
-      await fetch(`${api.base}/handoff/${sessionId}/accept`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${api.key}` },
-      })
+      await apiPost(`/handoff/${sessionId}/accept`)
+      toast.success('Chat accepted')
       setPreviewTarget(null)
       await fetchQueue()
     } catch (e) {
-      console.error(e)
+      toast.error(e.message)
     } finally {
       setAccepting(a => ({ ...a, [sessionId]: false }))
     }
@@ -616,15 +622,13 @@ export default function LiveQueue({ mode = 'chats' }) {
   async function resolveSession(sessionId, outcome) {
     setResolving(r => ({ ...r, [sessionId]: true }))
     try {
-      await fetch(`${api.base}/session/${sessionId}/resolve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${api.key}` },
-        body: JSON.stringify(outcome),
-      })
+      await apiPost(`/session/${sessionId}/resolve`, outcome)
+      toast.success('Session resolved')
       setResolveTarget(null)
+      setConfirmResolve(null)
       await fetchQueue()
     } catch (e) {
-      console.error(e)
+      toast.error(e.message)
     } finally {
       setResolving(r => ({ ...r, [sessionId]: false }))
     }
@@ -641,12 +645,11 @@ export default function LiveQueue({ mode = 'chats' }) {
   const hasChats = pending.length > 0 || active.length > 0
 
   return (
-    <div className="p-6 max-w-7xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Live Queue</h1>
-          <div className="text-sm text-gray-400 mt-1">Incoming message handoffs</div>
-        </div>
+    <div className="p-3 md:p-6 max-w-7xl mx-auto w-full">
+      <PageHeader
+        title="Live Queue"
+        subtitle="Incoming message handoffs and active agent conversations."
+        actions={(
         <div className="flex gap-2">
           {pending.length > 0 && (
             <span className="text-sm font-semibold px-3 py-1 rounded-full bg-red-100 text-red-700">
@@ -664,15 +667,15 @@ export default function LiveQueue({ mode = 'chats' }) {
             </span>
           )}
         </div>
-      </div>
+        )}
+      />
+
+      {error && <div className="mb-4 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
       {loading ? (
-        <div className="text-center text-gray-400 py-12">Loading...</div>
+        <LoadingState label="Loading live queue..." />
       ) : !hasChats ? (
-        <div className="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
-          <CheckCircle size={28} className="mx-auto mb-3 text-green-500" weight="fill" />
-          <div>No incoming message handoffs</div>
-        </div>
+        <EmptyState icon={<CheckCircle size={22} weight="fill" />} title="No incoming message handoffs" description="Everything is clear right now." />
       ) : (
         <div className="space-y-6">
           {active.length > 0 && (
@@ -698,8 +701,8 @@ export default function LiveQueue({ mode = 'chats' }) {
                   <PendingHandoffCard
                     key={s.session_id}
                     s={s}
-                    onPreview={setPreviewTarget}
-                    onResolve={setResolveTarget}
+                    onLoadPreview={loadSessionForPreview}
+                    onResolve={session => setConfirmResolve(session)}
                     resolving={!!resolving[s.session_id]}
                   />
                 ))}
@@ -708,7 +711,15 @@ export default function LiveQueue({ mode = 'chats' }) {
           )}
         </div>
       )}
-      {previewTarget && (
+      {previewLoading && (
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-10 text-center">
+            <div className="animate-spin w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full mx-auto mb-4" />
+            <div className="text-gray-600">Loading conversation...</div>
+          </div>
+        </div>
+      )}
+      {previewTarget && !previewLoading && (
         <PreviewModal
           session={previewTarget}
           accepting={!!accepting[previewTarget.session_id]}
@@ -722,6 +733,16 @@ export default function LiveQueue({ mode = 'chats' }) {
           busy={!!resolving[resolveTarget.session_id]}
           onCancel={() => setResolveTarget(null)}
           onSubmit={outcome => resolveSession(resolveTarget.session_id, outcome)}
+        />
+      )}
+      {confirmResolve && (
+        <ConfirmDialog
+          title="Resolve Waiting Session"
+          message={`Resolve the waiting session for ${confirmResolve.customer_id}? This removes it from the live queue.`}
+          confirmLabel="Resolve"
+          danger
+          onCancel={() => setConfirmResolve(null)}
+          onConfirm={() => resolveSession(confirmResolve.session_id, DEFAULT_OUTCOME)}
         />
       )}
     </div>

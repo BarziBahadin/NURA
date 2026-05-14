@@ -1,24 +1,27 @@
-import React, { useState, useEffect } from 'react'
+import React, { Suspense, lazy, useState, useEffect } from 'react'
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import {
   ChartBar, Bell, Folder, Lightbulb, ChatCircle, TrendUp,
   PuzzlePiece, ChatCenteredText, Books, Users, Monitor, Tree,
-  CaretLeft, CaretRight, SignOut,
+  CaretLeft, CaretRight, SignOut, List,
 } from '@phosphor-icons/react'
-import Dashboard from './pages/Dashboard.jsx'
-import LiveQueue from './pages/LiveQueue.jsx'
-import SessionViewer from './pages/SessionViewer.jsx'
-import KnowledgeBase from './pages/KnowledgeBase.jsx'
-import Reports from './pages/Reports.jsx'
-import Cases from './pages/Cases.jsx'
-import Suggestions from './pages/Suggestions.jsx'
 import Login from './pages/Login.jsx'
-import UserManagement from './pages/UserManagement.jsx'
-import SystemMonitor from './pages/SystemMonitor.jsx'
-import KnowledgeGapQueue from './pages/KnowledgeGapQueue.jsx'
-import CannedReplies from './pages/CannedReplies.jsx'
-import Rules from './pages/Rules.jsx'
+import { LoadingState, ToastProvider } from './components/ui.jsx'
+import { setUnauthorizedHandler } from './lib/apiFetch.js'
 import { API_BASE, getToken, setToken, isTokenValid, getRole, getUsername, parseToken } from './lib/api.js'
+
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
+const LiveQueue = lazy(() => import('./pages/LiveQueue.jsx'))
+const SessionViewer = lazy(() => import('./pages/SessionViewer.jsx'))
+const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase.jsx'))
+const Reports = lazy(() => import('./pages/Reports.jsx'))
+const Cases = lazy(() => import('./pages/Cases.jsx'))
+const Suggestions = lazy(() => import('./pages/Suggestions.jsx'))
+const UserManagement = lazy(() => import('./pages/UserManagement.jsx'))
+const SystemMonitor = lazy(() => import('./pages/SystemMonitor.jsx'))
+const KnowledgeGapQueue = lazy(() => import('./pages/KnowledgeGapQueue.jsx'))
+const CannedReplies = lazy(() => import('./pages/CannedReplies.jsx'))
+const Rules = lazy(() => import('./pages/Rules.jsx'))
 
 // api.key is a live getter so every fetch call reads the current stored token.
 // The JWT is used for authenticated API calls, showing/hiding the login page,
@@ -36,12 +39,33 @@ const ALL_NAV_ITEMS = [
   { path: '/sessions',       label: 'Sessions',        Icon: ChatCircle,       roles: ['admin', 'agent', 'viewer'] },
   { path: '/reports',        label: 'Reports',         Icon: TrendUp,          roles: ['admin', 'viewer'] },
   { path: '/gaps',           label: 'Knowledge Gaps',  Icon: PuzzlePiece,      roles: ['admin'] },
-  { path: '/canned-replies', label: 'Canned Replies',  Icon: ChatCenteredText, roles: ['admin'] },
+  { path: '/canned-replies', label: 'Canned Replies',  Icon: ChatCenteredText, roles: ['admin', 'agent'] },
   { path: '/knowledge',      label: 'Knowledge Base',  Icon: Books,            roles: ['admin'] },
   { path: '/rules',          label: 'Rules Engine',    Icon: Tree,             roles: ['admin'] },
   { path: '/users',          label: 'Team',            Icon: Users,            roles: ['admin'] },
   { path: '/monitor',        label: 'System Monitor',  Icon: Monitor,          roles: ['admin'] },
 ]
+
+function MobileTopBar({ pendingCount, onMenuToggle }) {
+  return (
+    <div className="md:hidden sticky top-0 z-30 flex items-center h-14 bg-gray-900 px-4 border-b border-gray-700">
+      <button
+        onClick={onMenuToggle}
+        className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white flex items-center justify-center transition-[background-color,color] duration-200 ease-out"
+        title="Toggle menu"
+        aria-label="Toggle menu"
+      >
+        <List size={24} />
+      </button>
+      <span className="text-blue-400 font-bold text-lg ml-3 flex-1">NURA Admin</span>
+      {pendingCount > 0 && (
+        <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+          {pendingCount}
+        </span>
+      )}
+    </div>
+  )
+}
 
 function AiToggle({ role, collapsed = false }) {
   const [enabled, setEnabled] = React.useState(null)
@@ -224,6 +248,7 @@ export default function App() {
   const [authed, setAuthed] = useState(() => isTokenValid(getToken()))
   const [pendingCount, setPendingCount] = useState(0)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('nura_sidebar_collapsed') === 'true')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [role, setRole] = useState(() => getRole())
   const [username, setUsername] = useState(() => getUsername())
   const navigate = useNavigate()
@@ -244,6 +269,11 @@ export default function App() {
     setAuthed(false)
     navigate('/', { replace: true })
   }
+
+  useEffect(() => {
+    setUnauthorizedHandler(handleLogout)
+    return () => setUnauthorizedHandler(null)
+  }, [])
 
   function toggleSidebar() {
     setSidebarCollapsed(value => {
@@ -275,42 +305,82 @@ export default function App() {
   }, [authed])
 
   if (!authed) {
-    return <Login onLogin={handleLogin} />
+    return (
+      <ToastProvider>
+        <Login onLogin={handleLogin} />
+      </ToastProvider>
+    )
   }
 
   return (
+    <ToastProvider>
     <div className="flex min-h-screen">
-      <Sidebar
-        pendingCount={pendingCount}
-        onLogout={handleLogout}
-        role={role}
-        username={username}
-        collapsed={sidebarCollapsed}
-        onToggleCollapsed={toggleSidebar}
-        onNavClick={() => {
-          if (!sidebarCollapsed) {
-            setSidebarCollapsed(true)
-            localStorage.setItem('nura_sidebar_collapsed', 'true')
-          }
-        }}
-      />
-      <main className="flex-1 min-w-0 overflow-auto">
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/queue" element={<LiveQueue mode="chats" />} />
-          <Route path="/cases" element={<Cases />} />
-          <Route path="/suggestions" element={<Suggestions />} />
-          <Route path="/sessions" element={<SessionViewer />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/gaps" element={<KnowledgeGapQueue />} />
-          <Route path="/canned-replies" element={<CannedReplies />} />
-          <Route path="/knowledge" element={<KnowledgeBase />} />
-          <Route path="/rules" element={<Rules />} />
-          <Route path="/users" element={<UserManagement />} />
-          <Route path="/monitor" element={<SystemMonitor />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
+      {/* Desktop sidebar */}
+      <div className="hidden md:block">
+        <Sidebar
+          pendingCount={pendingCount}
+          onLogout={handleLogout}
+          role={role}
+          username={username}
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={toggleSidebar}
+          onNavClick={() => {
+            if (!sidebarCollapsed) {
+              setSidebarCollapsed(true)
+              localStorage.setItem('nura_sidebar_collapsed', 'true')
+            }
+          }}
+        />
+      </div>
+
+      {/* Mobile drawer overlay */}
+      {mobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className="absolute left-0 top-0 h-full">
+            <Sidebar
+              pendingCount={pendingCount}
+              onLogout={handleLogout}
+              role={role}
+              username={username}
+              collapsed={false}
+              onToggleCollapsed={() => {}}
+              onNavClick={() => setMobileMenuOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Main content area */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <MobileTopBar
+          pendingCount={pendingCount}
+          onMenuToggle={() => setMobileMenuOpen(v => !v)}
+        />
+        <main className="flex-1 min-w-0 overflow-auto">
+          <Suspense fallback={<div className="p-6"><LoadingState label="Loading page..." /></div>}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/queue" element={<LiveQueue mode="chats" />} />
+              <Route path="/cases" element={<Cases />} />
+              <Route path="/suggestions" element={<Suggestions />} />
+              <Route path="/sessions" element={<SessionViewer />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/gaps" element={<KnowledgeGapQueue />} />
+              <Route path="/canned-replies" element={<CannedReplies />} />
+              <Route path="/knowledge" element={<KnowledgeBase />} />
+              <Route path="/rules" element={<Rules />} />
+              <Route path="/users" element={<UserManagement />} />
+              <Route path="/monitor" element={<SystemMonitor />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </main>
+      </div>
     </div>
+    </ToastProvider>
   )
 }

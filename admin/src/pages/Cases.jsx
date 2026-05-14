@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { X } from '@phosphor-icons/react'
-import { api } from '../App.jsx'
 import { getUsername } from '../lib/api.js'
+import { apiGet, apiPatch, apiPost } from '../lib/apiFetch.js'
+import { Button, EmptyState, LoadingState, PageHeader, useToast } from '../components/ui.jsx'
 
 const STATUSES = [
   ['all', 'All'],
@@ -90,6 +91,7 @@ function activityText(item) {
 }
 
 function CreateCaseModal({ departments, onClose, onCreated }) {
+  const toast = useToast()
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -121,13 +123,8 @@ function CreateCaseModal({ departments, onClose, onCreated }) {
         owner: form.owner || null,
         tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
       }
-      const res = await fetch(`${api.base}/cases`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${api.key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.detail || 'Failed to create case')
+      const data = await apiPost('/cases', payload)
+      toast.success('Case created')
       onCreated(data)
     } catch (e) {
       setError(e.message)
@@ -227,6 +224,7 @@ function CreateCaseModal({ departments, onClose, onCreated }) {
 }
 
 function CaseRow({ item, departments, onUpdated }) {
+  const toast = useToast()
   const [expanded, setExpanded] = useState(false)
   const [draft, setDraft] = useState(() => ({
     status: item.status,
@@ -245,11 +243,8 @@ function CaseRow({ item, departments, onUpdated }) {
   const fetchActivity = useCallback(async () => {
     setActivityLoading(true)
     try {
-      const res = await fetch(`${api.base}/cases/${item.id}/activity`, {
-        headers: { Authorization: `Bearer ${api.key}` },
-      })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok) setActivity(data.activity || [])
+      const data = await apiGet(`/cases/${item.id}/activity`)
+      setActivity(data.activity || [])
     } finally {
       setActivityLoading(false)
     }
@@ -262,16 +257,13 @@ function CaseRow({ item, departments, onUpdated }) {
   async function save() {
     setBusy(true)
     try {
-      const res = await fetch(`${api.base}/cases/${item.id}`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${api.key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...draft, owner: draft.owner || null }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.detail || 'Failed to update case')
+      const data = await apiPatch(`/cases/${item.id}`, { ...draft, owner: draft.owner || null })
+      toast.success('Case updated')
       onUpdated(data)
       await fetchActivity()
       setExpanded(false)
+    } catch (e) {
+      toast.error(e.message)
     } finally {
       setBusy(false)
     }
@@ -281,17 +273,14 @@ function CaseRow({ item, departments, onUpdated }) {
     if (!note.trim()) return
     setNoteBusy(true)
     try {
-      const res = await fetch(`${api.base}/cases/${item.id}/notes`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${api.key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.detail || 'Failed to add note')
+      const data = await apiPost(`/cases/${item.id}/notes`, { note })
       setDraft(d => ({ ...d, internal_notes: data.internal_notes || d.internal_notes }))
       setNote('')
+      toast.success('Note added')
       onUpdated(data)
       await fetchActivity()
+    } catch (e) {
+      toast.error(e.message)
     } finally {
       setNoteBusy(false)
     }
@@ -428,6 +417,7 @@ export default function Cases({
   hideDepartmentFilter = false,
   embeddedHeader = false,
 }) {
+  const toast = useToast()
   const [cases, setCases] = useState([])
   const [departments, setDepartments] = useState([])
   const [stats, setStats] = useState({})
@@ -462,11 +452,7 @@ export default function Cases({
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`${api.base}/cases?${query}`, {
-        headers: { Authorization: `Bearer ${api.key}` },
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.detail || 'Failed to load cases')
+      const data = await apiGet(`/cases?${query}`)
       setCases(data.cases || [])
       setStats(data.stats || {})
       setOverdue(data.overdue || 0)
@@ -483,10 +469,11 @@ export default function Cases({
   useEffect(() => {
     async function loadDepartments() {
       try {
-        const res = await fetch(`${api.base}/departments`, { headers: { Authorization: `Bearer ${api.key}` } })
-        const data = await res.json()
+        const data = await apiGet('/departments')
         setDepartments(data.departments || [])
-      } catch {}
+      } catch (e) {
+        toast.error(e.message)
+      }
     }
     loadDepartments()
   }, [])
@@ -502,20 +489,24 @@ export default function Cases({
 
   return (
     <div className={`${embeddedHeader ? 'px-6 pb-6 pt-2' : 'p-6'} max-w-7xl mx-auto w-full`}>
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
-        <div className={embeddedHeader ? 'sr-only' : ''}>
-          <h1 className="text-2xl font-bold text-gray-800">{title}</h1>
-          <div className="text-xs text-gray-400 mt-1">{subtitle}</div>
+      {!embeddedHeader && (
+        <PageHeader
+          title={title}
+          subtitle={subtitle}
+          actions={(
+            <>
+              <Button variant="secondary" onClick={fetchCases}>Refresh</Button>
+              <Button onClick={() => setCreateOpen(true)}>{createLabel}</Button>
+            </>
+          )}
+        />
+      )}
+      {embeddedHeader && (
+        <div className="mb-4 flex justify-end gap-2">
+          <Button variant="secondary" onClick={fetchCases}>Refresh</Button>
+          <Button onClick={() => setCreateOpen(true)}>{createLabel}</Button>
         </div>
-        <div className="flex gap-2">
-          <button onClick={fetchCases} className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">
-            Refresh
-          </button>
-          <button onClick={() => setCreateOpen(true)} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">
-            {createLabel}
-          </button>
-        </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <Kpi label="Open Work" value={openCount} tone={openCount ? 'text-blue-600' : 'text-gray-500'} />
@@ -554,11 +545,9 @@ export default function Cases({
       </div>
 
       {loading ? (
-        <div className="text-center text-gray-400 py-16 text-sm">Loading cases...</div>
+        <LoadingState label="Loading cases..." />
       ) : cases.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow p-12 text-center text-gray-400 text-sm">
-          No cases found for this filter
-        </div>
+        <EmptyState title="No cases found" description="Try changing the filters or create a new case." action={<Button onClick={() => setCreateOpen(true)}>{createLabel}</Button>} />
       ) : (
         <div className="space-y-3">
           {cases.map(item => (

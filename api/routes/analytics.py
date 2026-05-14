@@ -1,5 +1,5 @@
+import json
 import logging
-import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -16,8 +16,32 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
-_DASHBOARD_CACHE: dict = {}
-_DASHBOARD_TTL = 60  # seconds — prevents stampede under concurrent dashboard opens
+_DASHBOARD_TTL = 60  # seconds
+
+
+async def _get_dashboard_cache(days: int) -> dict | None:
+    """Read dashboard cache from Redis (shared across all workers)."""
+    try:
+        from core.session_manager import get_redis
+        raw = await get_redis().get(f"cache:dashboard:{days}")
+        if raw:
+            return json.loads(raw)
+    except Exception as e:
+        logger.debug("Dashboard cache read failed: %s", e)
+    return None
+
+
+async def _set_dashboard_cache(days: int, result: dict) -> None:
+    """Write dashboard result to Redis with TTL."""
+    try:
+        from core.session_manager import get_redis
+        await get_redis().setex(
+            f"cache:dashboard:{days}",
+            _DASHBOARD_TTL,
+            json.dumps(result, default=str),
+        )
+    except Exception as e:
+        logger.debug("Dashboard cache write failed: %s", e)
 
 ALLOWED_EVENT_TYPES = {
     "chat_open", "chat_close", "lang_switch", "send_message",
@@ -95,11 +119,9 @@ async def track_event(request: Request, payload: EventPayload):
 
 @router.get("/analytics/dashboard")
 async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = Depends(verify_api_key)):
-    cache_key = str(days)
-    now = time.monotonic()
-    cached = _DASHBOARD_CACHE.get(cache_key)
-    if cached and (now - cached["at"]) < _DASHBOARD_TTL:
-        return cached["result"]
+    cached = await _get_dashboard_cache(days)
+    if cached is not None:
+        return cached
 
     pool = await get_db_pool()
     now = datetime.now(timezone.utc)
@@ -140,6 +162,22 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
             since,
         )
         source_breakdown = {r["source"]: r["cnt"] for r in src_rows}
+
+        source_quality_rows = await conn.fetch(
+            """
+            SELECT
+                source,
+                COUNT(*) AS messages,
+                ROUND(AVG(confidence)::numeric, 3) AS avg_confidence,
+                COUNT(*) FILTER (WHERE confidence < 0.70) AS low_confidence,
+                COUNT(*) FILTER (WHERE escalated) AS escalated
+            FROM conversation_logs
+            WHERE created_at >= $1 AND source IS NOT NULL AND source != ''
+            GROUP BY source
+            ORDER BY messages DESC
+            """,
+            since,
+        )
 
         # ── top tree topics ───────────────────────────────────────────────
         topic_rows = await conn.fetch(
@@ -235,6 +273,20 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
         feedback_good = feedback_row["good"] or 0
         feedback_bad = feedback_row["bad"] or 0
 
+        feedback_source_rows = await conn.fetch(
+            """
+            SELECT
+                COALESCE(NULLIF(source, ''), 'unknown') AS source,
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE score = 'good') AS good,
+                COUNT(*) FILTER (WHERE score = 'bad') AS bad
+            FROM message_feedback
+            WHERE created_at >= $1
+            GROUP BY COALESCE(NULLIF(source, ''), 'unknown')
+            """,
+            since,
+        )
+
         outcome_row = await conn.fetchrow(
             """
             SELECT
@@ -242,7 +294,7 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
                 ROUND(AVG(time_to_resolution_seconds)::numeric, 1) AS avg_resolution,
                 COUNT(*) AS resolved
             FROM session_outcomes
-            WHERE created_at >= $1 OR resolved_at >= $1
+            WHERE resolved_at >= $1
             """,
             since,
         )
@@ -259,6 +311,20 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
             since,
         )
         knowledge_gaps = gap_row["gaps"] or 0
+
+        top_failed_rows = await conn.fetch(
+            """
+            SELECT session_id, channel, customer_message, source,
+                   ROUND(confidence::numeric, 2) AS confidence,
+                   escalated, created_at
+            FROM conversation_logs
+            WHERE created_at >= $1
+              AND (confidence < 0.70 OR escalated = TRUE)
+            ORDER BY escalated DESC, confidence ASC, created_at DESC
+            LIMIT 8
+            """,
+            since,
+        )
 
         cost_row = await conn.fetchrow(
             """
@@ -534,6 +600,55 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
     }
     feedback_positive_rate = round(feedback_good / feedback_total, 4) if feedback_total else 0
     deflection_rate = round((total_sessions - escalations) / total_sessions, 4) if total_sessions else 0
+    low_confidence_messages = sum(r["low_confidence"] or 0 for r in source_quality_rows)
+    automated_messages = max(total_messages - escalations, 0)
+    feedback_by_source = {
+        r["source"]: {
+            "total": r["total"] or 0,
+            "good": r["good"] or 0,
+            "bad": r["bad"] or 0,
+        }
+        for r in feedback_source_rows
+    }
+    source_quality = []
+    for r in source_quality_rows:
+        source = r["source"]
+        feedback = feedback_by_source.get(source, {"total": 0, "good": 0, "bad": 0})
+        source_quality.append({
+            "source": source,
+            "messages": r["messages"] or 0,
+            "avg_confidence": float(r["avg_confidence"] or 0),
+            "low_confidence": r["low_confidence"] or 0,
+            "low_confidence_rate": round((r["low_confidence"] or 0) / (r["messages"] or 1), 4),
+            "escalated": r["escalated"] or 0,
+            "feedback_total": feedback["total"],
+            "feedback_good": feedback["good"],
+            "feedback_bad": feedback["bad"],
+            "positive_feedback_rate": round(feedback["good"] / feedback["total"], 4) if feedback["total"] else 0,
+        })
+    quality = {
+        "automation_rate": round(automated_messages / total_messages, 4) if total_messages else 0,
+        "openai_fallback_rate": round((source_breakdown.get("openai", 0) or 0) / total_messages, 4) if total_messages else 0,
+        "rules_rate": round((source_breakdown.get("rules", 0) or source_breakdown.get("rule-based", 0) or 0) / total_messages, 4) if total_messages else 0,
+        "ml_rate": round((source_breakdown.get("local_model", 0) or 0) / total_messages, 4) if total_messages else 0,
+        "low_confidence_messages": low_confidence_messages,
+        "low_confidence_rate": round(low_confidence_messages / total_messages, 4) if total_messages else 0,
+        "knowledge_gap_rate_per_100": round((knowledge_gaps / total_messages) * 100, 2) if total_messages else 0,
+        "bad_feedback_rate": round(feedback_bad / feedback_total, 4) if feedback_total else 0,
+        "source_quality": source_quality,
+        "top_failed_questions": [
+            {
+                "session_id": r["session_id"],
+                "channel": r["channel"],
+                "customer_message": r["customer_message"],
+                "source": r["source"],
+                "confidence": float(r["confidence"] or 0),
+                "escalated": r["escalated"],
+                "created_at": r["created_at"].isoformat(),
+            }
+            for r in top_failed_rows
+        ],
+    }
     deltas = {
         "messages": _pct_delta(total_messages, previous_messages),
         "sessions": _pct_delta(total_sessions, previous_sessions),
@@ -554,7 +669,7 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
     ]
     attention_items = sorted([item for item in attention_items if item], key=lambda item: item["rank"])[:6]
 
-    return {
+    result = {
         "period_days":          days,
         "total_sessions":       total_sessions,
         "total_messages":       total_messages,
@@ -595,8 +710,9 @@ async def get_dashboard(days: int = Query(default=30, ge=1, le=365), _: None = D
         "cases": cases,
         "suggestions": suggestions,
         "attention_items": attention_items,
+        "quality": quality,
     }
-    _DASHBOARD_CACHE[cache_key] = {"result": result, "at": time.monotonic()}
+    await _set_dashboard_cache(days, result)
     return result
 
 
@@ -684,13 +800,15 @@ async def get_reports(
         )
         bad_feedback_rows = await conn.fetch(
             """
-            SELECT cl.session_id, cl.customer_message, cl.agent_response,
-                   cl.source, mf.reason, mf.created_at
+            SELECT DISTINCT ON (mf.id)
+                mf.session_id, mf.reason, mf.created_at,
+                cl.customer_message, cl.agent_response, cl.source
             FROM message_feedback mf
-            JOIN conversation_logs cl ON cl.session_id = mf.session_id
+            LEFT JOIN conversation_logs cl
+                ON cl.session_id = mf.session_id
+               AND ($2::text IS NULL OR cl.channel = $2)
             WHERE mf.created_at >= $1 AND mf.score = 'bad'
-              AND ($2::text IS NULL OR cl.channel = $2)
-            ORDER BY mf.created_at DESC
+            ORDER BY mf.id DESC, cl.id DESC
             LIMIT 50
             """,
             since, ch,

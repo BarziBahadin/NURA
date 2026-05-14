@@ -23,7 +23,7 @@ from db.postgres import close_db_pool, init_db
 from routes import ai_control, analytics, auth, canned_replies, cases, handoff, health, knowledge, knowledge_gaps, message, monitor, rules, session, upload, users
 from routes.auth import seed_admin_user
 from routes.cases import refresh_department_cache
-from routes.telegram import run_telegram_poller
+from routes.telegram import close_http_client, run_telegram_poller
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -106,6 +106,7 @@ async def lifespan(app: FastAPI):
             pass
     await close_redis()
     await close_db_pool()
+    await close_http_client()
     logger.info("Shutting down NURA API...")
 
 

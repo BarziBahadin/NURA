@@ -6,7 +6,7 @@
   if (window.__NURA_WIDGET_LOADED__) return;
   window.__NURA_WIDGET_LOADED__ = true;
 
-  var API_BASE = (_s && _s.getAttribute('data-api')) || 'http://localhost:8080/v1';
+  var API_BASE = (_s && _s.getAttribute('data-api')) || '/v1';
   var initialLang = (_s && _s.getAttribute('data-lang')) || 'ar';
   var widgetPosition = (_s && _s.getAttribute('data-position')) || 'bottom-left';
   var primaryColor = (_s && _s.getAttribute('data-primary')) || '#f97316';
@@ -32,15 +32,15 @@
     '#chat-toggle {',
     '  position: fixed; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); left: 28px;',
     '  width: 60px; height: 60px; border-radius: 50%;',
-    '  background: linear-gradient(135deg, #111827, var(--nura-primary));',
+    '  background: #111827;',
     '  border: none; cursor: pointer;',
-    '  box-shadow: 0 14px 34px rgba(17,24,39,0.28), 0 4px 18px rgba(249,115,22,0.36);',
+    '  box-shadow: 0 14px 34px rgba(17,24,39,0.24);',
     '  display: flex; align-items: center; justify-content: center;',
     '  transition: transform 0.2s, box-shadow 0.2s, opacity 0.22s; z-index: 2147483640;',
     '  -webkit-tap-highlight-color: transparent;',
     '}',
     '#nura-widget-root.nura-pos-bottom-right #chat-toggle { left: auto; right: 28px; }',
-    '#chat-toggle:hover { transform: scale(1.08); box-shadow: 0 18px 42px rgba(17,24,39,0.32), 0 6px 24px rgba(249,115,22,0.48); }',
+    '#chat-toggle:hover { transform: translateY(-1px); box-shadow: 0 18px 42px rgba(17,24,39,0.28); }',
 
     '#nura-badge {',
     '  position: absolute; top: -4px; right: -4px;',
@@ -51,9 +51,9 @@
 
     '#chat-window {',
     '  position: fixed; top: 50%; left: 50%;',
-    '  width: 430px; height: min(700px, calc(var(--nura-viewport-height) - 48px)); max-height: 700px;',
-    '  background: #fff; border-radius: 22px; border: 1px solid rgba(17,24,39,0.08);',
-    '  box-shadow: 0 26px 78px rgba(15,23,42,0.22);',
+    '  width: 430px; max-height: 700px;',
+    '  background: #fff; border-radius: 12px; border: 1px solid rgba(17,24,39,0.12);',
+    '  box-shadow: 0 24px 64px rgba(15,23,42,0.20);',
     '  display: flex; flex-direction: column; overflow: hidden;',
     '  overscroll-behavior: contain;',
     '  z-index: 2147483639;',
@@ -64,21 +64,15 @@
     '#chat-window.nura-open { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: all; }',
 
     '.nura-chat-header {',
-    '  background: linear-gradient(135deg, #101827 0%, #1f2937 58%, #f97316 155%);',
+    '  background: #111827;',
     '  padding: 14px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0;',
     '  direction: ltr; position: relative; overflow: hidden;',
     '}',
-    '.nura-chat-header::after {',
-    '  content: "4G+"; position: absolute; bottom: 8px; left: 58px;',
-    '  font-size: 10px; font-weight: 900; color: rgba(34,197,94,0.9);',
-    '  border: 1px solid rgba(34,197,94,0.38); border-radius: 999px; padding: 1px 6px;',
-    '  background: rgba(16,24,39,0.42);',
-    '}',
     '.nura-avatar {',
-    '  width: 42px; height: 42px; border-radius: 50%;',
-    '  background: #fff; border: 1px solid rgba(249,115,22,0.35);',
+    '  width: 40px; height: 40px; border-radius: 10px;',
+    '  background: #fff; border: 1px solid rgba(255,255,255,0.35);',
     '  display: flex; align-items: center; justify-content: center;',
-    '  color: var(--nura-primary); font-weight: 900; font-size: 13px; flex-shrink: 0; letter-spacing: 0;',
+    '  color: var(--nura-primary); font-weight: 900; font-size: 13px; flex-shrink: 0; letter-spacing: -0.5px;',
     '}',
     '.nura-header-info { flex: 1; min-width: 0; text-align: right; }',
     '#chat-window[dir="ltr"] .nura-header-info { text-align: left; }',
@@ -100,7 +94,7 @@
     '  font-size: 11px; font-weight: 800; padding: 4px 9px; cursor: pointer; border-radius: 999px;',
     '  transition: background 0.15s, color 0.15s; font-family: inherit; letter-spacing: 0.3px;',
     '}',
-    '.nura-lang-btn.active { background: rgba(255,255,255,0.95); color: var(--nura-primary); }',
+    '.nura-lang-btn.active { background: rgba(255,255,255,0.95); color: #ea580c; }',
     '.nura-lang-btn:hover:not(.active) { color: #fff; }',
 
     '#nura-close-btn {',
@@ -124,12 +118,12 @@
     '.nura-msg.agent { align-self: flex-end; }',
 
     '.nura-bubble {',
-    '  padding: 10px 14px; border-radius: 16px; font-size: 13.5px;',
+    '  padding: 10px 14px; border-radius: 10px; font-size: 13.5px;',
     '  line-height: 1.65; word-break: break-word; white-space: pre-wrap; unicode-bidi: plaintext; text-align: start;',
     '}',
-    '.nura-msg.user  .nura-bubble { background: linear-gradient(135deg, #1f2937, #334155); color: #fff; border-bottom-right-radius: 5px; box-shadow: 0 5px 16px rgba(15,23,42,0.16); }',
-    '.nura-msg.bot   .nura-bubble { background: #fff; color: #1f2937; border: 1px solid #eef0f3; border-bottom-left-radius: 5px; box-shadow: 0 5px 18px rgba(15,23,42,0.05); }',
-    '.nura-msg.agent .nura-bubble { background: #ecfdf5; color: #065f46; border: 1px solid #bbf7d0; border-bottom-left-radius: 5px; }',
+    '.nura-msg.user  .nura-bubble { background: #111827; color: #fff; border-bottom-right-radius: 4px; box-shadow: 0 5px 14px rgba(15,23,42,0.14); }',
+    '.nura-msg.bot   .nura-bubble { background: #fff; color: #1f2937; border: 1px solid #e5e7eb; border-bottom-left-radius: 4px; box-shadow: 0 4px 14px rgba(15,23,42,0.04); }',
+    '.nura-msg.agent .nura-bubble { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; border-bottom-left-radius: 4px; }',
 
     '.nura-msg.bot .nura-followup-bubble {',
     '  margin-top: 5px; padding: 8px 13px; border-radius: 16px; border-bottom-left-radius: 4px;',
@@ -138,7 +132,7 @@
     '}',
     '.nura-followup-btns { margin-top: 7px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-start; }',
     '.nura-followup-btn {',
-    '  background: #fff; border: 1.5px solid #f97316; color: #ea580c;',
+    '  background: #fff; border: 1.5px solid #f97316; color: #c2410c;',
     '  border-radius: 20px; padding: 4px 11px; font-size: 12px; cursor: pointer;',
     '  font-family: inherit; transition: background 0.15s, color 0.15s;',
     '}',
@@ -153,6 +147,22 @@
     '.nura-msg.user  .nura-meta { align-self: flex-start; }',
     '.nura-msg.bot   .nura-meta { align-self: flex-end; flex-direction: row-reverse; }',
     '.nura-msg.agent .nura-meta { align-self: flex-end; flex-direction: row-reverse; }',
+    '.nura-msg-time { opacity: 0; transition: opacity 0.18s; }',
+    '.nura-msg:hover .nura-msg-time, .nura-bot-row:hover .nura-msg-time { opacity: 1; }',
+
+    '.nura-read-tick { font-size: 10px; color: #ccc; margin-top: 2px; align-self: flex-start; padding: 0 4px; transition: color 0.2s; }',
+    '.nura-read-tick.read { color: var(--nura-primary); }',
+
+    '.nura-bot-row { display: flex; align-items: flex-end; gap: 7px; align-self: flex-end; max-width: 86%; }',
+    '.nura-bot-row .nura-msg { max-width: 100%; }',
+    '.nura-bot-avatar-sm {',
+    '  width: 26px; height: 26px; border-radius: 50%;',
+    '  background: #111827;',
+    '  color: #fff; font-size: 9px; font-weight: 900;',
+    '  display: flex; align-items: center; justify-content: center;',
+    '  flex-shrink: 0; letter-spacing: -0.3px; margin-bottom: 16px;',
+    '}',
+    '.nura-bot-content { display: flex; flex-direction: column; min-width: 0; }',
 
     '.nura-source-tag {',
     '  font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 20px;',
@@ -241,11 +251,11 @@
     '.nura-tree-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }',
     '.nura-tree-opt {',
     '  background: #fff; border: 1px solid #e2e8f0; color: #1f2937;',
-    '  border-radius: 14px; padding: 9px 12px; min-height: 38px; font-size: 12.5px; cursor: pointer;',
+    '  border-radius: 8px; padding: 9px 12px; min-height: 38px; font-size: 12.5px; cursor: pointer;',
     '  font-family: inherit; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s; white-space: normal;',
     '  display: inline-flex; align-items: center; justify-content: center; gap: 5px; text-align: center; line-height: 1.35;',
     '}',
-    '.nura-tree-opt:hover { background: #fff7ed; border-color: #fb923c; color: #c2410c; box-shadow: 0 5px 14px rgba(234,88,12,0.08); }',
+    '.nura-tree-opt:hover { background: #fff7ed; border-color: #fb923c; color: #ea580c; box-shadow: 0 5px 14px rgba(234,88,12,0.08); }',
     '.nura-tree-opt.has-children::after { content: \' ›\'; font-size: 13px; opacity: 0.6; }',
 
     '.nura-chat-footer {',
@@ -265,7 +275,7 @@
 
     '#nura-send-btn {',
     '  width: 42px; height: 42px; border-radius: 50%;',
-    '  background: linear-gradient(135deg, var(--nura-primary), var(--nura-accent));',
+    '  background: #111827;',
     '  border: none; cursor: pointer;',
     '  display: flex; align-items: center; justify-content: center; flex-shrink: 0;',
     '  transition: transform 0.15s, opacity 0.15s;',
@@ -302,10 +312,16 @@
     '.nura-fb-btn:disabled    { opacity: 0.45; cursor: default; }',
 
     '.nura-escalation-banner {',
-    '  background: #fff3cd; border: 1px solid #ffc107; border-radius: 10px;',
-    '  padding: 9px 13px; font-size: 12.5px; color: #856404; text-align: center;',
-    '  animation: nuraFadeUp 0.2s ease;',
+    '  background: linear-gradient(135deg, #fff8ed, #fffbf2); border: 1px solid #fcd34d; border-radius: 14px;',
+    '  padding: 12px 16px; font-size: 13px; color: #92400e;',
+    '  display: flex; align-items: center; gap: 10px;',
+    '  animation: nuraFadeUp 0.2s ease; box-shadow: 0 4px 12px rgba(252,211,77,0.15);',
     '}',
+    '.nura-esc-spinner {',
+    '  width: 18px; height: 18px; border: 2.5px solid #fde68a; border-top-color: #f59e0b;',
+    '  border-radius: 50%; animation: nuraSpin 0.8s linear infinite; flex-shrink: 0;',
+    '}',
+    '@keyframes nuraSpin { to { transform: rotate(360deg); } }',
     '.nura-error-bubble {',
     '  background: #fff1f2; color: #be123c; border: 1px solid #fecdd3;',
     '  padding: 8px 14px; border-radius: 12px; font-size: 13px; align-self: flex-end;',
@@ -323,13 +339,16 @@
     '.nura-star-btn:hover, .nura-star-btn.lit { color: var(--nura-primary); }',
     '.nura-star-btn:hover { transform: scale(1.15); }',
 
+    '@media (prefers-reduced-motion: reduce) {',
+    '  #nura-widget-root *, #nura-widget-root *::before, #nura-widget-root *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }',
+    '}',
     '@media (max-width: 600px) {',
     '  #chat-toggle { width: 56px; height: 56px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); left: 20px; }',
     '  #nura-widget-root.nura-pos-bottom-right #chat-toggle { left: auto; right: 20px; }',
     '  #chat-window {',
     '    top: 0; left: 0; right: 0; bottom: 0;',
     '    width: 100vw; height: 100%; height: 100dvh; max-height: none; border-radius: 0; border: none;',
-    '    transform: translateY(105%);',
+    '    transform: translateY(105%); opacity: 1;',
     '  }',
     '  #chat-window.nura-open { transform: translateY(0); }',
     '  #chat-window.nura-keyboard-active { height: var(--nura-viewport-height); }',
@@ -342,6 +361,11 @@
     '  #chat-window.nura-mobile-input-active #nura-tree-panel {',
     '    max-height: 0; padding-top: 0; padding-bottom: 0; border-top-color: transparent; opacity: 0; overflow: hidden;',
     '  }',
+    '  #nura-close-btn { width: 44px; height: 44px; font-size: 20px; }',
+    '  .nura-tree-nav-btn { width: 44px; height: 44px; }',
+    '  .nura-tree-opt { min-height: 48px; font-size: 14px; padding: 12px 14px; }',
+    '  .nura-followup-btn { min-height: 40px; padding: 8px 14px; font-size: 13px; }',
+    '  .nura-bubble { font-size: 15px; }',
     '}',
     '@media (prefers-reduced-motion: reduce) {',
     '  #nura-widget-root *, #nura-widget-root *::before, #nura-widget-root *::after {',
@@ -367,7 +391,7 @@
   root.style.setProperty('--nura-primary', primaryColor);
   root.style.setProperty('--nura-accent', accentColor);
   root.innerHTML = [
-    '<button id="chat-toggle" aria-label="فتح المحادثة" aria-expanded="false" aria-controls="chat-window">',
+    '<button id="chat-toggle" aria-expanded="false" aria-controls="chat-window">',
     '  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="white" viewBox="0 0 24 24">',
     '    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>',
     '  </svg>',
@@ -436,7 +460,6 @@
       suggestionSending: 'جارٍ الإرسال…',
       suggestionThanks: 'شكراً لك. تم إرسال ملاحظتك إلى فريقنا وسيتم مراجعتها ضمن قسم الاقتراحات.',
       suggestionCase: 'رقم المتابعة',
-      openChatAriaLabel: 'فتح المحادثة',
       attachFirstMessage: '⚠️ اكتب رسالة أولاً قبل إرفاق ملف.',
     },
     ku: {
@@ -466,7 +489,6 @@
       suggestionSending: 'Tê şandin…',
       suggestionThanks: 'Spas. Peyama te hate şandin û dê ji aliyê tîma me ve were nirxandin.',
       suggestionCase: 'Hejmara şopandinê',
-      openChatAriaLabel: 'Vekirina sohbetê',
       attachFirstMessage: '⚠️ Ji kerema xwe berî pêvekirina pelê peyamek binivîse.',
     },
     en: {
@@ -496,7 +518,6 @@
       suggestionSending: 'Sending...',
       suggestionThanks: 'Thank you. Your feedback has been sent to our team and will be reviewed in the suggestions section.',
       suggestionCase: 'Tracking number',
-      openChatAriaLabel: 'Open chat',
       attachFirstMessage: '⚠️ Please send a message before attaching a file.',
     },
   };
@@ -709,21 +730,22 @@
   var typingDebounceTimer  = null;
 
   // ── DOM refs ───────────────────────────────────────────────────────────────
-  var toggle      = root.querySelector('#chat-toggle');
-  var win         = root.querySelector('#chat-window');
-  var closeBtn    = root.querySelector('#nura-close-btn');
-  var msgInput    = root.querySelector('#nura-msg-input');
-  var sendBtn     = root.querySelector('#nura-send-btn');
-  var attachBtn   = root.querySelector('#nura-attach-btn');
-  var fileInput   = root.querySelector('#nura-file-input');
-  var messagesEl  = root.querySelector('#nura-messages');
-  var typingEl    = root.querySelector('#nura-typing');
-  var badge       = root.querySelector('#nura-badge');
-  var treePanel   = root.querySelector('#nura-tree-panel');
-  var headerTitle = root.querySelector('#nura-header-title');
-  var headerStatus= root.querySelector('#nura-header-status');
-  var langBtns    = root.querySelectorAll('.nura-lang-btn');
-  var lastFocusedEl = null;
+  var toggle       = root.querySelector('#chat-toggle');
+  var win          = root.querySelector('#chat-window');
+  var closeBtn     = root.querySelector('#nura-close-btn');
+  var msgInput     = root.querySelector('#nura-msg-input');
+  var sendBtn      = root.querySelector('#nura-send-btn');
+  var attachBtn    = root.querySelector('#nura-attach-btn');
+  var fileInput    = root.querySelector('#nura-file-input');
+  var messagesEl   = root.querySelector('#nura-messages');
+  var typingEl     = root.querySelector('#nura-typing');
+  var badge        = root.querySelector('#nura-badge');
+  var treePanel    = root.querySelector('#nura-tree-panel');
+  var headerTitle  = root.querySelector('#nura-header-title');
+  var headerStatus = root.querySelector('#nura-header-status');
+  var langBtns     = root.querySelectorAll('.nura-lang-btn');
+  var lastUserTickEl = null;
+  var lastFocusedEl  = null;
   var pageScrollY = 0;
   var pageScrollLocked = false;
   var previousBodyStyles = {};
@@ -979,17 +1001,6 @@
 
     treePanel.appendChild(optsDiv);
 
-    if (treeStack.length === 0 && !isEscalated) {
-      var agentBtn = document.createElement('button');
-      agentBtn.className = 'nura-agent-bypass-btn';
-      agentBtn.textContent = UI[currentLang].talkToAgent;
-      agentBtn.addEventListener('click', function () {
-        track('direct_to_agent', 'bypass_btn', '');
-        directToAgent();
-      });
-      treePanel.appendChild(agentBtn);
-
-    }
   }
 
   function renderSuggestionForm(node) {
@@ -1136,7 +1147,6 @@
     langBtns.forEach(function (b) { b.classList.toggle('active', b.dataset.lang === lang); });
     sendBtn.setAttribute('aria-label', t.sendAriaLabel);
     closeBtn.setAttribute('aria-label', t.closeAriaLabel);
-    toggle.setAttribute('aria-label', t.openChatAriaLabel);
     treeStack = [];
     renderTree();
     if (welcomed) {
@@ -1333,8 +1343,13 @@
   function appendUserMsg(text) {
     var div = document.createElement('div');
     div.className = 'nura-msg user';
+    var tick = document.createElement('span');
+    tick.className = 'nura-read-tick';
+    tick.textContent = '✓';
     div.innerHTML = '<div class="nura-bubble">' + escHtml(text) + '</div>' +
-      '<div class="nura-meta"><span>' + fmtTime() + '</span></div>';
+      '<div class="nura-meta"><span class="nura-msg-time">' + fmtTime() + '</span></div>';
+    div.appendChild(tick);
+    lastUserTickEl = tick;
     messagesEl.appendChild(div);
     scrollBottom();
   }
@@ -1375,6 +1390,12 @@
   }
 
   function appendBotMsg(text, confidence, source, sourceDoc) {
+    if (lastUserTickEl) {
+      lastUserTickEl.textContent = '✓✓';
+      lastUserTickEl.classList.add('read');
+      lastUserTickEl = null;
+    }
+
     var t    = UI[currentLang];
     var div  = document.createElement('div');
     div.className = 'nura-msg bot';
@@ -1394,7 +1415,7 @@
       '<div class="nura-meta">' +
         (pct   ? '<span>' + pct + '</span>' : '') +
         (label ? '<span class="nura-source-tag ' + tag + '">' + label + '</span>' : '') +
-        '<span>' + fmtTime() + '</span>' +
+        '<span class="nura-msg-time">' + fmtTime() + '</span>' +
       '</div>';
 
     if (source) {
@@ -1411,7 +1432,17 @@
       div.appendChild(fbDiv);
     }
 
-    messagesEl.appendChild(div);
+    var row     = document.createElement('div');
+    row.className = 'nura-bot-row';
+    var avatar  = document.createElement('div');
+    avatar.className = 'nura-bot-avatar-sm';
+    avatar.textContent = 'NU';
+    var content = document.createElement('div');
+    content.className = 'nura-bot-content';
+    content.appendChild(div);
+    row.appendChild(avatar);
+    row.appendChild(content);
+    messagesEl.appendChild(row);
     scrollBottom();
 
     if (hasFollowUp) {
@@ -1439,7 +1470,17 @@
           showTyping();
           setTimeout(function () { hideTyping(); appendBotMsg(t.noReply, null, null); }, 800);
         });
-        messagesEl.appendChild(fDiv);
+        var fRow    = document.createElement('div');
+        fRow.className = 'nura-bot-row';
+        var fAvatar = document.createElement('div');
+        fAvatar.className = 'nura-bot-avatar-sm';
+        fAvatar.textContent = 'NU';
+        var fContent = document.createElement('div');
+        fContent.className = 'nura-bot-content';
+        fContent.appendChild(fDiv);
+        fRow.appendChild(fAvatar);
+        fRow.appendChild(fContent);
+        messagesEl.appendChild(fRow);
         scrollBottom();
       }, 600);
     }
@@ -1454,13 +1495,13 @@
       '<div class="nura-meta"><span>' + escHtml(agentName || t.agentLabel) + '</span><span>' + fmtTime() + '</span></div>';
     messagesEl.appendChild(div);
     scrollBottom();
-    if (escalationBannerEl) escalationBannerEl.textContent = t.agentConnectedBanner;
+    if (escalationBannerEl) escalationBannerEl.innerHTML = '<span>' + escHtml(t.agentConnectedBanner) + '</span>';
   }
 
   function showEscalationBanner() {
     escalationBannerEl = document.createElement('div');
     escalationBannerEl.className = 'nura-escalation-banner';
-    escalationBannerEl.textContent = UI[currentLang].escalatingBanner;
+    escalationBannerEl.innerHTML = '<div class="nura-esc-spinner"></div><span>' + escHtml(UI[currentLang].escalatingBanner) + '</span>';
     messagesEl.appendChild(escalationBannerEl);
     scrollBottom();
   }

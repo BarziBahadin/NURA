@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { X } from '@phosphor-icons/react'
 import { api } from '../App.jsx'
+import { getRole } from '../lib/api.js'
 
 const EMPTY_FORM = { title: '', body: '', category: '', language: 'ar', sort_order: 0 }
 
@@ -88,6 +89,8 @@ function ReplyModal({ initial, onSave, onClose, saving }) {
 }
 
 export default function CannedReplies() {
+  const role = getRole()
+  const canManage = role === 'admin'
   const [replies, setReplies] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(null)
@@ -167,14 +170,18 @@ export default function CannedReplies() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-800">Canned Replies</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Pre-written messages agents can send with one click</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {canManage ? 'Pre-written messages agents can send with one click' : 'Browse approved replies you can use in live chats'}
+          </p>
         </div>
-        <button
-          onClick={() => setCreating(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-xl transition"
-        >
-          + New Reply
-        </button>
+        {canManage && (
+          <button
+            onClick={() => setCreating(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-xl transition"
+          >
+            + New Reply
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -202,7 +209,7 @@ export default function CannedReplies() {
       ) : visible.length === 0 ? (
         <div className="text-center text-gray-400 py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
           {replies.length === 0
-            ? 'No canned replies yet. Click "+ New Reply" to add the first one.'
+            ? canManage ? 'No canned replies yet. Click "+ New Reply" to add the first one.' : 'No canned replies are available yet.'
             : 'No replies match your filter.'}
         </div>
       ) : (
@@ -230,31 +237,33 @@ export default function CannedReplies() {
                   <p className="text-xs text-gray-400 mt-1">Last edited by {r.updated_by}</p>
                 )}
               </div>
-              <div className="flex gap-2 flex-shrink-0">
-                <button
-                  onClick={() => setEditing(r)}
-                  className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(r.id)}
-                  disabled={deleting === r.id}
-                  className="text-xs px-3 py-1.5 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 transition disabled:opacity-50"
-                >
-                  {deleting === r.id ? '…' : 'Delete'}
-                </button>
-              </div>
+              {canManage && (
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => setEditing(r)}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(r.id)}
+                    disabled={deleting === r.id}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 transition disabled:opacity-50"
+                  >
+                    {deleting === r.id ? '…' : 'Delete'}
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
 
       {/* Modals */}
-      {creating && (
+      {canManage && creating && (
         <ReplyModal onSave={handleSave} onClose={() => setCreating(false)} saving={saving} />
       )}
-      {editing && (
+      {canManage && editing && (
         <ReplyModal initial={editing} onSave={handleSave} onClose={() => setEditing(null)} saving={saving} />
       )}
     </div>

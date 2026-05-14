@@ -1,0 +1,13 @@
+{
+  "name": "nura-widget-dev",
+  "private": true,
+  "scripts": {
+    "dev": "vite --port 9000",
+    "dev:host": "vite --port 9000 --host",
+    "build": "vite build && cp widget.js widget-loader.js widget.html presentation.html dist/",
+    "preview": "vite preview --port 9000"
+  },
+  "devDependencies": {
+    "vite": "^6.0.5"
+  }
+}

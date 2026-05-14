@@ -80,7 +80,7 @@ async def _check_redis_heartbeat(key: str, required: bool = False) -> str:
 
 
 @router.get("/health")
-async def health_check(_: None = Depends(verify_api_key)):
+async def health_check():
     now = time.monotonic()
     if _health_cache.get("at", 0) and (now - _health_cache["at"]) < _HEALTH_TTL:
         return _health_cache["result"]
@@ -132,17 +132,23 @@ async def metrics(_: None = Depends(verify_api_key)):
 
 
 _topic_tree_cache: Optional[dict] = None
+_topic_tree_cache_at: float = 0.0
+_TOPIC_TREE_TTL = 600  # 10 minutes — picks up file changes without a restart
 
 
 @router.get("/topic-tree")
 async def get_topic_tree():
-    global _topic_tree_cache
-    if _topic_tree_cache is not None:
+    global _topic_tree_cache, _topic_tree_cache_at
+    now = time.monotonic()
+    if _topic_tree_cache is not None and (now - _topic_tree_cache_at) < _TOPIC_TREE_TTL:
         return _topic_tree_cache
     try:
         with open("/app/manafest/topic_tree.json", "r", encoding="utf-8") as f:
             _topic_tree_cache = json.load(f)
+        _topic_tree_cache_at = now
     except FileNotFoundError:
         from fastapi import HTTPException
+        if _topic_tree_cache is not None:
+            return _topic_tree_cache  # serve stale rather than 404 on a file glitch
         raise HTTPException(status_code=404, detail="Topic tree not configured")
     return _topic_tree_cache

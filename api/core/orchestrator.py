@@ -106,6 +106,7 @@ def _tokens(text: str) -> set[str]:
 
 _gap_cache: list[dict] | None = None
 _gap_cache_at: float = 0.0
+_gap_cache_lock = asyncio.Lock()
 _GAP_CACHE_TTL = 300  # 5 minutes
 _GAP_VERSION_KEY = "cache:gap_version"
 
@@ -126,26 +127,31 @@ async def _load_gap_rows() -> list[dict]:
     redis_version = await _gap_redis_version()
     if _gap_cache is not None and now - _gap_cache_at < _GAP_CACHE_TTL and _gap_cache_at >= redis_version:
         return _gap_cache
-    try:
-        pool = await get_db_pool()
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT customer_message, approved_answer, intent, sub_intent
-                FROM knowledge_gap_reviews
-                WHERE status IN ('approved', 'resolved')
-                  AND approved_answer IS NOT NULL
-                  AND approved_answer != ''
-                ORDER BY reviewed_at DESC NULLS LAST, updated_at DESC
-                LIMIT 200
-                """
-            )
-        _gap_cache = [dict(r) for r in rows]
-        _gap_cache_at = now
-    except Exception as e:
-        logger.warning(f"Curated gap lookup failed: {e}")
-        if _gap_cache is None:
-            _gap_cache = []
+    async with _gap_cache_lock:
+        # Re-check after acquiring the lock — another coroutine may have refreshed already.
+        now = time.monotonic()
+        if _gap_cache is not None and now - _gap_cache_at < _GAP_CACHE_TTL and _gap_cache_at >= redis_version:
+            return _gap_cache
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT customer_message, approved_answer, intent, sub_intent
+                    FROM knowledge_gap_reviews
+                    WHERE status IN ('approved', 'resolved')
+                      AND approved_answer IS NOT NULL
+                      AND approved_answer != ''
+                    ORDER BY reviewed_at DESC NULLS LAST, updated_at DESC
+                    LIMIT 200
+                    """
+                )
+            _gap_cache = [dict(r) for r in rows]
+            _gap_cache_at = now
+        except Exception as e:
+            logger.warning(f"Curated gap lookup failed: {e}")
+            if _gap_cache is None:
+                _gap_cache = []
     return _gap_cache
 
 
@@ -217,14 +223,15 @@ async def generate_response(
     message: str,
     allow_openai: bool = True,
 ) -> Tuple[str, float, str, Optional[str]]:
-    # 0. Rules engine — exact article match, zero cost
+    # 0. Try deterministic article rules first — exact/keyword pattern answers
+    # should not spend ML/OpenAI work when the imported knowledge base is clear.
     if _rules_engine is not None:
         rules_result = _rules_engine.match(message)
         if rules_result:
             response, confidence = rules_result
             return response, confidence, "rules", None
 
-    # 1. Try local ML model first — free, instant, no API call
+    # 1. Try local ML model next — free, instant, no API call
     if _conversation_service is not None:
         ml_result = _conversation_service.process(message)
         if ml_result["response"] and ml_result["confidence"] >= settings.ml_confidence_threshold:

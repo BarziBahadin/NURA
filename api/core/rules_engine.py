@@ -12,6 +12,8 @@ _STOPWORDS = {
     "اقدر", "ممكن", "عندي", "لدي", "عند", "لدى", "اي", "اذا", "لو",
     "لكن", "او", "حتى", "بعد", "قبل", "مثل", "بس", "فقط", "كل", "جدا",
     "يعني", "يكون", "شركة", "خدمة", "خدمات", "طريقة",
+    "how", "what", "where", "when", "why", "can", "could", "would", "please",
+    "the", "and", "or", "for", "with", "from", "this", "that", "need", "want",
 }
 
 # Common Arabic inflectional suffixes to strip (longest first)
@@ -20,6 +22,26 @@ _SUFFIXES = ("ات", "ون", "ين", "تي", "يا", "ها", "كم", "هم", "ن
 _PREFIXES = ("وال", "بال", "كال", "ال", "وب", "فب", "لل")
 
 _PUNCT = re.compile(r'[؟!.,،؛:؛\?\!\.\,\:\;\"\'ء]+')
+_ALIASES = {
+    "تحميل": {"download"},
+    "تنزيل": {"download"},
+    "download": {"تحميل"},
+    "اندرويد": {"android"},
+    "android": {"اندرويد"},
+    "ايفون": {"iphone", "ios"},
+    "iphone": {"ايفون"},
+    "دخول": {"login"},
+    "تسجيل": {"login"},
+    "login": {"دخول"},
+    "اوقات": {"hour", "hours"},
+    "ساعات": {"hour", "hours"},
+    "ساعة": {"hour", "hours"},
+    "عمل": {"work", "working"},
+    "hour": {"اوقات", "ساعة"},
+    "hours": {"اوقات", "ساعة"},
+    "work": {"عمل"},
+    "working": {"عمل"},
+}
 
 
 def _normalize_word(word: str) -> str:
@@ -33,6 +55,12 @@ def _normalize_word(word: str) -> str:
     # Strip suffix to get approximate root
     for sfx in _SUFFIXES:
         if word.endswith(sfx) and len(word) > len(sfx) + 2:
+            if sfx == "ات" and len(word) <= 5:
+                continue
+            word = word[:-len(sfx)]
+            break
+    for sfx in ("ing", "ed", "s"):
+        if re.fullmatch(r"[a-z]+", word) and word.endswith(sfx) and len(word) > len(sfx) + 3:
             word = word[:-len(sfx)]
             break
     return word
@@ -45,7 +73,35 @@ def _tokenize(text: str) -> set:
         if len(word) < 3 or word in _STOPWORDS or raw in _STOPWORDS:
             continue
         roots.add(word)
+        roots.update(_ALIASES.get(word, set()))
     return roots
+
+
+def _phrases(text: str) -> set[str]:
+    tokens = [t for t in normalize_arabic(text).split() if len(t) > 2 and t not in _STOPWORDS]
+    phrases = set()
+    for size in (2, 3):
+        for i in range(0, max(len(tokens) - size + 1, 0)):
+            phrases.add(" ".join(tokens[i:i + size]))
+    return phrases
+
+
+_MAX_RESPONSE_CHARS = 1200
+# Arabic sentence endings + common punctuation used as truncation boundaries
+_SENTENCE_END_RE = re.compile(r'[.!?؟\n]')
+
+
+def _truncate_response(text: str) -> str:
+    """Trim to the last complete sentence within _MAX_RESPONSE_CHARS."""
+    if len(text) <= _MAX_RESPONSE_CHARS:
+        return text
+    window = text[:_MAX_RESPONSE_CHARS]
+    # Walk backwards to find the last sentence boundary
+    for m in reversed(list(_SENTENCE_END_RE.finditer(window))):
+        candidate = window[:m.end()].strip()
+        if len(candidate) >= 80:  # avoid truncating to just a few chars
+            return candidate
+    return window.strip()
 
 
 class RulesEngine:
@@ -61,15 +117,19 @@ class RulesEngine:
     def __init__(self, articles: list):
         self._rules = []
         for article in articles:
-            # Titles may be English — build keyword set from Arabic content
+            # Build keyword sets from title and body so imported articles with
+            # English product names (Self-Care, APN, 4G) still match chat text.
+            title = article.get("title", "")
             content = article.get("content_ar", "")
             # Use first 600 chars (the key topic terms appear early)
-            keyword_roots = _tokenize(content[:600])
+            keyword_text = f"{title}\n{content[:900]}"
+            keyword_roots = _tokenize(keyword_text)
             if not keyword_roots:
                 continue
             self._rules.append({
-                "title": article["title"],
+                "title": title,
                 "keyword_roots": keyword_roots,
+                "phrases": _phrases(keyword_text),
                 "response": content,
             })
         logger.info(f"RulesEngine loaded {len(self._rules)} article rules")
@@ -87,12 +147,19 @@ class RulesEngine:
         best_response = None
         best_title = None
 
+        msg_phrases = _phrases(message)
+
         for rule in self._rules:
             hits = len(msg_roots & rule["keyword_roots"])
             if hits == 0:
                 continue
+            phrase_hits = len(msg_phrases & rule["phrases"])
+            if len(msg_roots) <= 3 and hits < 2 and phrase_hits == 0:
+                continue
             # Coverage: fraction of query words found in article
-            score = hits / len(msg_roots)
+            score = (hits / len(msg_roots)) + min(phrase_hits * 0.12, 0.24)
+            if phrase_hits == 0 and score < 0.90:
+                continue
             if score > best_score:
                 best_score = score
                 best_response = rule["response"]
@@ -104,6 +171,6 @@ class RulesEngine:
                 f"Rules matched: '{best_title}' "
                 f"(coverage={best_score:.0%}, conf={confidence:.2f})"
             )
-            return best_response, confidence
+            return _truncate_response(best_response), confidence
 
         return None
